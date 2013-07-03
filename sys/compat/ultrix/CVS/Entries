@@ -1,0 +1,18 @@
+/Makefile/1.5/Sun Dec 11 12:20:30 2005//D2013.05.15.22.00.00
+/files.ultrix/1.5/Wed Nov 19 18:36:06 2008//D2013.05.15.22.00.00
+/syscalls.conf/1.4/Fri Nov  1 21:24:19 2002//D2013.05.15.22.00.00
+/syscalls.master/1.51/Tue Mar  2 21:07:22 2010//D2013.05.15.22.00.00
+/ultrix_exec.h/1.6/Wed Nov 19 18:36:06 2008//D2013.05.15.22.00.00
+/ultrix_exec_ecoff.c/1.9/Sun Dec 11 12:20:30 2005//D2013.05.15.22.00.00
+/ultrix_flock.h/1.2/Mon Dec 14 00:47:11 2009//D2013.05.15.22.00.00
+/ultrix_fs.c/1.51/Mon Dec 14 00:47:11 2009//D2013.05.15.22.00.00
+/ultrix_ioctl.c/1.36/Mon Dec 14 00:47:12 2009//D2013.05.15.22.00.00
+/ultrix_misc.c/1.122/Sun Feb 19 21:06:45 2012//D2013.05.15.22.00.00
+/ultrix_mod.c/1.3/Mon Nov 24 11:19:53 2008//D2013.05.15.22.00.00
+/ultrix_pathname.c/1.38/Mon Dec 14 00:47:12 2009//D2013.05.15.22.00.00
+/ultrix_syscall.h/1.62/Tue Mar  2 21:14:44 2010//D2013.05.15.22.00.00
+/ultrix_syscallargs.h/1.57/Tue Mar  2 21:14:44 2010//D2013.05.15.22.00.00
+/ultrix_syscalls.c/1.61/Tue Mar  2 21:14:44 2010//D2013.05.15.22.00.00
+/ultrix_sysent.c/1.64/Tue Mar  2 21:14:44 2010//D2013.05.15.22.00.00
+/ultrix_tty.h/1.3/Mon Dec 14 00:47:12 2009//D2013.05.15.22.00.00
+D
