@@ -6,6 +6,7 @@ A D/citrus////
 A D/compat////
 A D/compat-13////
 A D/compat-43////
+A D/compiler_rt////
 A D/dl////
 A D/dlfcn////
 A D/gdtoa////
@@ -51,4 +52,5 @@ R D/pc532////
 R D/i386////
 R D/hp300////
 R D/dl////
+R D/compiler_rt////
 R D/compat-13////
