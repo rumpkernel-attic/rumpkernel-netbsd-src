@@ -1,4 +1,4 @@
-/*	$NetBSD: init_main.c,v 1.448 2013/03/18 13:36:21 para Exp $	*/
+/*	$NetBSD: init_main.c,v 1.450 2013/06/20 23:21:41 christos Exp $	*/
 
 /*-
  * Copyright (c) 2008, 2009 The NetBSD Foundation, Inc.
@@ -97,7 +97,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: init_main.c,v 1.448 2013/03/18 13:36:21 para Exp $");
+__KERNEL_RCSID(0, "$NetBSD: init_main.c,v 1.450 2013/06/20 23:21:41 christos Exp $");
 
 #include "opt_ddb.h"
 #include "opt_ipsec.h"
@@ -171,7 +171,7 @@ __KERNEL_RCSID(0, "$NetBSD: init_main.c,v 1.448 2013/03/18 13:36:21 para Exp $")
 #include <sys/ksyms.h>
 #include <sys/uidinfo.h>
 #include <sys/kprintf.h>
-#ifdef FAST_IPSEC
+#ifdef IPSEC
 #include <netipsec/ipsec.h>
 #endif
 #ifdef SYSVSHM
@@ -550,7 +550,7 @@ main(void)
 	pax_init();
 #endif /* PAX_MPROTECT || PAX_SEGVGUARD || PAX_ASLR */
 
-#ifdef	FAST_IPSEC
+#ifdef	IPSEC
 	/* Attach network crypto subsystem */
 	ipsec_attach();
 #endif
@@ -564,6 +564,8 @@ main(void)
 	domaininit(true);
 	if_attachdomain();
 	splx(s);
+
+	rnd_init_softint();
 
 #ifdef GPROF
 	/* Initialize kernel profiling. */

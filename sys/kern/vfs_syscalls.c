@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_syscalls.c,v 1.463 2013/01/13 08:15:03 dholland Exp $	*/
+/*	$NetBSD: vfs_syscalls.c,v 1.466 2013/07/18 14:06:27 matt Exp $	*/
 
 /*-
  * Copyright (c) 2008, 2009 The NetBSD Foundation, Inc.
@@ -70,7 +70,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_syscalls.c,v 1.463 2013/01/13 08:15:03 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_syscalls.c,v 1.466 2013/07/18 14:06:27 matt Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_fileassoc.h"
@@ -128,11 +128,7 @@ static int do_sys_mkdirat(struct lwp *l, int, const char *, mode_t,
 static int do_sys_mkfifoat(struct lwp *, int, const char *, mode_t);
 static int do_sys_chmodat(struct lwp *, int, const char *, int, int);
 static int do_sys_chownat(struct lwp *, int, const char *, uid_t, gid_t, int);
-static int do_sys_utimensat(struct lwp *, int, struct vnode *,
-    const char *, int, const struct timespec *, enum uio_seg);
 static int do_sys_accessat(struct lwp *, int, const char *, int ,int);
-static int do_sys_statat(struct lwp *, int, const char *, unsigned int,
-    struct stat *);
 static int do_sys_symlinkat(struct lwp *, const char *, int, const char *,
     enum uio_seg);
 static int do_sys_linkat(struct lwp *, int, const char *, int, const char *,
@@ -3022,7 +3018,7 @@ do_sys_stat(const char *userpath, unsigned int nd_flag,
 	return do_sys_statat(NULL, AT_FDCWD, userpath, nd_flag, sb);
 }
 
-static int
+int
 do_sys_statat(struct lwp *l, int fdat, const char *userpath,
     unsigned int nd_flag, struct stat *sb) 
 {
@@ -3198,10 +3194,10 @@ do_sys_readlinkat(struct lwp *l, int fdat, const char *path, char *buf,
 		KASSERT(l == curlwp);
 		auio.uio_vmspace = l->l_proc->p_vmspace;
 		auio.uio_resid = count;
-		error = VOP_READLINK(vp, &auio, l->l_cred);
+		if ((error = VOP_READLINK(vp, &auio, l->l_cred)) == 0)
+			*retval = count - auio.uio_resid;
 	}
 	vput(vp);
-	*retval = count - auio.uio_resid;
 	return (error);
 }
 
@@ -3784,7 +3780,7 @@ do_sys_utimens(struct lwp *l, struct vnode *vp, const char *path, int flag,
 	return do_sys_utimensat(l, AT_FDCWD, vp, path, flag, tptr, seg);
 }
 
-static int
+int
 do_sys_utimensat(struct lwp *l, int fdat, struct vnode *vp,
     const char *path, int flag, const struct timespec *tptr, enum uio_seg seg)
 {

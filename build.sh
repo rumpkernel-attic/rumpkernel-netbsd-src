@@ -1,5 +1,5 @@
 #! /usr/bin/env sh
-#	$NetBSD: build.sh,v 1.267 2013/05/01 13:12:00 kiyohara Exp $
+#	$NetBSD: build.sh,v 1.270 2013/07/18 22:08:59 matt Exp $
 #
 # Copyright (c) 2001-2011 The NetBSD Foundation, Inc.
 # All rights reserved.
@@ -580,7 +580,7 @@ MACHINE=arc		MACHINE_ARCH=mipsel	DEFAULT
 MACHINE=atari		MACHINE_ARCH=m68k
 MACHINE=bebox		MACHINE_ARCH=powerpc
 MACHINE=cats		MACHINE_ARCH=arm	DEFAULT
-MACHINE=cats		MACHINE_ARCH=earm
+MACHINE=cats		MACHINE_ARCH=earm	ALIAS=ecats
 MACHINE=cesfic		MACHINE_ARCH=m68k
 MACHINE=cobalt		MACHINE_ARCH=mips64el	ALIAS=cobalt64
 MACHINE=cobalt		MACHINE_ARCH=mipsel	DEFAULT
@@ -593,6 +593,7 @@ MACHINE=evbarm		MACHINE_ARCH=earm	ALIAS=evbearm-el
 MACHINE=evbarm		MACHINE_ARCH=earmeb	ALIAS=evbearm-eb
 MACHINE=evbarm		MACHINE_ARCH=earmhf	ALIAS=evbearmhf-el
 MACHINE=evbarm		MACHINE_ARCH=earmhfeb	ALIAS=evbearmhf-eb
+MACHINE=evbcf		MACHINE_ARCH=coldfire
 MACHINE=evbmips		MACHINE_ARCH=		NO_DEFAULT
 MACHINE=evbmips		MACHINE_ARCH=mips64eb	ALIAS=evbmips64-eb
 MACHINE=evbmips		MACHINE_ARCH=mips64el	ALIAS=evbmips64-el
@@ -606,14 +607,15 @@ MACHINE=evbsh3		MACHINE_ARCH=sh3el	ALIAS=evbsh3-el
 MACHINE=ews4800mips	MACHINE_ARCH=mipseb
 MACHINE=hp300		MACHINE_ARCH=m68k
 MACHINE=hp700		MACHINE_ARCH=hppa
-MACHINE=hpcarm		MACHINE_ARCH=arm
+MACHINE=hpcarm		MACHINE_ARCH=arm	DEFAULT
+MACHINE=hpcarm		MACHINE_ARCH=earm	ALIAS=hpcearm
 MACHINE=hpcmips		MACHINE_ARCH=mipsel
 MACHINE=hpcsh		MACHINE_ARCH=sh3el
 MACHINE=i386		MACHINE_ARCH=i386
 MACHINE=ia64		MACHINE_ARCH=ia64
 MACHINE=ibmnws		MACHINE_ARCH=powerpc
 MACHINE=iyonix		MACHINE_ARCH=arm	DEFAULT
-MACHINE=iyonix		MACHINE_ARCH=earm
+MACHINE=iyonix		MACHINE_ARCH=earm	ALIAS=eiyonix
 MACHINE=landisk		MACHINE_ARCH=sh3el
 MACHINE=luna68k		MACHINE_ARCH=m68k
 MACHINE=mac68k		MACHINE_ARCH=m68k
@@ -624,7 +626,7 @@ MACHINE=mmeye		MACHINE_ARCH=sh3eb
 MACHINE=mvme68k		MACHINE_ARCH=m68k
 MACHINE=mvmeppc		MACHINE_ARCH=powerpc
 MACHINE=netwinder	MACHINE_ARCH=arm	DEFAULT
-MACHINE=netwinder	MACHINE_ARCH=earm
+MACHINE=netwinder	MACHINE_ARCH=earm	ALIAS=enetwinder
 MACHINE=news68k		MACHINE_ARCH=m68k
 MACHINE=newsmips	MACHINE_ARCH=mipseb
 MACHINE=next68k		MACHINE_ARCH=m68k
@@ -643,7 +645,7 @@ MACHINE=sbmips		MACHINE_ARCH=mipsel	ALIAS=sbmips-el
 MACHINE=sgimips		MACHINE_ARCH=mips64eb	ALIAS=sgimips64
 MACHINE=sgimips		MACHINE_ARCH=mipseb	DEFAULT
 MACHINE=shark		MACHINE_ARCH=arm	DEFAULT
-MACHINE=shark		MACHINE_ARCH=earm
+MACHINE=shark		MACHINE_ARCH=earm	ALIAS=eshark
 MACHINE=sparc		MACHINE_ARCH=sparc
 MACHINE=sparc64		MACHINE_ARCH=sparc64
 MACHINE=sun2		MACHINE_ARCH=m68000
@@ -651,7 +653,7 @@ MACHINE=sun3		MACHINE_ARCH=m68k
 MACHINE=vax		MACHINE_ARCH=vax
 MACHINE=x68k		MACHINE_ARCH=m68k
 MACHINE=zaurus		MACHINE_ARCH=arm	DEFAULT
-MACHINE=zaurus		MACHINE_ARCH=earm
+MACHINE=zaurus		MACHINE_ARCH=earm	ALIAS=ezaurus
 '
 
 # getarch -- find the default MACHINE_ARCH for a MACHINE,
@@ -1731,7 +1733,7 @@ createmakewrapper()
 	eval cat <<EOF ${makewrapout}
 #! ${HOST_SH}
 # Set proper variables to allow easy "make" building of a NetBSD subtree.
-# Generated from:  \$NetBSD: build.sh,v 1.267 2013/05/01 13:12:00 kiyohara Exp $
+# Generated from:  \$NetBSD: build.sh,v 1.270 2013/07/18 22:08:59 matt Exp $
 # with these arguments: ${_args}
 #
 

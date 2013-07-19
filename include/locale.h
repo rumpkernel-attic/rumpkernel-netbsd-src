@@ -1,4 +1,4 @@
-/*	$NetBSD: locale.h,v 1.21 2013/04/30 00:45:04 joerg Exp $	*/
+/*	$NetBSD: locale.h,v 1.24 2013/05/17 14:11:55 joerg Exp $	*/
 
 /*
  * Copyright (c) 1991, 1993
@@ -85,10 +85,6 @@ typedef struct _locale		*locale_t;
 #  endif
 #endif
 
-#ifdef __SETLOCALE_SOURCE__
-#define _LC_GLOBAL_LOCALE	((locale_t)-1)
-#endif
-
 __BEGIN_DECLS
 struct lconv *localeconv(void);
 char *setlocale(int, const char *) __RENAME(__setlocale50);
@@ -109,6 +105,22 @@ locale_t	duplocale(locale_t);
 void		freelocale(locale_t);
 struct lconv	*localeconv_l(locale_t);
 locale_t	newlocale(int, const char *, locale_t);
+
+#ifndef _LIBC
+extern struct _locale	_lc_global_locale;
+#else
+extern __dso_protected struct _locale	_lc_global_locale;
+#endif
+#define LC_GLOBAL_LOCALE	(&_lc_global_locale)
+#endif /* _POSIX_SOURCE >= 200809 || _NETBSD_SOURCE */
+
+#if defined(_NETBSD_SOURCE)
+#  ifndef _LIBC
+extern const struct _locale _lc_C_locale;
+#  else
+extern __dso_protected const struct _locale _lc_C_locale;
+#  endif
+#define LC_C_LOCALE		((locale_t)__UNCONST(&_lc_C_locale))
 #endif
 __END_DECLS
 

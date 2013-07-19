@@ -1,4 +1,4 @@
-/*	$NetBSD: if.c,v 1.262 2013/03/10 19:46:12 christos Exp $	*/
+/*	$NetBSD: if.c,v 1.265 2013/06/29 21:06:58 rmind Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2008 The NetBSD Foundation, Inc.
@@ -90,13 +90,12 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: if.c,v 1.262 2013/03/10 19:46:12 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: if.c,v 1.265 2013/06/29 21:06:58 rmind Exp $");
 
 #include "opt_inet.h"
 
 #include "opt_atalk.h"
 #include "opt_natm.h"
-#include "opt_pfil_hooks.h"
 
 #include <sys/param.h>
 #include <sys/mbuf.h>
@@ -164,9 +163,8 @@ static int if_cloners_count;
 static uint64_t index_gen;
 static kmutex_t index_gen_mtx;
 
-#ifdef PFIL_HOOKS
-struct pfil_head if_pfil;	/* packet filtering hook for interfaces */
-#endif
+/* Packet filtering hook for interfaces. */
+pfil_head_t *	if_pfil;
 
 static kauth_listener_t if_listener;
 
@@ -237,15 +235,9 @@ ifinit(void)
 void
 ifinit1(void)
 {
-
 	mutex_init(&index_gen_mtx, MUTEX_DEFAULT, IPL_NONE);
-
-#ifdef PFIL_HOOKS
-	if_pfil.ph_type = PFIL_TYPE_IFNET;
-	if_pfil.ph_ifnet = NULL;
-	if (pfil_head_register(&if_pfil) != 0)
-		printf("WARNING: unable to register pfil hook\n");
-#endif
+	if_pfil = pfil_head_create(PFIL_TYPE_IFNET, NULL);
+	KASSERT(if_pfil != NULL);
 }
 
 struct ifnet *
@@ -611,15 +603,9 @@ if_attach(struct ifnet *ifp)
 	ifp->if_snd.altq_ifp  = ifp;
 #endif
 
-#ifdef PFIL_HOOKS
-	ifp->if_pfil.ph_type = PFIL_TYPE_IFNET;
-	ifp->if_pfil.ph_ifnet = ifp;
-	if (pfil_head_register(&ifp->if_pfil) != 0)
-		printf("%s: WARNING: unable to register pfil hook\n",
-		    ifp->if_xname);
-	(void)pfil_run_hooks(&if_pfil,
+	ifp->if_pfil = pfil_head_create(PFIL_TYPE_IFNET, ifp);
+	(void)pfil_run_hooks(if_pfil,
 	    (struct mbuf **)PFIL_IFNET_ATTACH, ifp, PFIL_IFNET);
-#endif
 
 	if (!STAILQ_EMPTY(&domains))
 		if_attachdomain1(ifp);
@@ -845,11 +831,9 @@ again:
 		}
 	}
 
-#ifdef PFIL_HOOKS
-	(void)pfil_run_hooks(&if_pfil,
+	(void)pfil_run_hooks(if_pfil,
 	    (struct mbuf **)PFIL_IFNET_DETACH, ifp, PFIL_IFNET);
-	(void)pfil_head_unregister(&ifp->if_pfil);
-#endif
+	(void)pfil_head_destroy(ifp->if_pfil);
 
 	/* Announce that the interface is gone. */
 	rt_ifannouncemsg(ifp, IFAN_DEPARTURE);
@@ -1333,19 +1317,63 @@ link_rtrequest(int cmd, struct rtentry *rt, const struct rt_addrinfo *info)
 
 /*
  * Handle a change in the interface link state.
+ * XXX: We should listen to the routing socket in-kernel rather
+ * than calling in6_if_link_* functions directly from here.
  */
 void
 if_link_state_change(struct ifnet *ifp, int link_state)
 {
-	if (ifp->if_link_state == link_state)
+	int old_link_state, s;
+
+	s = splnet();
+	if (ifp->if_link_state == link_state) {
+		splx(s);
 		return;
+	}
+
+	old_link_state = ifp->if_link_state;
 	ifp->if_link_state = link_state;
+#ifdef DEBUG
+	log(LOG_DEBUG, "%s: link state %s (was %s)\n", ifp->if_xname,
+		link_state == LINK_STATE_UP ? "UP" :
+		link_state == LINK_STATE_DOWN ? "DOWN" :
+		"UNKNOWN",
+		 old_link_state == LINK_STATE_UP ? "UP" :
+		old_link_state == LINK_STATE_DOWN ? "DOWN" :
+		"UNKNOWN");
+#endif
+
+#ifdef INET6
+	/*
+	 * When going from UNKNOWN to UP, we need to mark existing
+	 * IPv6 addresses as tentative and restart DAD as we may have
+	 * erroneously not found a duplicate.
+	 *
+	 * This needs to happen before rt_ifmsg to avoid a race where
+	 * listeners would have an address and expect it to work right
+	 * away.
+	 */
+	if (link_state == LINK_STATE_UP &&
+	    old_link_state == LINK_STATE_UNKNOWN)
+		in6_if_link_down(ifp);
+#endif
+
 	/* Notify that the link state has changed. */
 	rt_ifmsg(ifp);
+
 #if NCARP > 0
 	if (ifp->if_carp)
 		carp_carpdev_state(ifp);
 #endif
+
+#ifdef INET6
+	if (link_state == LINK_STATE_DOWN)
+		in6_if_link_down(ifp);
+	else if (link_state == LINK_STATE_UP)
+		in6_if_link_up(ifp);
+#endif
+
+	splx(s);
 }
 
 /*
@@ -1368,6 +1396,9 @@ if_down(struct ifnet *ifp)
 		carp_carpdev_state(ifp);
 #endif
 	rt_ifmsg(ifp);
+#ifdef INET6
+	in6_if_down(ifp);
+#endif
 }
 
 /*

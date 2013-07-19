@@ -1,4 +1,4 @@
-/*	$NetBSD: rnd.h,v 1.35 2013/01/26 19:05:11 tls Exp $	*/
+/*	$NetBSD: rnd.h,v 1.39 2013/07/01 15:22:00 riastradh Exp $	*/
 
 /*-
  * Copyright (c) 1997 The NetBSD Foundation, Inc.
@@ -41,7 +41,6 @@
 #include <sys/sha1.h>
 
 #ifdef _KERNEL
-#include <sys/mutex.h>
 #include <sys/queue.h>
 #endif
 
@@ -92,6 +91,7 @@ typedef struct {
 #define	RND_FLAG_NO_ESTIMATE	0x00000100	/* don't estimate entropy */
 #define	RND_FLAG_NO_COLLECT	0x00000200	/* don't collect entropy */
 #define RND_FLAG_FAST		0x00000400	/* process samples in bulk */
+#define RND_FLAG_HASCB		0x00000800	/* has get callback */
 
 #define	RND_TYPE_UNKNOWN	0	/* unknown source */
 #define	RND_TYPE_DISK		1	/* source is physical disk */
@@ -127,24 +127,16 @@ typedef struct krndsource {
         void            *state;         /* state information */
         size_t          test_cnt;       /* how much test data accumulated? */
         rngtest_t	*test;          /* test data for RNG type sources */
+	void		(*get)(size_t, void *);	/* pool wants N bytes (badly) */
+	void		*getarg;	/* argument to get-function */
 } krndsource_t;
 
-enum rsink_st {
-	RSTATE_IDLE = 0,
-	RSTATE_PENDING,
-	RSTATE_HASBITS
-};
-
-typedef struct rndsink {
-        TAILQ_ENTRY(rndsink) tailq;     /* the queue */
-	kmutex_t	mtx;		/* lock to seed or unregister */
-	enum rsink_st	state;		/* in-use?  filled? */
-        void            (*cb)(void *);  /* callback function when ready */
-        void            *arg;           /* callback function argument */
-        char            name[16];       /* sink name */
-        size_t          len;            /* how many bytes wanted/supplied */
-        uint8_t         data[64];       /* random data returned here */
-} rndsink_t;
+static inline void
+rndsource_setcb(struct krndsource *const rs, void *const cb, void *const arg)
+{
+	rs->get = cb;
+	rs->getarg = arg;
+}
 
 typedef struct {
         uint32_t        cursor;         /* current add point in the pool */
@@ -166,6 +158,7 @@ uint32_t	rndpool_get_poolsize(void);
 void		rndpool_add_data(rndpool_t *, void *, uint32_t, uint32_t);
 uint32_t	rndpool_extract_data(rndpool_t *, void *, uint32_t, uint32_t);
 void		rnd_init(void);
+void		rnd_init_softint(void);
 void		_rnd_add_uint32(krndsource_t *, uint32_t);
 void		rnd_add_data(krndsource_t *, const void *const, uint32_t,
 		    uint32_t);
@@ -173,8 +166,7 @@ void		rnd_attach_source(krndsource_t *, const char *,
 		    uint32_t, uint32_t);
 void		rnd_detach_source(krndsource_t *);
 
-void		rndsink_attach(rndsink_t *);
-void		rndsink_detach(rndsink_t *);
+void		rnd_getmore(size_t);
 
 void		rnd_seed(void *, size_t);
 
@@ -186,6 +178,7 @@ rnd_add_uint32(krndsource_t *kr, uint32_t val)
 	}
 }
 
+extern int	rnd_empty;
 extern int	rnd_full;
 extern int	rnd_filled;
 extern int	rnd_initial_entropy;
@@ -239,17 +232,5 @@ typedef struct {
 #define	RNDCTL		_IOW('R',  104, rndctl_t)  /* set/clear source flags */
 #define	RNDADDDATA	_IOW('R',  105, rnddata_t) /* add data to the pool */
 #define	RNDGETPOOLSTAT	_IOR('R',  106, rndpoolstat_t) /* get statistics */
-
-#ifdef _KERNEL
-/*
- * A context.  cprng plus a smidge.
- */
-typedef struct {
-	struct _cprng_strong	*cprng;
-	int		hard;
-	int		bytesonkey;
-	kmutex_t	interlock;
-} rp_ctx_t;
-#endif
 
 #endif /* !_SYS_RND_H_ */

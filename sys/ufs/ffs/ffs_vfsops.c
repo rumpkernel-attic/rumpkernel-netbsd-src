@@ -1,4 +1,4 @@
-/*	$NetBSD: ffs_vfsops.c,v 1.282 2013/01/22 09:39:16 dholland Exp $	*/
+/*	$NetBSD: ffs_vfsops.c,v 1.286 2013/06/23 22:03:34 dholland Exp $	*/
 
 /*-
  * Copyright (c) 2008, 2009 The NetBSD Foundation, Inc.
@@ -61,7 +61,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ffs_vfsops.c,v 1.282 2013/01/22 09:39:16 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ffs_vfsops.c,v 1.286 2013/06/23 22:03:34 dholland Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_ffs.h"
@@ -174,6 +174,7 @@ static const struct ufs_ops ffs_ufsops = {
 	.uo_vfree = ffs_vfree,
 	.uo_balloc = ffs_balloc,
 	.uo_unmark_vnode = (void (*)(vnode_t *))nullop,
+	.uo_snapgone = ffs_snapgone,
 };
 
 static int
@@ -753,7 +754,7 @@ ffs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 		mp->mnt_iflag |= IMNT_DTYPE;
 	} else {
 		ump->um_maxsymlinklen = fs->fs_maxsymlinklen;
-		ump->um_dirblksiz = DIRBLKSIZ;
+		ump->um_dirblksiz = UFS_DIRBLKSIZ;
 		if (ump->um_maxsymlinklen > 0)
 			mp->mnt_iflag |= IMNT_DTYPE;
 		else
@@ -788,7 +789,7 @@ ffs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 		bsize = fs->fs_bsize;
 		if (i + fs->fs_frag > blks)
 			bsize = (blks - i) * fs->fs_fsize;
-		error = bread(devvp, fsbtodb(fs, fs->fs_csaddr + i), bsize,
+		error = bread(devvp, FFS_FSBTODB(fs, fs->fs_csaddr + i), bsize,
 			      NOCRED, 0, &bp);
 		if (error) {
 			return (error);
@@ -849,7 +850,7 @@ ffs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 		 * Step 6: re-read inode data for all active vnodes.
 		 */
 		ip = VTOI(vp);
-		error = bread(devvp, fsbtodb(fs, ino_to_fsba(fs, ip->i_number)),
+		error = bread(devvp, FFS_FSBTODB(fs, ino_to_fsba(fs, ip->i_number)),
 			      (int)fs->fs_bsize, NOCRED, 0, &bp);
 		if (error) {
 			vput(vp);
@@ -1153,7 +1154,7 @@ ffs_mountfs(struct vnode *devvp, struct mount *mp, struct lwp *l)
 	 */
 
 	if (!ronly) {
-		error = bread(devvp, fsbtodb(fs, fs->fs_size - 1), fs->fs_fsize,
+		error = bread(devvp, FFS_FSBTODB(fs, fs->fs_size - 1), fs->fs_fsize,
 		    cred, 0, &bp);
 		if (bp->b_bcount != fs->fs_fsize)
 			error = EINVAL;
@@ -1184,7 +1185,7 @@ ffs_mountfs(struct vnode *devvp, struct mount *mp, struct lwp *l)
 		bsize = fs->fs_bsize;
 		if (i + fs->fs_frag > blks)
 			bsize = (blks - i) * fs->fs_fsize;
-		error = bread(devvp, fsbtodb(fs, fs->fs_csaddr + i), bsize,
+		error = bread(devvp, FFS_FSBTODB(fs, fs->fs_csaddr + i), bsize,
 			      cred, 0, &bp);
 		if (error) {
 			kmem_free(fs->fs_csp, allocsbsize);
@@ -1234,7 +1235,7 @@ ffs_mountfs(struct vnode *devvp, struct mount *mp, struct lwp *l)
 		mp->mnt_iflag |= IMNT_DTYPE;
 	} else {
 		ump->um_maxsymlinklen = fs->fs_maxsymlinklen;
-		ump->um_dirblksiz = DIRBLKSIZ;
+		ump->um_dirblksiz = UFS_DIRBLKSIZ;
 		if (ump->um_maxsymlinklen > 0)
 			mp->mnt_iflag |= IMNT_DTYPE;
 		else
@@ -1601,8 +1602,8 @@ ffs_statvfs(struct mount *mp, struct statvfs *sbp)
 	sbp->f_frsize = fs->fs_fsize;
 	sbp->f_iosize = fs->fs_bsize;
 	sbp->f_blocks = fs->fs_dsize;
-	sbp->f_bfree = blkstofrags(fs, fs->fs_cstotal.cs_nbfree) +
-	    fs->fs_cstotal.cs_nffree + dbtofsb(fs, fs->fs_pendingblocks);
+	sbp->f_bfree = ffs_blkstofrags(fs, fs->fs_cstotal.cs_nbfree) +
+	    fs->fs_cstotal.cs_nffree + FFS_DBTOFSB(fs, fs->fs_pendingblocks);
 	sbp->f_bresvd = ((u_int64_t) fs->fs_dsize * (u_int64_t)
 	    fs->fs_minfree) / (u_int64_t) 100;
 	if (sbp->f_bfree > sbp->f_bresvd)
@@ -1863,7 +1864,7 @@ ffs_vget(struct mount *mp, ino_t ino, struct vnode **vpp)
 	mutex_exit(&ufs_hashlock);
 
 	/* Read in the disk contents for the inode, copy into the inode. */
-	error = bread(ump->um_devvp, fsbtodb(fs, ino_to_fsba(fs, ino)),
+	error = bread(ump->um_devvp, FFS_FSBTODB(fs, ino_to_fsba(fs, ino)),
 		      (int)fs->fs_bsize, NOCRED, 0, &bp);
 	if (error) {
 
@@ -2051,7 +2052,7 @@ ffs_cgupdate(struct ufsmount *mp, int waitfor)
 		size = fs->fs_bsize;
 		if (i + fs->fs_frag > blks)
 			size = (blks - i) * fs->fs_fsize;
-		error = ffs_getblk(mp->um_devvp, fsbtodb(fs, fs->fs_csaddr + i),
+		error = ffs_getblk(mp->um_devvp, FFS_FSBTODB(fs, fs->fs_csaddr + i),
 		    FFS_NOBLK, size, false, &bp);
 		if (error)
 			break;

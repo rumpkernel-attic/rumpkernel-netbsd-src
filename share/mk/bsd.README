@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.README,v 1.316 2013/04/28 04:44:21 joerg Exp $
+#	$NetBSD: bsd.README,v 1.318 2013/06/02 11:02:40 mbalmer Exp $
 #	@(#)bsd.README	8.2 (Berkeley) 4/2/94
 
 This is the README file for the make "include" files for the NetBSD
@@ -390,6 +390,12 @@ MKX11FONTS	If not "no", if ${X11FLAVOUR} is "Xorg", do not build or
 		install the X fonts.  The xfont set is still created but
 		will be empty.
 		Default: yes
+
+MKX11MOTIF:	If "yes" and ${X11FLAVOUR} is "Xorg", build the native X11
+		libGLw with Motif stubs.  If Motif is not installed in the
+		default location /usr/pkg, the location can be specified
+		using the X11MOTIFPATH variable.
+		Default: no
 
 MKYP		If "no", disables building of YP (NIS)
 		infrastructure (libraries and support programs).
@@ -1584,6 +1590,7 @@ DPADD		Additional dependencies for the program.  Usually used for
 		LIBICE?=	${DESTDIR}/usr/X11R7/lib/libICE.a
 		LIBSM?=		${DESTDIR}/usr/X11R7/lib/libSM.a
 		LIBX11?=	${DESTDIR}/usr/X11R7/lib/libX11.a
+		LIBX11_XCB?=	${DESTDIR}/usr/X11R7/lib/libX11-xcb.a
 		LIBXTRAP?=	${DESTDIR}/usr/X11R7/lib/libXTrap.a
 		LIBXAU?=	${DESTDIR}/usr/X11R7/lib/libXau.a
 		LIBXAW?=	${DESTDIR}/usr/X11R7/lib/libXaw.a

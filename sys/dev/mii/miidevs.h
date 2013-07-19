@@ -1,10 +1,10 @@
-/*	$NetBSD: miidevs.h,v 1.117 2013/04/23 04:30:26 msaitoh Exp $	*/
+/*	$NetBSD: miidevs.h,v 1.119 2013/06/12 02:51:43 msaitoh Exp $	*/
 
 /*
  * THIS FILE AUTOMATICALLY GENERATED.  DO NOT EDIT.
  *
  * generated from:
- *	NetBSD: miidevs,v 1.114 2013/04/23 04:29:42 msaitoh Exp
+ *	NetBSD: miidevs,v 1.116 2013/06/12 02:51:16 msaitoh Exp
  */
 
 /*-
@@ -285,8 +285,14 @@
 #define	MII_STR_xxDAVICOM_DM9102	"DM9102 10/100 media interface"
 
 /* IC Plus Corp. PHYs */
+#define	MII_MODEL_ICPLUS_IP100	0x0004
+#define	MII_STR_ICPLUS_IP100	"IP100 10/100 PHY"
 #define	MII_MODEL_ICPLUS_IP101	0x0005
 #define	MII_STR_ICPLUS_IP101	"IP101 10/100 PHY"
+#define	MII_MODEL_ICPLUS_IP1000A	0x0008
+#define	MII_STR_ICPLUS_IP1000A	"IP1000A 10/100/1000 PHY"
+#define	MII_MODEL_ICPLUS_IP1001	0x0019
+#define	MII_STR_ICPLUS_IP1001	"IP1001 10/100/1000 PHY"
 
 /* Integrated Circuit Systems PHYs */
 #define	MII_MODEL_ICS_1889	0x0001
@@ -319,6 +325,8 @@
 #define	MII_STR_INTEL_I82577	"i82577 10/100/1000 media interface"
 #define	MII_MODEL_INTEL_I82579	0x0009
 #define	MII_STR_INTEL_I82579	"i82579 10/100/1000 media interface"
+#define	MII_MODEL_INTEL_I217	0x000a
+#define	MII_STR_INTEL_I217	"i217 10/100/1000 media interface"
 #define	MII_MODEL_xxMARVELL_I210	0x0000
 #define	MII_STR_xxMARVELL_I210	"I210 10/100/1000 media interface"
 #define	MII_MODEL_xxMARVELL_I82563	0x000a
