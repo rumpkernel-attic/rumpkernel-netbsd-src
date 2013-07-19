@@ -1,4 +1,4 @@
-/*	$NetBSD: strftime.c,v 1.25 2013/04/21 17:45:46 joerg Exp $	*/
+/*	$NetBSD: strftime.c,v 1.28 2013/07/17 23:09:26 christos Exp $	*/
 
 #include <sys/cdefs.h>
 #if defined(LIBC_SCCS) && !defined(lint)
@@ -6,7 +6,7 @@
 static char	elsieid[] = "@(#)strftime.c	7.64";
 static char	elsieid[] = "@(#)strftime.c	8.3";
 #else
-__RCSID("$NetBSD: strftime.c,v 1.25 2013/04/21 17:45:46 joerg Exp $");
+__RCSID("$NetBSD: strftime.c,v 1.28 2013/07/17 23:09:26 christos Exp $");
 #endif
 #endif /* LIBC_SCCS and not lint */
 
@@ -111,7 +111,7 @@ size_t
 strftime_z(const timezone_t sp, char * __restrict s, size_t maxsize,
     const char * __restrict format, const struct tm * __restrict t)
 {
-	return strftime_lz(sp, s, maxsize, format, t, *_current_locale());
+	return strftime_lz(sp, s, maxsize, format, t, _current_locale());
 }
 
 size_t
@@ -120,9 +120,6 @@ strftime_lz(const timezone_t sp, char *const s, const size_t maxsize,
 {
 	char *	p;
 	int	warn;
-
-	if (loc == NULL)
-		loc = _C_locale;
 
 	warn = IN_NONE;
 	p = _fmt(sp, ((format == NULL) ? "%c" : format), t, s, s + maxsize,
@@ -317,11 +314,10 @@ label:
 					mkt = mktime(&tm);
 					/* CONSTCOND */
 					if (TYPE_SIGNED(time_t))
-						(void) snprintf(buf, sizeof(buf),
-						    "%lld", (long long) mkt);
-					else	(void) snprintf(buf, sizeof(buf),
-						    "%llu", (unsigned long long)
-						    mkt);
+						(void)snprintf(buf, sizeof(buf),
+						    "%jd", (intmax_t) mkt);
+					else	(void)snprintf(buf, sizeof(buf),
+						    "%ju", (uintmax_t) mkt);
 					pt = _add(buf, pt, ptlim);
 				}
 				continue;
@@ -649,8 +645,8 @@ static char *
 _yconv(const int a, const int b, const int convert_top, const int convert_yy,
     char *pt, const char *const ptlim)
 {
-	register int	lead;
-	register int	trail;
+	int	lead;
+	int	trail;
 
 #define DIVISOR	100
 	trail = a % DIVISOR + b % DIVISOR;

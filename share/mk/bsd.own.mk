@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.730 2013/05/03 16:05:11 matt Exp $
+#	$NetBSD: bsd.own.mk,v 1.738 2013/07/18 22:06:09 matt Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -14,7 +14,7 @@ MAKECONF?=	/etc/mk.conf
 #
 # CPU model, derived from MACHINE_ARCH
 #
-MACHINE_CPU=	${MACHINE_ARCH:C/mipse[bl]/mips/:C/mips64e[bl]/mips/:C/sh3e[bl]/sh3/:S/m68000/m68k/:S/armeb/arm/:C/earm.*/arm/:S/earm/arm/:S/powerpc64/powerpc/}
+MACHINE_CPU=	${MACHINE_ARCH:C/mipse[bl]/mips/:C/mips64e[bl]/mips/:C/sh3e[bl]/sh3/:S/coldfire/m68k/:S/m68000/m68k/:S/armeb/arm/:C/earm.*/arm/:S/earm/arm/:S/powerpc64/powerpc/}
 
 #
 # Subdirectory used below ${RELEASEDIR} when building a release
@@ -61,9 +61,14 @@ HAVE_GCC?=    45
 .if \
     ${MACHINE_CPU} == "arm" || \
     ${MACHINE_ARCH} == "i386" || \
+    ${MACHINE_CPU} == "m68k" || \
+    ${MACHINE_CPU} == "mips" || \
     ${MACHINE_ARCH} == "powerpc" || \
     ${MACHINE_CPU} == "sh3" || \
-    ${MACHINE_ARCH} == "x86_64"
+    ${MACHINE_ARCH} == "sparc" || \
+    ${MACHINE_ARCH} == "sparc64" || \
+    ${MACHINE_ARCH} == "x86_64" || \
+    ${MACHINE_ARCH} == "vax"
 USE_COMPILERCRTSTUFF?=	no
 .endif
 USE_COMPILERCRTSTUFF?=	yes
@@ -73,8 +78,7 @@ HAVE_GDB?=	7
 .if (${MACHINE_ARCH} == "alpha") || \
     (${MACHINE_ARCH} == "hppa") || \
     (${MACHINE_ARCH} == "ia64") || \
-    (${MACHINE_ARCH} == "mipsel") || (${MACHINE_ARCH} == "mipseb") || \
-    (${MACHINE_ARCH} == "mips64el") || (${MACHINE_ARCH} == "mips64eb")
+    (${MACHINE_CPU} == "mips")
 HAVE_SSP?=	no
 .else
 HAVE_SSP?=	yes
@@ -493,14 +497,14 @@ OBJCOPY_ELF2AOUT_FLAGS?=	\
 	-R .arm.atpcs		\
 	-R .comment		\
 	-R .debug_abbrev	\
+	-R .debug_aranges	\
 	-R .debug_info		\
 	-R .debug_line		\
 	-R .debug_frame		\
 	-R .debug_loc		\
 	-R .debug_pubnames	\
-	-R .debug_aranges	\
-	-R .debug_str		\
 	-R .debug_pubtypes	\
+	-R .debug_str		\
 	-R .note.netbsd.ident
 .endif
 
@@ -704,6 +708,8 @@ MACHINE_GNU_ARCH=${GNU_ARCH.${MACHINE_ARCH}:U${MACHINE_ARCH}}
 #
 .if (!empty(MACHINE_ARCH:Mearm*))
 MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf-${MACHINE_ARCH:C/eb//:S/earm/eabi/}
+.elif ${MACHINE_ARCH} == "coldfire"
+MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf-coldfire
 .elif (${MACHINE_GNU_ARCH} == "arm" || \
      ${MACHINE_GNU_ARCH} == "armeb" || \
      ${MACHINE_ARCH} == "i386" || \
@@ -812,11 +818,13 @@ MKCOMPATMODULES:=	no
 
 #
 # Default mips64 to softfloat now.
-# arm is always softfloat
+# arm is always softfloat unless it isn't
 # emips is always softfloat.
+# coldfire is always softfloat
 #
 .if ${MACHINE_ARCH} == "mips64eb" || ${MACHINE_ARCH} == "mips64el" || \
     (${MACHINE_CPU} == "arm" && ${MACHINE_ARCH:M*hf*} == "") || \
+    ${MACHINE_ARCH} == "coldfire" || \
     ${MACHINE} == "emips"
 MKSOFTFLOAT?=	yes
 .endif
@@ -898,7 +906,7 @@ _MKVARS.no= \
 	MKPIGZGZIP \
 	MKREPRO \
 	MKSOFTFLOAT MKSTRIPIDENT MKTPM \
-	MKUNPRIVED MKUPDATE MKX11 MKZFS
+	MKUNPRIVED MKUPDATE MKX11 MKX11MOTIF MKZFS
 .for var in ${_MKVARS.no}
 ${var}?=no
 .endfor
@@ -919,6 +927,41 @@ ${var}?=no
 X11FLAVOUR?=	XFree86
 .else
 X11FLAVOUR?=	Xorg
+.endif
+
+#
+# Which platforms build the xorg-server drivers (as opposed
+# to just Xnest and Xvfb.)
+#
+.if ${X11FLAVOUR} == "Xorg"	&& \
+    ${MACHINE} == "alpha"	|| \
+    ${MACHINE} == "amd64"	|| \
+    ${MACHINE} == "bebox"	|| \
+    ${MACHINE} == "cats"	|| \
+    ${MACHINE} == "dreamcast"	|| \
+    ${MACHINE} == "ews4800mips"	|| \
+    ${MACHINE} == "evbarm"	|| \
+    ${MACHINE} == "evbmips"	|| \
+    ${MACHINE} == "hp300"	|| \
+    ${MACHINE} == "hpcarm"	|| \
+    ${MACHINE} == "hpcmips"	|| \
+    ${MACHINE} == "hpcsh"	|| \
+    ${MACHINE} == "i386"	|| \
+    ${MACHINE} == "luna68k"	|| \
+    ${MACHINE} == "macppc"	|| \
+    ${MACHINE} == "netwinder"	|| \
+    ${MACHINE} == "newsmips"	|| \
+    ${MACHINE} == "prep"	|| \
+    ${MACHINE} == "ofppc"	|| \
+    ${MACHINE} == "sgimips"	|| \
+    ${MACHINE} == "shark"	|| \
+    ${MACHINE} == "sparc"	|| \
+    ${MACHINE} == "sparc64"	|| \
+    ${MACHINE} == "vax"		|| \
+    ${MACHINE} == "zaurus"
+MKXORG_SERVER?=yes
+.else
+MKXORG_SERVER?=no
 .endif
 
 #
@@ -1118,7 +1161,7 @@ X11SRCDIR.${_proto}proto?=		${X11SRCDIRMIT}/${_proto}proto/dist
 	xsetmode xsetpointer xsetroot xsm xstdcmap xvidtune xvinfo \
 	xwininfo xwud xprehashprinterlist xplsprinters xkbprint xkbevd \
 	xterm xwd xfs xfsinfo xphelloworld xtrap xkbutils xkbcomp \
-	xkeyboard-config xinput xcb-util \
+	xkeyboard-config xinput xcb-util xorg-docs \
 	font-adobe-100dpi font-adobe-75dpi font-adobe-utopia-100dpi \
 	font-adobe-utopia-75dpi font-adobe-utopia-type1 \
 	font-alias \

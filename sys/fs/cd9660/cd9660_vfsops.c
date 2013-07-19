@@ -1,4 +1,4 @@
-/*	$NetBSD: cd9660_vfsops.c,v 1.76 2012/12/20 08:03:42 hannken Exp $	*/
+/*	$NetBSD: cd9660_vfsops.c,v 1.78 2013/06/23 07:28:36 dholland Exp $	*/
 
 /*-
  * Copyright (c) 1994
@@ -37,7 +37,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: cd9660_vfsops.c,v 1.76 2012/12/20 08:03:42 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: cd9660_vfsops.c,v 1.78 2013/06/23 07:28:36 dholland Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_compat_netbsd.h"
@@ -759,14 +759,14 @@ cd9660_vget_internal(struct mount *mp, ino_t ino, struct vnode **vpp,
 	if (isodir == 0) {
 		int lbn, off;
 
-		lbn = lblkno(imp, ino);
+		lbn = cd9660_lblkno(imp, ino);
 		if (lbn >= imp->volume_space_size) {
 			vput(vp);
 			printf("fhtovp: lbn exceed volume space %d\n", lbn);
 			return (ESTALE);
 		}
 
-		off = blkoff(imp, ino);
+		off = cd9660_blkoff(imp, ino);
 		if (off + ISO_DIRECTORY_RECORD_SIZE > imp->logical_block_size) {
 			vput(vp);
 			printf("fhtovp: crosses block boundary %d\n",

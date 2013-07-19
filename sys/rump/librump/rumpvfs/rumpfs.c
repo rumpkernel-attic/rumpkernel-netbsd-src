@@ -1,4 +1,4 @@
-/*	$NetBSD: rumpfs.c,v 1.115 2013/06/10 14:15:03 pooka Exp $	*/
+/*	$NetBSD: rumpfs.c,v 1.117 2013/06/14 05:54:04 pooka Exp $	*/
 
 /*
  * Copyright (c) 2009, 2010, 2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rumpfs.c,v 1.115 2013/06/10 14:15:03 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rumpfs.c,v 1.117 2013/06/14 05:54:04 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/atomic.h>
@@ -846,8 +846,9 @@ rump_check_permitted(struct vnode *vp, struct rumpfs_node *rnode,
 {
 	struct vattr *attr = &rnode->rn_va;
 
-	return genfs_can_access(vp->v_type, attr->va_mode, attr->va_uid,
-	    attr->va_gid, mode, cred);
+	return kauth_authorize_vnode(cred, KAUTH_ACCESS_ACTION(mode,
+	    vp->v_type, attr->va_mode), vp, NULL, genfs_can_access(vp->v_type,
+	    attr->va_mode, attr->va_uid, attr->va_gid, mode, cred));
 }
 
 int
@@ -1273,7 +1274,7 @@ rump_vop_open(void *v)
 	return error;
 }
 
-/* simple readdir.  event omits dotstuff and periods */
+/* simple readdir.  even omits dotstuff and periods */
 static int
 rump_vop_readdir(void *v)
 {
@@ -1289,6 +1290,7 @@ rump_vop_readdir(void *v)
 	struct uio *uio = ap->a_uio;
 	struct rumpfs_node *rnd = vp->v_data;
 	struct rumpfs_dent *rdent;
+	struct dirent *dentp = NULL;
 	unsigned i;
 	int rv = 0;
 
@@ -1301,35 +1303,37 @@ rump_vop_readdir(void *v)
 		goto out;
 
 	/* copy entries */
+	dentp = kmem_alloc(sizeof(*dentp), KM_SLEEP);
 	for (; rdent && uio->uio_resid > 0;
 	    rdent = LIST_NEXT(rdent, rd_entries), i++) {
-		struct dirent dent;
-
-		strlcpy(dent.d_name, rdent->rd_name, sizeof(dent.d_name));
-		dent.d_namlen = strlen(dent.d_name);
-		dent.d_reclen = _DIRENT_RECLEN(&dent, dent.d_namlen);
+		strlcpy(dentp->d_name, rdent->rd_name, sizeof(dentp->d_name));
+		dentp->d_namlen = strlen(dentp->d_name);
+		dentp->d_reclen = _DIRENT_RECLEN(dentp, dentp->d_namlen);
 
 		if (__predict_false(RDENT_ISWHITEOUT(rdent))) {
-			dent.d_fileno = INO_WHITEOUT;
-			dent.d_type = DT_WHT;
+			dentp->d_fileno = INO_WHITEOUT;
+			dentp->d_type = DT_WHT;
 		} else {
-			dent.d_fileno = rdent->rd_node->rn_va.va_fileid;
-			dent.d_type = vtype2dt(rdent->rd_node->rn_va.va_type);
+			dentp->d_fileno = rdent->rd_node->rn_va.va_fileid;
+			dentp->d_type = vtype2dt(rdent->rd_node->rn_va.va_type);
 		}
 
-		if (uio->uio_resid < dent.d_reclen) {
+		if (uio->uio_resid < dentp->d_reclen) {
 			i--;
 			break;
 		}
 
-		rv = uiomove(&dent, dent.d_reclen, uio); 
+		rv = uiomove(dentp, dentp->d_reclen, uio); 
 		if (rv) {
 			i--;
 			break;
 		}
 	}
+	kmem_free(dentp, sizeof(*dentp));
+	dentp = NULL;
 
  out:
+	KASSERT(dentp == NULL);
 	if (ap->a_cookies) {
 		*ap->a_ncookies = 0;
 		*ap->a_cookies = NULL;

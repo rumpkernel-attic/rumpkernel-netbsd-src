@@ -1,4 +1,4 @@
-/*	$NetBSD: identcpu.c,v 1.32 2012/06/16 17:30:19 chs Exp $	*/
+/*	$NetBSD: identcpu.c,v 1.34 2013/06/27 00:38:18 christos Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2006, 2007, 2008 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: identcpu.c,v 1.32 2012/06/16 17:30:19 chs Exp $");
+__KERNEL_RCSID(0, "$NetBSD: identcpu.c,v 1.34 2013/06/27 00:38:18 christos Exp $");
 
 #include "opt_xen.h"
 

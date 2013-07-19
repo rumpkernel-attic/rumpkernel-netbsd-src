@@ -1,4 +1,4 @@
-/*	$NetBSD: filecore_vnops.c,v 1.36 2013/03/18 19:35:36 plunky Exp $	*/
+/*	$NetBSD: filecore_vnops.c,v 1.38 2013/06/23 07:28:36 dholland Exp $	*/
 
 /*-
  * Copyright (c) 1994 The Regents of the University of California.
@@ -66,7 +66,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: filecore_vnops.c,v 1.36 2013/03/18 19:35:36 plunky Exp $");
+__KERNEL_RCSID(0, "$NetBSD: filecore_vnops.c,v 1.38 2013/06/23 07:28:36 dholland Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -239,15 +239,15 @@ filecore_read(void *v)
 	}
 
 	do {
-		lbn = lblkno(fcmp, uio->uio_offset);
-		on = blkoff(fcmp, uio->uio_offset);
-		n = MIN(blksize(fcmp, ip, lbn) - on, uio->uio_resid);
+		lbn = filecore_lblkno(fcmp, uio->uio_offset);
+		on = filecore_blkoff(fcmp, uio->uio_offset);
+		n = MIN(filecore_blksize(fcmp, ip, lbn) - on, uio->uio_resid);
 		diff = (off_t)ip->i_size - uio->uio_offset;
 		if (diff <= 0)
 			return (0);
 		if (diff < n)
 			n = diff;
-		size = blksize(fcmp, ip, lbn);
+		size = filecore_blksize(fcmp, ip, lbn);
 		rablock = lbn + 1;
 		if (ip->i_dirent.attr & FILECORE_ATTR_DIR) {
 			error = filecore_dbread(ip, &bp);

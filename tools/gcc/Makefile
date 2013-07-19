@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.54 2013/04/25 16:18:43 skrll Exp $
+#	$NetBSD: Makefile,v 1.57 2013/07/18 22:00:48 matt Exp $
 
 .include <bsd.own.mk>
 
@@ -28,7 +28,7 @@ MULTILIB_ARGS= --enable-multilib
 MULTILIB_ARGS= --disable-multilib
 .endif
 
-.if ${MKSOFTFLOAT} != "no"
+.if ${MKSOFTFLOAT} != "no" && ${MACHINE_CPU} != "m68k"
 SOFTFLOAT_ARGS=	-with-float=soft
 .endif
 
@@ -112,26 +112,28 @@ GCCSRCDIR=${.CURDIR}/../../external/gpl3/gcc/dist
 CXXADDFLAGS=	--sysroot=${DESTDIR}
 CCADDFLAGS=	--sysroot=${DESTDIR} -L${DESTDIR}/lib -L${DESTDIR}/usr/lib -B${DESTDIR}/usr/lib/ -I${.OBJDIR}/.native/gcc/include
 
+# NEWCONFIGDIR can be set to a read-write location of the source tree
+# in case the version being used is not.
 NEWCONFIGDIR?=	${.CURDIR}/../..
 MKNATIVE?=	${.CURDIR}/mknative-gcc
 
 bootstrap-libgcc: .configure_done
 	@echo 'Creating files needed for libgcc by a native bootstrap build.'
 	@MAKE=${BUILD_MAKE:Q} ${HOST_SH} ${MKNATIVE} lib${MKNATIVE_TARGET} \
-		${.OBJDIR}/build ${NEWCONFIGDIR} ${MACHINE_GNU_PLATFORM} \
-		${DESTDIR}
+		${.OBJDIR}/build ${NEWCONFIGDIR} ${NETBSDSRCDIR} \
+		${MACHINE_GNU_PLATFORM} ${DESTDIR}
 
 native-gcc: .native/.configure_done
 	@echo 'Extracting GNU GCC configury for a native toolchain.'
 	@MAKE=${BUILD_MAKE:Q} ${HOST_SH} ${MKNATIVE} ${MKNATIVE_TARGET} \
-		${.OBJDIR}/.native ${NEWCONFIGDIR} ${MACHINE_GNU_PLATFORM} \
-		${DESTDIR}
+		${.OBJDIR}/.native ${NEWCONFIGDIR} ${NETBSDSRCDIR} \
+		${MACHINE_GNU_PLATFORM} ${DESTDIR}
 
 NATIVE_CONFIGURE_ARGS=	${COMMON_CONFIGURE_ARGS}
 .if ${HAVE_GCC} >= 45
-MPC=		${NEWCONFIGDIR}/external/lgpl2/mpc
-MPFR=		${NEWCONFIGDIR}/external/lgpl3/mpfr
-GMP=		${NEWCONFIGDIR}/external/lgpl3/gmp
+MPC=		${NETBSDSRCDIR}/external/lgpl2/mpc
+MPFR=		${NETBSDSRCDIR}/external/lgpl3/mpfr
+GMP=		${NETBSDSRCDIR}/external/lgpl3/gmp
 MPCOBJ!=	cd ${MPC}/lib/libmpc && ${PRINTOBJDIR}
 MPFROBJ!=	cd ${MPFR}/lib/libmpfr && ${PRINTOBJDIR}
 GMPOBJ!=	cd ${GMP}/lib/libgmp && ${PRINTOBJDIR}

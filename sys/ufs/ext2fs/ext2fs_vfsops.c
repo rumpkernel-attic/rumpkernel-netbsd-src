@@ -1,4 +1,4 @@
-/*	$NetBSD: ext2fs_vfsops.c,v 1.169 2013/04/08 21:12:33 skrll Exp $	*/
+/*	$NetBSD: ext2fs_vfsops.c,v 1.171 2013/06/23 02:06:05 dholland Exp $	*/
 
 /*
  * Copyright (c) 1989, 1991, 1993, 1994
@@ -60,7 +60,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ext2fs_vfsops.c,v 1.169 2013/04/08 21:12:33 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ext2fs_vfsops.c,v 1.171 2013/06/23 02:06:05 dholland Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_compat_netbsd.h"
@@ -581,7 +581,7 @@ ext2fs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 
 	for (i = 0; i < fs->e2fs_ngdb; i++) {
 		error = bread(devvp ,
-		    fsbtodb(fs, fs->e2fs.e2fs_first_dblock +
+		    EXT2_FSBTODB(fs, fs->e2fs.e2fs_first_dblock +
 		    1 /* superblock */ + i),
 		    fs->e2fs_bsize, NOCRED, 0, &bp);
 		if (error) {
@@ -629,7 +629,7 @@ loop:
 		 * Step 6: re-read inode data for all active vnodes.
 		 */
 		ip = VTOI(vp);
-		error = bread(devvp, fsbtodb(fs, ino_to_fsba(fs, ip->i_number)),
+		error = bread(devvp, EXT2_FSBTODB(fs, ino_to_fsba(fs, ip->i_number)),
 		    (int)fs->e2fs_bsize, NOCRED, 0, &bp);
 		if (error) {
 			vput(vp);
@@ -728,7 +728,7 @@ ext2fs_mountfs(struct vnode *devvp, struct mount *mp)
 	m_fs->e2fs_gd = kmem_alloc(m_fs->e2fs_ngdb * m_fs->e2fs_bsize, KM_SLEEP);
 	for (i = 0; i < m_fs->e2fs_ngdb; i++) {
 		error = bread(devvp ,
-		    fsbtodb(m_fs, m_fs->e2fs.e2fs_first_dblock +
+		    EXT2_FSBTODB(m_fs, m_fs->e2fs.e2fs_first_dblock +
 		    1 /* superblock */ + i),
 		    m_fs->e2fs_bsize, NOCRED, 0, &bp);
 		if (error) {
@@ -757,8 +757,8 @@ ext2fs_mountfs(struct vnode *devvp, struct mount *mp)
 	ump->um_mountp = mp;
 	ump->um_dev = dev;
 	ump->um_devvp = devvp;
-	ump->um_nindir = NINDIR(m_fs);
-	ump->um_lognindir = ffs(NINDIR(m_fs)) - 1;
+	ump->um_nindir = EXT2_NINDIR(m_fs);
+	ump->um_lognindir = ffs(EXT2_NINDIR(m_fs)) - 1;
 	ump->um_bptrtodb = m_fs->e2fs_fsbtodb;
 	ump->um_seqinc = 1; /* no frags */
 	ump->um_maxsymlinklen = EXT2_MAXSYMLINKLEN;
@@ -1047,7 +1047,7 @@ retry:
 	mutex_exit(&ufs_hashlock);
 
 	/* Read in the disk contents for the inode, copy into the inode. */
-	error = bread(ump->um_devvp, fsbtodb(fs, ino_to_fsba(fs, ino)),
+	error = bread(ump->um_devvp, EXT2_FSBTODB(fs, ino_to_fsba(fs, ino)),
 	    (int)fs->e2fs_bsize, NOCRED, 0, &bp);
 	if (error) {
 
@@ -1204,7 +1204,7 @@ ext2fs_cgupdate(struct ufsmount *mp, int waitfor)
 
 	allerror = ext2fs_sbupdate(mp, waitfor);
 	for (i = 0; i < fs->e2fs_ngdb; i++) {
-		bp = getblk(mp->um_devvp, fsbtodb(fs,
+		bp = getblk(mp->um_devvp, EXT2_FSBTODB(fs,
 		    fs->e2fs.e2fs_first_dblock +
 		    1 /* superblock */ + i), fs->e2fs_bsize, 0, 0);
 		e2fs_cgsave(&fs->e2fs_gd[

@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.rumpkern,v 1.127 2013/05/01 17:52:34 pooka Exp $
+#	$NetBSD: Makefile.rumpkern,v 1.129 2013/07/18 22:15:45 matt Exp $
 #
 
 .include "${RUMPTOP}/Makefile.rump"
@@ -79,6 +79,7 @@ SRCS+=	init_sysctl_base.c	\
 	kern_resource.c		\
 	kern_rndpool.c		\
 	kern_rndq.c		\
+	kern_rndsink.c		\
 	kern_stub.c		\
 	kern_syscall.c		\
 	kern_sysctl.c		\
@@ -203,7 +204,8 @@ KERNMISCCPPFLAGS+=	-D_RUMPKERNEL
 #
 .if (${MACHINE_CPU} == "arm" && empty(ARMV6)) || ${MACHINE_CPU} == "hppa" \
     || ${MACHINE_CPU} == "mips" || ${MACHINE_CPU} == "sh3" \
-    || ${MACHINE_CPU} == "vax" || ${MACHINE_ARCH} == "m68000"
+    || ${MACHINE_CPU} == "vax" || ${MACHINE_ARCH} == "m68000" \
+    || ${MACHINE_ARCH} == "coldfire"
 CPPFLAGS+=	-I${RUMPTOP}/../../common/lib/libc/atomic
 SRCS+=		atomic_cas_generic.c
 #SRCS+=		rump_atomic_cas_up.c

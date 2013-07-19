@@ -1,4 +1,4 @@
-/* $NetBSD: siisata.c,v 1.24 2013/04/03 17:15:07 bouyer Exp $ */
+/* $NetBSD: siisata.c,v 1.26 2013/06/22 05:41:25 matt Exp $ */
 
 /* from ahcisata_core.c */
 
@@ -79,7 +79,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: siisata.c,v 1.24 2013/04/03 17:15:07 bouyer Exp $");
+__KERNEL_RCSID(0, "$NetBSD: siisata.c,v 1.26 2013/06/22 05:41:25 matt Exp $");
 
 #include <sys/types.h>
 #include <sys/malloc.h>
@@ -118,7 +118,7 @@ int siisata_debug_mask = 0;
 static inline uint32_t
 bus_space_read_stream_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t o)
 {
-	return htole32(bus_space_read_4(t, h, o);
+	return htole32(bus_space_read_4(t, h, o));
 }
 
 static inline void
@@ -291,7 +291,7 @@ siisata_attach_port(struct siisata_softc *sc, int port)
 	chp->ch_channel = port;
 	chp->ch_atac = &sc->sc_atac;
 	chp->ch_queue = malloc(sizeof(struct ata_queue),
-			       M_DEVBUF, M_NOWAIT);
+			       M_DEVBUF, M_NOWAIT|M_ZERO);
 	if (chp->ch_queue == NULL) {
 		aprint_error_dev(sc->sc_atac.atac_dev,
 		    "port %d: can't allocate memory "

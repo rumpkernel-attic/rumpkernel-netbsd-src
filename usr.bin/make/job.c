@@ -1,4 +1,4 @@
-/*	$NetBSD: job.c,v 1.172 2013/03/05 22:01:43 christos Exp $	*/
+/*	$NetBSD: job.c,v 1.174 2013/07/05 22:14:56 sjg Exp $	*/
 
 /*
  * Copyright (c) 1988, 1989, 1990 The Regents of the University of California.
@@ -70,14 +70,14 @@
  */
 
 #ifndef MAKE_NATIVE
-static char rcsid[] = "$NetBSD: job.c,v 1.172 2013/03/05 22:01:43 christos Exp $";
+static char rcsid[] = "$NetBSD: job.c,v 1.174 2013/07/05 22:14:56 sjg Exp $";
 #else
 #include <sys/cdefs.h>
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)job.c	8.2 (Berkeley) 3/19/94";
 #else
-__RCSID("$NetBSD: job.c,v 1.172 2013/03/05 22:01:43 christos Exp $");
+__RCSID("$NetBSD: job.c,v 1.174 2013/07/05 22:14:56 sjg Exp $");
 #endif
 #endif /* not lint */
 #endif
@@ -300,6 +300,7 @@ static Shell *commandShell = &shells[DEFSHELL_INDEX]; /* this is the shell to
 const char *shellPath = NULL,		  	  /* full pathname of
 						   * executable image */
            *shellName = NULL;		      	  /* last component of shell */
+char *shellErrFlag = NULL;
 static const char *shellArgv = NULL;		  /* Custom shell args */
 
 
@@ -401,6 +402,15 @@ JobCreatePipe(Job *job, int minfd)
     if (pipe(job->jobPipe) == -1)
 	Punt("Cannot create pipe: %s", strerror(errno));
 
+    for (i = 0; i < 2; i++) {
+       /* Avoid using low numbered fds */
+       fd = fcntl(job->jobPipe[i], F_DUPFD, minfd);
+       if (fd != -1) {
+	   close(job->jobPipe[i]);
+	   job->jobPipe[i] = fd;
+       }
+    }
+    
     /* Set close-on-exec flag for both */
     (void)fcntl(job->jobPipe[0], F_SETFD, 1);
     (void)fcntl(job->jobPipe[1], F_SETFD, 1);
@@ -413,15 +423,6 @@ JobCreatePipe(Job *job, int minfd)
      */
     fcntl(job->jobPipe[0], F_SETFL, 
 	fcntl(job->jobPipe[0], F_GETFL, 0) | O_NONBLOCK);
-
-    for (i = 0; i < 2; i++) {
-       /* Avoid using low numbered fds */
-       fd = fcntl(job->jobPipe[i], F_DUPFD, minfd);
-       if (fd != -1) {
-	   close(job->jobPipe[i]);
-	   job->jobPipe[i] = fd;
-       }
-    }
 }
 
 /*-
@@ -2136,6 +2137,24 @@ Shell_Init(void)
     if (commandShell->echo == NULL) {
 	commandShell->echo = "";
     }
+    if (commandShell->hasErrCtl && *commandShell->exit) {
+	if (shellErrFlag &&
+	    strcmp(commandShell->exit, &shellErrFlag[1]) != 0) {
+	    free(shellErrFlag);
+	    shellErrFlag = NULL;
+	}
+	if (!shellErrFlag) {
+	    int n = strlen(commandShell->exit) + 2;
+
+	    shellErrFlag = bmake_malloc(n);
+	    if (shellErrFlag) {
+		snprintf(shellErrFlag, n, "-%s", commandShell->exit);
+	    }
+	}
+    } else if (shellErrFlag) {
+	free(shellErrFlag);
+	shellErrFlag = NULL;
+    }
 }
 
 /*-
@@ -2480,6 +2499,8 @@ Job_ParseShell(char *line)
 	    commandShell = bmake_malloc(sizeof(Shell));
 	    *commandShell = newShell;
 	}
+	/* this will take care of shellErrFlag */
+	Shell_Init();
     }
 
     if (commandShell->echoOn && commandShell->echoOff) {
@@ -2812,6 +2833,8 @@ Job_ServerStart(int max_tokens, int jp_0, int jp_1)
 	/* Pipe passed in from parent */
 	tokenWaitJob.inPipe = jp_0;
 	tokenWaitJob.outPipe = jp_1;
+	(void)fcntl(jp_0, F_SETFD, 1);
+	(void)fcntl(jp_1, F_SETFD, 1);
 	return;
     }
 
