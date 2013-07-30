@@ -1,1 +1,8 @@
-D
+D/amd64////
+D/i386////
+D/x86////
+D/arm////
+D/evbarm////
+D/sparc////
+D/sparc64////
+/Makefile/1.42/Thu May  2 03:56:40 2013//D2013.07.30.09.30.00

@@ -1,4 +1,4 @@
-/*	$NetBSD: specialreg.h,v 1.63 2013/03/06 11:51:40 yamt Exp $	*/
+/*	$NetBSD: specialreg.h,v 1.66 2013/07/26 05:46:19 msaitoh Exp $	*/
 
 /*-
  * Copyright (c) 1991 The Regents of the University of California.
@@ -165,6 +165,7 @@
  * Fn0000_0007 main leaf - %ebx.
  */
 #define CPUID_SEF_FSGSBASE	__BIT(0)
+#define CPUID_SEF_TSC_ADJUST	__BIT(1)
 #define CPUID_SEF_BMI1		__BIT(3)
 #define CPUID_SEF_HLE		__BIT(4)
 #define CPUID_SEF_AVX2		__BIT(5)
@@ -173,23 +174,19 @@
 #define CPUID_SEF_ERMS		__BIT(9)
 #define CPUID_SEF_INVPCID	__BIT(10)
 #define CPUID_SEF_RTM		__BIT(11)
+#define CPUID_SEF_QM		__BIT(12)
+#define CPUID_SEF_FPUCSDS	__BIT(13)
 #define CPUID_SEF_RDSEED	__BIT(18)
 #define CPUID_SEF_ADX		__BIT(19)
 #define CPUID_SEF_SMAP		__BIT(20)
 
 #define CPUID_SEF_FLAGS	"\20" \
-	"\1" "FSGSBASE" \
-	"\2" "BMI1" \
-	"\4" "HLE" \
-	"\5" "AVX2" \
-	"\7" "SMEP" \
-	"\10" "BMI2" \
-	"\11" "ERMS" \
-	"\12" "INVPCID" \
-	"\13" "RTM" \
-	"\22" "RDSEED" \
-	"\23" "ADX" \
-	"\24" "SMAP"
+	"\1" "FSGSBASE"	"\2" "TSCADJUST"		"\4" "BMI1"	\
+	"\5" "HLE"	"\6" "AVX2"			"\10" "SMEP"	\
+	"\11" "BMI2"	"\12" "ERMS"	"\13" "INVPCID"	"\14" "RTM"	\
+	"\15" "QM"	"\16" "FPUCSDS"					\
+					"\23" "RDSEED"	"\24" "ADX"	\
+	"\25" "SMAP"
 
 /* Intel Fn80000001 extended features - %edx */
 #define CPUID_SYSCALL	0x00000800	/* SYSCALL/SYSRET */
