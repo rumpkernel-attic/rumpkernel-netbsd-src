@@ -5,4 +5,6 @@ D/arm////
 D/evbarm////
 D/sparc////
 D/sparc64////
-/Makefile/1.42/Thu May  2 03:56:40 2013//D2013.07.30.09.30.00
+D/powerpc////
+D/evbppc////
+/Makefile/1.42/Thu May  2 03:56:40 2013//D2013.08.11.18.36.00
