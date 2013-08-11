@@ -1,4 +1,4 @@
-/*	$NetBSD: job.c,v 1.174 2013/07/05 22:14:56 sjg Exp $	*/
+/*	$NetBSD: job.c,v 1.176 2013/08/04 16:48:15 sjg Exp $	*/
 
 /*
  * Copyright (c) 1988, 1989, 1990 The Regents of the University of California.
@@ -70,14 +70,14 @@
  */
 
 #ifndef MAKE_NATIVE
-static char rcsid[] = "$NetBSD: job.c,v 1.174 2013/07/05 22:14:56 sjg Exp $";
+static char rcsid[] = "$NetBSD: job.c,v 1.176 2013/08/04 16:48:15 sjg Exp $";
 #else
 #include <sys/cdefs.h>
 #ifndef lint
 #if 0
 static char sccsid[] = "@(#)job.c	8.2 (Berkeley) 3/19/94";
 #else
-__RCSID("$NetBSD: job.c,v 1.174 2013/07/05 22:14:56 sjg Exp $");
+__RCSID("$NetBSD: job.c,v 1.176 2013/08/04 16:48:15 sjg Exp $");
 #endif
 #endif /* not lint */
 #endif
@@ -332,7 +332,7 @@ static Job childExitJob;	/* child exit pseudo-job */
 
 #define TARG_FMT  "%s %s ---\n" /* Default format */
 #define MESSAGE(fp, gn) \
-	if (maxJobs != 1) \
+	if (maxJobs != 1 && targPrefix && *targPrefix) \
 	    (void)fprintf(fp, TARG_FMT, targPrefix, gn->name)
 
 static sigset_t caught_signals;	/* Set of signals we handle */
@@ -2198,6 +2198,7 @@ Job_SetPrefix(void)
 void
 Job_Init(void)
 {
+    Job_SetPrefix();
     /* Allocate space for all the job info */
     job_table = bmake_malloc(maxJobs * sizeof *job_table);
     memset(job_table, 0, maxJobs * sizeof *job_table);

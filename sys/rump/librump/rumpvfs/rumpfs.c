@@ -1,4 +1,4 @@
-/*	$NetBSD: rumpfs.c,v 1.118 2013/08/04 11:09:55 pooka Exp $	*/
+/*	$NetBSD: rumpfs.c,v 1.120 2013/08/05 11:48:22 pooka Exp $	*/
 
 /*
  * Copyright (c) 2009, 2010, 2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rumpfs.c,v 1.118 2013/08/04 11:09:55 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rumpfs.c,v 1.120 2013/08/05 11:48:22 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/atomic.h>
@@ -1664,7 +1664,9 @@ rump_vop_reclaim(void *v)
 	vp->v_data = NULL;
 
 	if (rn->rn_flags & RUMPNODE_CANRECLAIM) {
-		if (vp->v_type == VREG && rn->rn_data) {
+		if (vp->v_type == VREG
+		    && (rn->rn_flags & RUMPNODE_ET_PHONE_HOST) == 0
+		    && rn->rn_data) {
 			rump_hyperfree(rn->rn_data, rn->rn_dlen);
 			rn->rn_data = NULL;
 		}
@@ -1806,9 +1808,12 @@ rumpfs_unmount(struct mount *mp, int mntflags)
 	if (panicstr || mntflags & MNT_FORCE)
 		flags |= FORCECLOSE;
 
+	if (rfsmp->rfsmp_rvp->v_usecount > 1 && (flags & FORCECLOSE) == 0)
+		return EBUSY;
+
 	if ((error = vflush(mp, rfsmp->rfsmp_rvp, flags)) != 0)
 		return error;
-	vgone(rfsmp->rfsmp_rvp); /* XXX */
+	vgone(rfsmp->rfsmp_rvp);
 
 	kmem_free(rfsmp, sizeof(*rfsmp));
 

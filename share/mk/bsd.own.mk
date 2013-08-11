@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.740 2013/07/27 11:13:57 skrll Exp $
+#	$NetBSD: bsd.own.mk,v 1.743 2013/08/07 22:09:30 skrll Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -14,7 +14,7 @@ MAKECONF?=	/etc/mk.conf
 #
 # CPU model, derived from MACHINE_ARCH
 #
-MACHINE_CPU=	${MACHINE_ARCH:C/mipse[bl]/mips/:C/mips64e[bl]/mips/:C/sh3e[bl]/sh3/:S/coldfire/m68k/:S/m68000/m68k/:S/armeb/arm/:C/earm.*/arm/:S/earm/arm/:S/powerpc64/powerpc/}
+MACHINE_CPU=	${MACHINE_ARCH:C/mipse[bl]/mips/:C/mips64e[bl]/mips/:C/sh3e[bl]/sh3/:S/coldfire/m68k/:S/m68000/m68k/:S/arm.*/arm/:C/earm.*/arm/:S/earm/arm/:S/powerpc64/powerpc/}
 
 #
 # Subdirectory used below ${RELEASEDIR} when building a release
@@ -58,7 +58,9 @@ HAVE_GCC?=    45
 .endif
 .endif
 
+
 .if \
+    ${MACHINE_CPU} == "alpha" || \
     ${MACHINE_CPU} == "arm" || \
     ${MACHINE_CPU} == "hppa" || \
     ${MACHINE_ARCH} == "i386" || \
@@ -690,9 +692,21 @@ SHLIB_VERSION_FILE?= ${.CURDIR}/shlib_version
 #
 GNU_ARCH.coldfire=m5407
 GNU_ARCH.earm=arm
-GNU_ARCH.earmeb=armeb
 GNU_ARCH.earmhf=arm
+GNU_ARCH.earmeb=armeb
 GNU_ARCH.earmhfeb=armeb
+GNU_ARCH.earmv4=armv4
+GNU_ARCH.earmv4eb=armv4eb
+GNU_ARCH.earmv5=arm
+GNU_ARCH.earmv5eb=armeb
+GNU_ARCH.earmv6=armv6
+GNU_ARCH.earmv6hf=armv6
+GNU_ARCH.earmv6eb=armv6eb
+GNU_ARCH.earmv6hfeb=armv6eb
+GNU_ARCH.earmv7=armv7
+GNU_ARCH.earmv7hf=armv7
+GNU_ARCH.earmv7eb=armv7eb
+GNU_ARCH.earmv7hfeb=armv7eb
 GNU_ARCH.i386=i486
 GCC_CONFIG_ARCH.i386=i486
 GCC_CONFIG_TUNE.i386=nocona
@@ -708,7 +722,7 @@ MACHINE_GNU_ARCH=${GNU_ARCH.${MACHINE_ARCH}:U${MACHINE_ARCH}}
 # an "elf" tag for historically a.out platforms.
 #
 .if (!empty(MACHINE_ARCH:Mearm*))
-MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf-${MACHINE_ARCH:C/eb//:S/earm/eabi/}
+MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf-${MACHINE_ARCH:C/eb//:C/v[4-7]//:S/earm/eabi/}
 .elif (${MACHINE_GNU_ARCH} == "arm" || \
      ${MACHINE_GNU_ARCH} == "armeb" || \
      ${MACHINE_ARCH} == "i386" || \
