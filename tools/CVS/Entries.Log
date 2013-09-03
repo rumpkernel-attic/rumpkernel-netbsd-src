@@ -56,6 +56,7 @@ A D/llvm-clang////
 A D/llvm-clang-tblgen////
 A D/llvm-include////
 A D/llvm-lib////
+A D/llvm-lld////
 A D/llvm-mcld////
 A D/llvm-tblgen////
 A D/lorder////
@@ -113,6 +114,7 @@ R D/toolchain////
 R D/sparc-installboot////
 R D/prep-mkbootimage////
 R D/nbmachine////
+R D/llvm-lld////
 R D/dumpfs////
 R D/bmake////
 R D/bebox-mkbootimage////
