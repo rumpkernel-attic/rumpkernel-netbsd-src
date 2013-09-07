@@ -1,4 +1,5 @@
 A D/acpica////
+A D/common////
 A D/compiler_rt////
 A D/drm////
 A D/drm2////
@@ -7,3 +8,4 @@ A D/ipf////
 A D/sljit////
 A D/vchiq////
 R D/dwc2////
+R D/common////
