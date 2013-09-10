@@ -1,5 +1,6 @@
-/* $NetBSD: __aeabi_read_tp.S,v 1.3 2012/11/20 22:02:46 matt Exp $ */
+/* $NetBSD: __aeabi_read_tp.S,v 1.5 2013/08/19 22:10:51 matt Exp $ */
 
+#undef __thumb__
 #include "SYS.h"
 
 /*
@@ -7,7 +8,7 @@
  * (r0) and the non-parameter integer core registers allowed to be corrupted
  * by the [AAPCS] (ip, lr, and CPSR).
  */
-ENTRY(__aeabi_read_tp)
+ARM_ENTRY(__aeabi_read_tp)
 	mrc	p15, 0, r0, c13, c0, 3
 #ifndef _ARM_ARCH_6
 	cmp	r0, #0			/* was it zero? */
@@ -17,4 +18,4 @@ ENTRY(__aeabi_read_tp)
 	mov	r1, ip			/* restore r1 */
 #endif
 	RET
-_END(__aeabi_read_tp)
+END(__aeabi_read_tp)

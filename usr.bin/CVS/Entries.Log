@@ -1,11 +1,2 @@
-A D/make////
-A D/xinstall////
-A D/config////
-A D/mktemp////
-A D/sed////
-A D/tsort////
-A D/lorder////
-A D/join////
-A D/cksum////
-A D/m4////
-A D/mkdep////
+A D/rump_server////
+A D/rump_allserver////

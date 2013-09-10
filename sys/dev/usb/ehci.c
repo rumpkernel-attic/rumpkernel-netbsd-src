@@ -1,4 +1,4 @@
-/*	$NetBSD: ehci.c,v 1.207 2013/06/25 15:32:23 jakllsch Exp $ */
+/*	$NetBSD: ehci.c,v 1.211 2013/09/07 19:53:24 matt Exp $ */
 
 /*
  * Copyright (c) 2004-2012 The NetBSD Foundation, Inc.
@@ -53,7 +53,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ehci.c,v 1.207 2013/06/25 15:32:23 jakllsch Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ehci.c,v 1.211 2013/09/07 19:53:24 matt Exp $");
 
 #include "ohci.h"
 #include "uhci.h"
@@ -358,8 +358,10 @@ ehci_init(ehci_softc_t *sc)
 
 	sc->sc_doorbell_si = softint_establish(SOFTINT_NET | SOFTINT_MPSAFE,
 	    ehci_doorbell, sc);
+	KASSERT(sc->sc_doorbell_si != NULL);
 	sc->sc_pcd_si = softint_establish(SOFTINT_NET | SOFTINT_MPSAFE,
 	    ehci_pcd, sc);
+	KASSERT(sc->sc_pcd_si != NULL);
 
 	sc->sc_offs = EREAD1(sc, EHCI_CAPLENGTH);
 
@@ -653,6 +655,7 @@ ehci_intr1(ehci_softc_t *sc)
 	if (eintrs & EHCI_STS_IAA) {
 		DPRINTF(("ehci_intr1: door bell\n"));
 		kpreempt_disable();
+		KASSERT(sc->sc_doorbell_si != NULL);
 		softint_schedule(sc->sc_doorbell_si);
 		kpreempt_enable();
 		eintrs &= ~EHCI_STS_IAA;
@@ -671,6 +674,7 @@ ehci_intr1(ehci_softc_t *sc)
 	}
 	if (eintrs & EHCI_STS_PCD) {
 		kpreempt_disable();
+		KASSERT(sc->sc_pcd_si != NULL);
 		softint_schedule(sc->sc_pcd_si);
 		kpreempt_enable();
 		eintrs &= ~EHCI_STS_PCD;
@@ -809,7 +813,7 @@ ehci_check_qh_intr(ehci_softc_t *sc, struct ehci_xfer *ex)
 #endif
 	/*
 	 * If the last TD is still active we need to check whether there
-	 * is a an error somewhere in the middle, or whether there was a
+	 * is an error somewhere in the middle, or whether there was a
 	 * short packet (SPD and not ACTIVE).
 	 */
 	usb_syncmem(&lsqtd->dma,
@@ -1616,7 +1620,7 @@ ehci_open(usbd_pipe_handle pipe)
 	ehci_softc_t *sc = dev->bus->hci_private;
 	usb_endpoint_descriptor_t *ed = pipe->endpoint->edesc;
 	u_int8_t addr = dev->address;
-	u_int8_t xfertype = ed->bmAttributes & UE_XFERTYPE;
+	u_int8_t xfertype = UE_GET_XFERTYPE(ed->bmAttributes);
 	struct ehci_pipe *epipe = (struct ehci_pipe *)pipe;
 	ehci_soft_qh_t *sqh;
 	usbd_status err;
@@ -2544,7 +2548,7 @@ ehci_root_ctrl_close(usbd_pipe_handle pipe)
 }
 
 Static void
-ehci_root_intr_done(usbd_xfer_handle xfer)
+ehci_root_ctrl_done(usbd_xfer_handle xfer)
 {
 	xfer->hcpriv = NULL;
 }
@@ -2613,7 +2617,7 @@ ehci_root_intr_close(usbd_pipe_handle pipe)
 }
 
 Static void
-ehci_root_ctrl_done(usbd_xfer_handle xfer)
+ehci_root_intr_done(usbd_xfer_handle xfer)
 {
 	xfer->hcpriv = NULL;
 }

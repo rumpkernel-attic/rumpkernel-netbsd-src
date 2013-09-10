@@ -1,4 +1,4 @@
-/*	$NetBSD: ahcisata_core.c,v 1.48 2013/06/22 05:41:25 matt Exp $	*/
+/*	$NetBSD: ahcisata_core.c,v 1.50 2013/09/08 11:47:16 matt Exp $	*/
 
 /*
  * Copyright (c) 2006 Manuel Bouyer.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ahcisata_core.c,v 1.48 2013/06/22 05:41:25 matt Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ahcisata_core.c,v 1.50 2013/09/08 11:47:16 matt Exp $");
 
 #include <sys/types.h>
 #include <sys/malloc.h>
@@ -144,12 +144,10 @@ ahci_reset(struct ahci_softc *sc)
 static void
 ahci_setup_ports(struct ahci_softc *sc)
 {
-	uint32_t ahci_ports;
 	int i, port;
 	
-	ahci_ports = AHCI_READ(sc, AHCI_PI);
 	for (i = 0, port = 0; i < AHCI_MAX_PORTS; i++) {
-		if ((ahci_ports & (1 << i)) == 0)
+		if ((sc->sc_ahci_ports & (1 << i)) == 0)
 			continue;
 		if (port >= sc->sc_atac.atac_nchannels) {
 			aprint_error("%s: more ports than announced\n",
@@ -163,14 +161,12 @@ ahci_setup_ports(struct ahci_softc *sc)
 static void
 ahci_reprobe_drives(struct ahci_softc *sc)
 {
-	uint32_t ahci_ports;
 	int i, port;
 	struct ahci_channel *achp;
 	struct ata_channel *chp;
 
-	ahci_ports = AHCI_READ(sc, AHCI_PI);
 	for (i = 0, port = 0; i < AHCI_MAX_PORTS; i++) {
-		if ((ahci_ports & (1 << i)) == 0)
+		if ((sc->sc_ahci_ports & (1 << i)) == 0)
 			continue;
 		if (port >= sc->sc_atac.atac_nchannels) {
 			aprint_error("%s: more ports than announced\n",
@@ -210,7 +206,7 @@ ahci_enable_intrs(struct ahci_softc *sc)
 void
 ahci_attach(struct ahci_softc *sc)
 {
-	uint32_t ahci_rev, ahci_ports;
+	uint32_t ahci_rev;
 	int i, j, port;
 	struct ahci_channel *achp;
 	struct ata_channel *chp;
@@ -259,9 +255,11 @@ ahci_attach(struct ahci_softc *sc)
 			"b\037S64A\0"
 			"\0", sc->sc_ahci_cap);
 	aprint_normal_dev(sc->sc_atac.atac_dev, "AHCI revision %u.%u"
-	    ", %d ports, %d slots, CAP %s\n",
+	    ", %d port%s, %d slot%s, CAP %s\n",
 	    AHCI_VS_MJR(ahci_rev), AHCI_VS_MNR(ahci_rev),
-	    sc->sc_atac.atac_nchannels, sc->sc_ncmds, buf);
+	    sc->sc_atac.atac_nchannels,
+	    (sc->sc_atac.atac_nchannels == 1 ? "" : "s"), 
+	    sc->sc_ncmds, (sc->sc_ncmds == 1 ? "" : "s"), buf);
 
 	sc->sc_atac.atac_cap = ATAC_CAP_DATA16 | ATAC_CAP_DMA | ATAC_CAP_UDMA;
 	sc->sc_atac.atac_cap |= sc->sc_atac_capflags;
@@ -311,9 +309,13 @@ ahci_attach(struct ahci_softc *sc)
 
 	ahci_enable_intrs(sc);
 
-	ahci_ports = AHCI_READ(sc, AHCI_PI);
+	if (sc->sc_ahci_ports == 0) {
+		sc->sc_ahci_ports = AHCI_READ(sc, AHCI_PI);
+		AHCIDEBUG_PRINT(("active ports %#x\n", sc->sc_ahci_ports),
+		    DEBUG_PROBE);
+	}
 	for (i = 0, port = 0; i < AHCI_MAX_PORTS; i++) {
-		if ((ahci_ports & (1 << i)) == 0)
+		if ((sc->sc_ahci_ports & (1 << i)) == 0)
 			continue;
 		if (port >= sc->sc_atac.atac_nchannels) {
 			aprint_error("%s: more ports than announced\n",
@@ -435,19 +437,17 @@ ahci_detach(struct ahci_softc *sc, int flags)
 	struct ahci_channel *achp;
 	struct ata_channel *chp;
 	struct scsipi_adapter *adapt;
-	uint32_t ahci_ports;
 	int i, j;
 	int error;
 
 	atac = &sc->sc_atac;
 	adapt = &atac->atac_atapi_adapter._generic;
 
-	ahci_ports = AHCI_READ(sc, AHCI_PI);
 	for (i = 0; i < AHCI_MAX_PORTS; i++) {
 		achp = &sc->sc_channels[i];
 		chp = &achp->ata_channel;
 
-		if ((ahci_ports & (1 << i)) == 0)
+		if ((sc->sc_ahci_ports & (1 << i)) == 0)
 			continue;
 		if (i >= sc->sc_atac.atac_nchannels) {
 			aprint_error("%s: more ports than announced\n",

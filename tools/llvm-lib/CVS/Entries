@@ -1,5 +1,5 @@
-/Makefile/1.2/Tue Jul  5 17:15:51 2011//D2013.08.12.10.30.00
-/Makefile.inc/1.1/Sun Feb  6 01:14:12 2011//D2013.08.12.10.30.00
+/Makefile/1.2/Tue Jul  5 17:15:51 2011//D2013.09.10.18.30.00
+/Makefile.inc/1.1/Sun Feb  6 01:14:12 2011//D2013.09.10.18.30.00
 D/libLLVMAArch64AsmParser////
 D/libLLVMAArch64AsmPrinter////
 D/libLLVMAArch64CodeGen////
@@ -95,3 +95,16 @@ D/libclangSerialization////
 D/libclangStaticAnalyzerCheckers////
 D/libclangStaticAnalyzerCore////
 D/libclangStaticAnalyzerFrontend////
+D/liblldCore////
+D/liblldDriver////
+D/liblldPasses////
+D/liblldReaderWriter////
+D/liblldReaderWriterELF////
+D/liblldReaderWriterELFHexagon////
+D/liblldReaderWriterELFPPC////
+D/liblldReaderWriterELFX86////
+D/liblldReaderWriterELFX86_64////
+D/liblldReaderWriterMachO////
+D/liblldReaderWriterNative////
+D/liblldReaderWriterPECOFF////
+D/liblldReaderWriterYAML////

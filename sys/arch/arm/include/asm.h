@@ -1,4 +1,4 @@
-/*	$NetBSD: asm.h,v 1.19 2013/08/11 04:39:18 matt Exp $	*/
+/*	$NetBSD: asm.h,v 1.23 2013/08/19 22:08:31 matt Exp $	*/
 
 /*
  * Copyright (c) 1990 The Regents of the University of California.
@@ -41,6 +41,12 @@
 
 	.syntax		unified
 
+#ifdef __thumb__
+#define THUMB_INSN(n)	n
+#else
+#define THUMB_INSN(n)
+#endif
+
 #define	__BIT(n)	(1 << (n))
 #define __BITS(hi,lo)	((~((~0)<<((hi)+1)))&((~0)<<(lo)))
 
@@ -59,6 +65,9 @@
 # define _ALIGN_TEXT .align 2
 #endif
 
+#ifndef _TEXT_SECTION
+#define _TEXT_SECTION	.text
+#endif
 /*
  * gas/arm uses @ as a single comment character and thus cannot be used here
  * Instead it recognised the # instead of an @ symbols in .type directives
@@ -67,12 +76,16 @@
  */
 #define _ASM_TYPE_FUNCTION	%function
 #define _ASM_TYPE_OBJECT	%object
+#define _THUMB_ENTRY(x) \
+	_TEXT_SECTION; _ALIGN_TEXT; .globl x; .type x,_ASM_TYPE_FUNCTION; \
+	.thumb_func; .code 16; x:
+#define _ARM_ENTRY(x) \
+	_TEXT_SECTION; _ALIGN_TEXT; .globl x; .type x,_ASM_TYPE_FUNCTION; \
+	.code 32; x:
 #ifdef __thumb__
-#define _ENTRY(x) \
-	.text; _ALIGN_TEXT; .globl x; .type x,_ASM_TYPE_FUNCTION; .thumb_func; x:
+#define	_ENTRY(x)	_THUMB_ENTRY(x)
 #else
-#define _ENTRY(x) \
-	.text; _ALIGN_TEXT; .globl x; .type x,_ASM_TYPE_FUNCTION; x:
+#define	_ENTRY(x)	_ARM_ENTRY(x)
 #endif
 #define	_END(x)		.size x,.-x
 
@@ -83,37 +96,43 @@
 # define _PROF_PROLOGUE
 #endif
 
-#define	ENTRY(y)	_ENTRY(_C_LABEL(y)); _PROF_PROLOGUE
-#define	ENTRY_NP(y)	_ENTRY(_C_LABEL(y))
-#define	END(y)		_END(_C_LABEL(y))
-#define	ASENTRY(y)	_ENTRY(_ASM_LABEL(y)); _PROF_PROLOGUE
-#define	ASENTRY_NP(y)	_ENTRY(_ASM_LABEL(y))
-#define	ASEND(y)	_END(_ASM_LABEL(y))
+#define	ENTRY(y)		_ENTRY(_C_LABEL(y)); _PROF_PROLOGUE
+#define	ENTRY_NP(y)		_ENTRY(_C_LABEL(y))
+#define	END(y)			_END(_C_LABEL(y))
+#define	ARM_ENTRY(y)		_ARM_ENTRY(_C_LABEL(y)); _PROF_PROLOGUE
+#define	ARM_ENTRY_NP(y)		_ARM_ENTRY(_C_LABEL(y))
+#define	THUMB_ENTRY(y)		_THUMB_ENTRY(_C_LABEL(y)); _PROF_PROLOGUE
+#define	THUMB_ENTRY_NP(y)	_THUMB_ENTRY(_C_LABEL(y))
+#define	END(y)			_END(_C_LABEL(y))
+#define	ASENTRY(y)		_ENTRY(_ASM_LABEL(y)); _PROF_PROLOGUE
+#define	ASENTRY_NP(y)		_ENTRY(_ASM_LABEL(y))
+#define	ASEND(y)		_END(_ASM_LABEL(y))
+#define	ARM_ASENTRY(y)		_ARM_ENTRY(_ASM_LABEL(y)); _PROF_PROLOGUE
+#define	ARM_ASENTRY_NP(y)	_ARM_ENTRY(_ASM_LABEL(y))
+#define	THUMB_ASENTRY(y)	_THUMB_ENTRY(_ASM_LABEL(y)); _PROF_PROLOGUE
+#define	THUMB_ASENTRY_NP(y)	_THUMB_ENTRY(_ASM_LABEL(y))
 
 #define	ASMSTR		.asciz
 
-#if defined(PIC)
-#ifdef __thumb__
-#define	PLT_SYM(x)	x
-#define	GOT_SYM(x)	PIC_SYM(x, GOTOFF)
-#define	GOT_GET(x,got,sym)	\
-	ldr	x, sym;		\
-	add	x, got;		\
-	ldr	x, [x]
-#else
+#if defined(PIC) || defined(__pic__)
+#define	REL_SYM(a, b)	((a) - (b))
 #define	PLT_SYM(x)	PIC_SYM(x, PLT)
 #define	GOT_SYM(x)	PIC_SYM(x, GOT)
 #define	GOT_GET(x,got,sym)	\
 	ldr	x, sym;		\
 	ldr	x, [x, got]
-#endif /* __thumb__ */
-
 #define	GOT_INIT(got,gotsym,pclabel) \
 	ldr	got, gotsym;	\
-	add	got, got, pc;	\
-	pclabel:
+	pclabel: add	got, got, pc
+#ifdef __thumb__
 #define	GOT_INITSYM(gotsym,pclabel) \
-	gotsym: .word _C_LABEL(_GLOBAL_OFFSET_TABLE_) + (. - (pclabel+4))
+	.align 0;		\
+	gotsym: .word _C_LABEL(_GLOBAL_OFFSET_TABLE_) - (pclabel+4)
+#else
+#define	GOT_INITSYM(gotsym,pclabel) \
+	.align 0;		\
+	gotsym: .word _C_LABEL(_GLOBAL_OFFSET_TABLE_) - (pclabel+8)
+#endif
 
 #ifdef __STDC__
 #define	PIC_SYM(x,y)	x ## ( ## y ## )
@@ -122,6 +141,7 @@
 #endif
 
 #else
+#define	REL_SYM(a, b)	(a)
 #define	PLT_SYM(x)	x
 #define	GOT_SYM(x)	x
 #define	GOT_GET(x,got,sym)	\
@@ -174,7 +194,9 @@
 # define RET		bx		lr
 # define RETr(r)	bx		r
 # if defined(__thumb__)
-#  define RETc(c)	it c; __CONCAT(bx,c)	lr
+#  if defined(_ARM_ARCH_7)
+#   define RETc(c)	it c; __CONCAT(bx,c)	lr
+#  endif
 # else
 #  define RETc(c)	__CONCAT(bx,c)	lr
 # endif

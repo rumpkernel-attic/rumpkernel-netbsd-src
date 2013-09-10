@@ -1,5 +1,5 @@
-/Makefile/1.2/Sun Dec  5 16:53:47 2010//D2013.08.12.10.30.00
-/Makefile.inc/1.4/Mon Mar  1 13:12:20 2010//D2013.08.12.10.30.00
+/Makefile/1.2/Sun Dec  5 16:53:47 2010//D2013.09.10.18.30.00
+/Makefile.inc/1.4/Mon Mar  1 13:12:20 2010//D2013.09.10.18.30.00
 D/libagr////
 D/libbridge////
 D/liblocal////
@@ -7,6 +7,7 @@ D/libnet////
 D/libnet80211////
 D/libnetbt////
 D/libnetinet////
+D/libnetinet6////
 D/libnetmpls////
 D/libnpf////
 D/libshmif////
