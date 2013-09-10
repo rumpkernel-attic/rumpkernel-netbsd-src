@@ -1,4 +1,4 @@
-/* $NetBSD: nb_lc_monetary_misc.h,v 1.3 2010/03/27 15:25:22 tnozaki Exp $ */
+/* $NetBSD: nb_lc_monetary_misc.h,v 1.6 2013/08/20 19:58:30 joerg Exp $ */
 
 /*-
  * Copyright (c)2008 Citrus Project,
@@ -42,7 +42,6 @@ _PREFIX(build_cache)(struct _locale_cache_t * __restrict cache,
 
 	_DIAGASSERT(cache != NULL);
 	_DIAGASSERT(cache->ldata != NULL);
-	_DIAGASSERT(cache->items != NULL);
 	_DIAGASSERT(data != NULL);
 
 	ldata = cache->ldata;
@@ -68,16 +67,12 @@ _PREFIX(build_cache)(struct _locale_cache_t * __restrict cache,
 	ldata->int_n_sep_by_space = data->int_n_sep_by_space;
 	ldata->int_p_sign_posn    = data->int_p_sign_posn;
 	ldata->int_n_sign_posn    = data->int_n_sign_posn;
-
-	cache->items[(size_t)CRNCYSTR] = NULL; /* NOT IMPLEMENTED YET */
 }
 
+/* ARGSUSED */
 static __inline void
-_PREFIX(fixup)(_MonetaryLocale *data)
+_PREFIX(update_global)(_MonetaryLocale *data)
 {
-	_DIAGASSERT(data != NULL);
-
-	_CurrentMonetaryLocale = data;
 }
 
 /*
@@ -85,6 +80,5 @@ _PREFIX(fixup)(_MonetaryLocale *data)
  */
 #define _CATEGORY_ID		LC_MONETARY
 #define _CATEGORY_NAME		"LC_MONETARY"
-#define _CATEGORY_DEFAULT	_DefaultMonetaryLocale
 
 #endif /*_RUNE_LC_MONETARY_MISC_H_*/

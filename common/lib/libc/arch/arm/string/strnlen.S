@@ -1,8 +1,10 @@
-/* $NetBSD: strnlen.S,v 1.1 2013/01/23 07:56:09 matt Exp $ */
+/* $NetBSD: strnlen.S,v 1.3 2013/08/20 08:08:59 matt Exp $ */
+
+#include <arm/cdefs.h>		/* for _ARM_ARCH_T2 */
 
 #define	STRNLEN
 
-#ifdef _STANDALONE
+#if defined(_STANDALONE) || (defined(__thumb__) && !defined(_ARM_ARCH_T2))
 #include "strlen_naive.S"
 #else
 #include "strlen_arm.S"

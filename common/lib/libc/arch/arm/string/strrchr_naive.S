@@ -28,17 +28,29 @@
  */
 #include <machine/asm.h>
 
-RCSID("$NetBSD: strrchr_naive.S,v 1.1 2013/01/15 02:03:30 matt Exp $")
+RCSID("$NetBSD: strrchr_naive.S,v 1.4 2013/08/19 17:02:25 matt Exp $")
 
 /* LINTSTUB: char * strrchr(const char *, int) */
 ENTRY(strrchr)
-	mov	ip, r0		/* using r0 as return value */
-	mov	r0, #0		/* default to no match */
-	and	r1, r1, #0xff	/* restrict to a byte value */
-1:	ldrb	r3, [ip], #1	/* read a byte */
+	mov	r2, r0		/* using r0 as return value */
+	movs	r0, #0		/* default to no match */
+#ifdef __thumb__
+	movs	r3, #0xff
+	ands	r1, r1, r3	/* restrict to a byte value */
+1:	ldrb	r3, [r2]	/* read a byte */
 	cmp	r3, r1		/* does it match? */
-	subeq	r0, ip, #1	/*   yes, set return value to point to it */
-	teq	r3, #0		/* was it a NUL? */
+	bne	2f		/*   no, go and advance */
+	mov	r0, r2		/*   yes, set return value to point to it */
+2:	adds	r2, r2, #1	/* advance to next byte */
+	cmp	r3, #0		/* was it a NUL? */
 	bne	1b		/*   no, get next byte */
+#else
+	and	r1, r1, #0xff	/* restrict to a byte value */
+1:	ldrb	r3, [r2], #1	/* read a byte */
+	cmp	r3, r1		/* does it match? */
+	subeq	r0, r2, #1	/*   yes, set return value to point to it */
+	cmp	r3, #0		/* was it a NUL? */
+	bne	1b		/*   no, get next byte */
+#endif
 	RET
 END(strrchr)

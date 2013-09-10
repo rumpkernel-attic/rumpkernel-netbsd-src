@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_rndq.c,v 1.14 2013/06/23 02:35:24 riastradh Exp $	*/
+/*	$NetBSD: kern_rndq.c,v 1.21 2013/08/29 01:04:49 tls Exp $	*/
 
 /*-
  * Copyright (c) 1997-2013 The NetBSD Foundation, Inc.
@@ -32,7 +32,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_rndq.c,v 1.14 2013/06/23 02:35:24 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_rndq.c,v 1.21 2013/08/29 01:04:49 tls Exp $");
 
 #include <sys/param.h>
 #include <sys/ioctl.h>
@@ -150,6 +150,7 @@ static	      void	rnd_process_events(void);
 u_int32_t     rnd_extract_data_locked(void *, u_int32_t, u_int32_t); /* XXX */
 static	      void	rnd_add_data_ts(krndsource_t *, const void *const,
 					uint32_t, uint32_t, uint32_t);
+static inline void	rnd_schedule_process(void);
 
 int			rnd_ready = 0;
 int			rnd_initial_entropy = 0;
@@ -168,6 +169,9 @@ void
 rnd_init_softint(void) {
 	rnd_process = softint_establish(SOFTINT_SERIAL|SOFTINT_MPSAFE,
 	    rnd_intr, NULL);
+	rnd_wakeup = softint_establish(SOFTINT_CLOCK|SOFTINT_MPSAFE,
+	    rnd_wake, NULL);
+	rnd_schedule_process();
 }
 
 /*
@@ -219,10 +223,6 @@ rnd_schedule_wakeup(void)
 	if (__predict_true(rnd_wakeup)) {
 		rnd_schedule_softint(rnd_wakeup);
 		return;
-	}
-	if (!cold) {
-		rnd_wakeup = softint_establish(SOFTINT_CLOCK|SOFTINT_MPSAFE,
-					       rnd_wake, NULL);
 	}
 	rnd_wakeup_readers();
 }
@@ -651,7 +651,13 @@ rnd_add_data(krndsource_t *rs, const void *const data, uint32_t len,
 	 * itself, random.  Don't estimate entropy based on
 	 * timestamp, just directly add the data.
 	 */
-	rnd_add_data_ts(rs, data, len, entropy, rnd_counter());
+	if (__predict_false(rs == NULL)) {
+		mutex_spin_enter(&rndpool_mtx);
+		rndpool_add_data(&rnd_pool, data, len, entropy);
+		mutex_spin_exit(&rndpool_mtx);
+	} else {
+		rnd_add_data_ts(rs, data, len, entropy, rnd_counter());
+	}
 }
 
 static void

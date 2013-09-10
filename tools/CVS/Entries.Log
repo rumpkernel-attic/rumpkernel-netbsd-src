@@ -114,7 +114,6 @@ R D/toolchain////
 R D/sparc-installboot////
 R D/prep-mkbootimage////
 R D/nbmachine////
-R D/llvm-lld////
 R D/dumpfs////
 R D/bmake////
 R D/bebox-mkbootimage////

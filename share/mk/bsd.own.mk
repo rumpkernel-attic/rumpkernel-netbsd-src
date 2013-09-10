@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.743 2013/08/07 22:09:30 skrll Exp $
+#	$NetBSD: bsd.own.mk,v 1.750 2013/09/02 14:34:55 joerg Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -14,7 +14,7 @@ MAKECONF?=	/etc/mk.conf
 #
 # CPU model, derived from MACHINE_ARCH
 #
-MACHINE_CPU=	${MACHINE_ARCH:C/mipse[bl]/mips/:C/mips64e[bl]/mips/:C/sh3e[bl]/sh3/:S/coldfire/m68k/:S/m68000/m68k/:S/arm.*/arm/:C/earm.*/arm/:S/earm/arm/:S/powerpc64/powerpc/}
+MACHINE_CPU=	${MACHINE_ARCH:C/mipse[bl]/mips/:C/mips64e[bl]/mips/:C/sh3e[bl]/sh3/:S/coldfire/m68k/:S/m68000/m68k/:C/arm.*/arm/:C/earm.*/arm/:S/earm/arm/:S/powerpc64/powerpc/}
 
 #
 # Subdirectory used below ${RELEASEDIR} when building a release
@@ -59,22 +59,11 @@ HAVE_GCC?=    45
 .endif
 
 
-.if \
-    ${MACHINE_CPU} == "alpha" || \
-    ${MACHINE_CPU} == "arm" || \
-    ${MACHINE_CPU} == "hppa" || \
-    ${MACHINE_ARCH} == "i386" || \
-    ${MACHINE_CPU} == "m68k" || \
-    ${MACHINE_CPU} == "mips" || \
-    ${MACHINE_ARCH} == "powerpc" || \
-    ${MACHINE_CPU} == "sh3" || \
-    ${MACHINE_ARCH} == "sparc" || \
-    ${MACHINE_ARCH} == "sparc64" || \
-    ${MACHINE_ARCH} == "x86_64" || \
-    ${MACHINE_ARCH} == "vax"
+.if ${MACHINE_ARCH} == "ia64"
+USE_COMPILERCRTSTUFF?=	yes
+.else
 USE_COMPILERCRTSTUFF?=	no
 .endif
-USE_COMPILERCRTSTUFF?=	yes
 
 HAVE_GDB?=	7
 
@@ -497,6 +486,7 @@ OBJCOPY_ELF2AOUT_FLAGS?=	\
 	-R .ident		\
 	-R .ARM.attributes	\
 	-R .ARM.exidx		\
+	-R .ARM.extab		\
 	-R .arm.atpcs		\
 	-R .comment		\
 	-R .debug_abbrev	\
@@ -508,6 +498,7 @@ OBJCOPY_ELF2AOUT_FLAGS?=	\
 	-R .debug_pubnames	\
 	-R .debug_pubtypes	\
 	-R .debug_str		\
+	-R .eh_frame		\
 	-R .note.netbsd.ident
 .endif
 
@@ -881,7 +872,7 @@ _MKVARS.yes= \
 	MKIEEEFP MKINET6 MKINFO MKIPFILTER MKISCSI \
 	MKKERBEROS \
 	MKKMOD \
-	MKLDAP MKLIBSTDCXX MKLINKLIB MKLINT MKLVM \
+	MKLDAP MKLIBSTDCXX MKLINKLIB MKLVM \
 	MKMAN MKMANDOC \
 	MKMDNS \
 	MKMAKEMANDB \
@@ -913,7 +904,7 @@ _MKVARS.no= \
 	MKBSDGREP MKBSDTAR \
 	MKCATPAGES MKCRYPTO_RC5 MKDEBUG \
 	MKDEBUGLIB MKDTRACE MKEXTSRC \
-	MKKYUA \
+	MKKYUA MKLLD MKLINT \
 	MKMANZ MKMCLINKER MKOBJDIRS \
 	MKLIBCXX MKLLVM MKPCC \
 	MKPIGZGZIP \

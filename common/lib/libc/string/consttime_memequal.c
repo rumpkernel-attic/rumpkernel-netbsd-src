@@ -1,8 +1,11 @@
-/* $NetBSD: consttime_memequal.c,v 1.1 2013/06/24 04:21:19 riastradh Exp $ */
+/* $NetBSD: consttime_memequal.c,v 1.4 2013/08/28 19:31:14 riastradh Exp $ */
 
 #if !defined(_KERNEL) && !defined(_STANDALONE)
+#include "namespace.h"
 #include <string.h>
-#define consttime_memequal __consttime_memequal
+#ifdef __weak_alias
+__weak_alias(consttime_memequal,_consttime_memequal)
+#endif
 #else
 #include <lib/libkern/libkern.h>
 #endif
@@ -15,5 +18,15 @@ consttime_memequal(const void *b1, const void *b2, size_t len)
 
 	while (len --)
 		res |= *c1++ ^ *c2++;
-	return res;
+
+	/*
+	 * If the compiler for your favourite architecture generates a
+	 * conditional branch for `!res', it will be a data-dependent
+	 * branch, in which case this should be replaced by
+	 *
+	 *	return (1 - (1 & ((res - 1) >> 8)));
+	 *
+	 * or rewritten in assembly.
+	 */
+	return !res;
 }
