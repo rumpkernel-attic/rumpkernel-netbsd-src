@@ -37,6 +37,7 @@ A D/iscsi////
 A D/lsu////
 A D/marvell////
 A D/mca////
+A D/microcode////
 A D/mii////
 A D/mscp////
 A D/mvme////
@@ -47,6 +48,7 @@ A D/ofisa////
 A D/ofw////
 A D/onewire////
 A D/pad////
+A D/pci////
 A D/pckbc////
 A D/pckbport////
 A D/pcmcia////
