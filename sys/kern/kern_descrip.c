@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_descrip.c,v 1.220 2013/09/05 12:23:07 pooka Exp $	*/
+/*	$NetBSD: kern_descrip.c,v 1.222 2013/09/15 13:03:59 martin Exp $	*/
 
 /*-
  * Copyright (c) 2008, 2009 The NetBSD Foundation, Inc.
@@ -70,7 +70,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_descrip.c,v 1.220 2013/09/05 12:23:07 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_descrip.c,v 1.222 2013/09/15 13:03:59 martin Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
