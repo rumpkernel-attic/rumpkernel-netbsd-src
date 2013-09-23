@@ -1,4 +1,4 @@
-/*	$NetBSD: nfs_export.c,v 1.54 2013/08/30 07:35:44 dholland Exp $	*/
+/*	$NetBSD: nfs_export.c,v 1.56 2013/09/15 13:03:59 martin Exp $	*/
 
 /*-
  * Copyright (c) 1997, 1998, 2004, 2005, 2008 The NetBSD Foundation, Inc.
@@ -77,7 +77,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: nfs_export.c,v 1.54 2013/08/30 07:35:44 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: nfs_export.c,v 1.56 2013/09/15 13:03:59 martin Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>

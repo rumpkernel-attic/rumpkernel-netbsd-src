@@ -1,4 +1,4 @@
-/*	$NetBSD: npf_ruleset.c,v 1.22 2013/08/30 15:00:08 rmind Exp $	*/
+/*	$NetBSD: npf_ruleset.c,v 1.25 2013/09/19 01:49:07 rmind Exp $	*/
 
 /*-
  * Copyright (c) 2009-2013 The NetBSD Foundation, Inc.
@@ -34,7 +34,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: npf_ruleset.c,v 1.22 2013/08/30 15:00:08 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: npf_ruleset.c,v 1.25 2013/09/19 01:49:07 rmind Exp $");
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -50,7 +50,6 @@ __KERNEL_RCSID(0, "$NetBSD: npf_ruleset.c,v 1.22 2013/08/30 15:00:08 rmind Exp $
 #include <net/pfil.h>
 #include <net/if.h>
 
-#include "npf_ncode.h"
 #include "npf_impl.h"
 
 struct npf_ruleset {
@@ -180,6 +179,9 @@ npf_ruleset_insert(npf_ruleset_t *rlset, npf_rule_t *rl)
 	LIST_INSERT_HEAD(&rlset->rs_all, rl, r_aentry);
 	if (NPF_DYNAMIC_GROUP_P(rl->r_attr)) {
 		LIST_INSERT_HEAD(&rlset->rs_dynamic, rl, r_dentry);
+	} else {
+		KASSERTMSG(rl->r_parent == NULL, "cannot be dynamic rule");
+		rl->r_attr &= ~NPF_RULE_DYNAMIC;
 	}
 
 	rlset->rs_rules[n] = rl;
@@ -271,6 +273,8 @@ npf_ruleset_remove(npf_ruleset_t *rlset, const char *rname, uint64_t id)
 		return ESRCH;
 	}
 	TAILQ_FOREACH(rl, &rg->r_subset, r_entry) {
+		KASSERT(rl->r_parent == rg);
+
 		/* Compare ID.  On match, remove and return. */
 		if (rl->r_id == id) {
 			npf_ruleset_unlink(rlset, rl);
@@ -295,6 +299,8 @@ npf_ruleset_remkey(npf_ruleset_t *rlset, const char *rname,
 
 	/* Find the last in the list. */
 	TAILQ_FOREACH_REVERSE(rl, &rg->r_subset, npf_ruleq, r_entry) {
+		KASSERT(rl->r_parent == rg);
+
 		/* Compare the key.  On match, remove and return. */
 		if (memcmp(rl->r_key, key, len) == 0) {
 			npf_ruleset_unlink(rlset, rl);
@@ -324,6 +330,7 @@ npf_ruleset_list(npf_ruleset_t *rlset, const char *rname)
 	}
 
 	TAILQ_FOREACH(rl, &rg->r_subset, r_entry) {
+		KASSERT(rl->r_parent == rg);
 		if (rl->r_dict && !prop_array_add(rules, rl->r_dict)) {
 			prop_object_release(rldict);
 			prop_object_release(rules);
@@ -348,6 +355,7 @@ npf_ruleset_flush(npf_ruleset_t *rlset, const char *rname)
 		return ESRCH;
 	}
 	while ((rl = TAILQ_FIRST(&rg->r_subset)) != NULL) {
+		KASSERT(rl->r_parent == rg);
 		npf_ruleset_unlink(rlset, rl);
 		LIST_INSERT_HEAD(&rlset->rs_gc, rl, r_aentry);
 	}
@@ -385,14 +393,16 @@ npf_ruleset_reload(npf_ruleset_t *rlset, npf_ruleset_t *arlset)
 		}
 
 		/*
-		 * Copy the list-head structure and move the rules from the
-		 * old ruleset to the new by reinserting to a new all-rules
-		 * list and resetting the parent rule.  Note that the rules
-		 * are still active and therefore accessible for inspection
-		 * via the old ruleset.
+		 * Copy the list-head structure.  This is necessary because
+		 * the rules are still active and therefore accessible for
+		 * inspection via the old ruleset.
 		 */
 		memcpy(&rg->r_subset, &arg->r_subset, sizeof(rg->r_subset));
 		TAILQ_FOREACH(rl, &rg->r_subset, r_entry) {
+			/*
+			 * We can safely migrate to the new all-rule list
+			 * and re-set the parent rule, though.
+			 */
 			LIST_REMOVE(rl, r_aentry);
 			LIST_INSERT_HEAD(&rlset->rs_all, rl, r_aentry);
 			rl->r_parent = rg;
@@ -487,7 +497,7 @@ npf_ruleset_natreload(npf_ruleset_t *nrlset, npf_ruleset_t *arlset)
 }
 
 /*
- * npf_rule_alloc: allocate a rule and copy n-code from user-space.
+ * npf_rule_alloc: allocate a rule and initialise it.
  */
 npf_rule_t *
 npf_rule_alloc(prop_dictionary_t rldict)
@@ -544,15 +554,18 @@ npf_rule_alloc(prop_dictionary_t rldict)
 void
 npf_rule_setcode(npf_rule_t *rl, const int type, void *code, size_t size)
 {
-	/* Perform BPF JIT if possible. */
-	if (type == NPF_CODE_BPF && (membar_consumer(),
-	    bpfjit_module_ops.bj_generate_code != NULL)) {
-		KASSERT(rl->r_jcode == NULL);
-		rl->r_jcode = bpfjit_module_ops.bj_generate_code(code, size);
-	}
+	KASSERT(type == NPF_CODE_BPF);
 	rl->r_type = type;
 	rl->r_code = code;
 	rl->r_clen = size;
+#if 0
+	/* Perform BPF JIT if possible. */
+	if (membar_consumer(), bpfjit_module_ops.bj_generate_code != NULL) {
+		KASSERT(rl->r_jcode == NULL);
+		rl->r_jcode = bpfjit_module_ops.bj_generate_code(code, size);
+		rl->r_code = NULL;
+	}
+#endif
 }
 
 /*
@@ -649,7 +662,6 @@ npf_rule_inspect(npf_cache_t *npc, nbuf_t *nbuf, const npf_rule_t *rl,
     const int di_mask, const int layer)
 {
 	const ifnet_t *ifp = nbuf->nb_ifp;
-	const void *code;
 
 	/* Match the interface. */
 	if (rl->r_ifid && rl->r_ifid != ifp->if_index) {
@@ -662,32 +674,14 @@ npf_rule_inspect(npf_cache_t *npc, nbuf_t *nbuf, const npf_rule_t *rl,
 			return false;
 	}
 
-	/* Execute JIT code, if any. */
-	if (__predict_true(rl->r_jcode)) {
-		struct mbuf *m = nbuf_head_mbuf(nbuf);
-		size_t pktlen = m_length(m);
-
-		return rl->r_jcode((unsigned char *)m, pktlen, 0) != 0;
-	}
-
-	/* Execute the byte-code, if any. */
-	if ((code = rl->r_code) == NULL) {
+	/* Any code? */
+	if (rl->r_jcode == rl->r_code) {
+		KASSERT(rl->r_jcode == NULL);
+		KASSERT(rl->r_code == NULL);
 		return true;
 	}
-
-	switch (rl->r_type) {
-	case NPF_CODE_NC:
-		return npf_ncode_process(npc, code, nbuf, layer) == 0;
-	case NPF_CODE_BPF: {
-		struct mbuf *m = nbuf_head_mbuf(nbuf);
-		size_t pktlen = m_length(m);
-		return bpf_filter(bpf_def_ctx, NULL, code,
-		    (unsigned char *)m, pktlen, 0) != 0;
-	}
-	default:
-		KASSERT(false);
-	}
-	return false;
+	KASSERT(rl->r_type == NPF_CODE_BPF);
+	return npf_bpf_filter(npc, nbuf, rl->r_code, rl->r_jcode) != 0;
 }
 
 /*
@@ -717,7 +711,7 @@ npf_rule_reinspect(npf_cache_t *npc, nbuf_t *nbuf, const npf_rule_t *drl,
 /*
  * npf_ruleset_inspect: inspect the packet against the given ruleset.
  *
- * Loop through the rules in the set and run n-code processor of each rule
+ * Loop through the rules in the set and run the byte-code of each rule
  * against the packet (nbuf chain).  If sub-ruleset is found, inspect it.
  *
  * => Caller is responsible for nbuf chain protection.
@@ -793,21 +787,3 @@ npf_rule_conclude(const npf_rule_t *rl, int *retfl)
 	*retfl = rl->r_attr;
 	return (rl->r_attr & NPF_RULE_PASS) ? 0 : ENETUNREACH;
 }
-
-#if defined(DDB) || defined(_NPF_TESTING)
-
-void
-npf_rulenc_dump(const npf_rule_t *rl)
-{
-	const uint32_t *op = rl->r_code;
-	size_t n = rl->r_clen;
-
-	while (n) {
-		printf("\t> |0x%02x|\n", (uint32_t)*op);
-		op++;
-		n -= sizeof(*op);
-	}
-	printf("-> %s\n", (rl->r_attr & NPF_RULE_PASS) ? "pass" : "block");
-}
-
-#endif
