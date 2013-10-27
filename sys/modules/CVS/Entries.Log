@@ -101,6 +101,7 @@ A D/if_alc////
 A D/if_ath_pci////
 A D/if_athn_usb////
 A D/if_axe////
+A D/if_axen////
 A D/if_cas////
 A D/if_npflog////
 A D/if_rum////
@@ -120,6 +121,8 @@ A D/lm////
 A D/lm_isa////
 A D/lm_isa_common////
 A D/lm_wbsio////
+A D/lua////
+A D/luacore////
 A D/mach64drm////
 A D/mfs////
 A D/mgadrm////
@@ -225,7 +228,10 @@ R D/portal////
 R D/nullfs////
 R D/npf_ext_normalise////
 R D/msdosfs////
+R D/luacore////
+R D/lua////
 R D/ksem////
+R D/if_axen////
 R D/i915drm2////
 R D/filecorefs////
 R D/drm2pci////

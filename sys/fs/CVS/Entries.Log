@@ -6,6 +6,7 @@ A D/filecorefs////
 A D/hfs////
 A D/hfsp////
 A D/msdosfs////
+A D/nfs////
 A D/nilfs////
 A D/ntfs////
 A D/ptyfs////
@@ -17,5 +18,6 @@ A D/udf////
 A D/union////
 A D/unionfs////
 A D/v7fs////
+R D/nfs////
 R D/hfsp////
 R D/devfs////
