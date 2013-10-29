@@ -123,6 +123,7 @@ A D/lm_isa_common////
 A D/lm_wbsio////
 A D/lua////
 A D/luacore////
+A D/luapmf////
 A D/mach64drm////
 A D/mfs////
 A D/mgadrm////
@@ -228,6 +229,7 @@ R D/portal////
 R D/nullfs////
 R D/npf_ext_normalise////
 R D/msdosfs////
+R D/luapmf////
 R D/luacore////
 R D/lua////
 R D/ksem////
