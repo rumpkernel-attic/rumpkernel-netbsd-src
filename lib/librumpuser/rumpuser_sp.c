@@ -1,4 +1,4 @@
-/*      $NetBSD: rumpuser_sp.c,v 1.59 2013/07/18 12:28:26 pooka Exp $	*/
+/*      $NetBSD: rumpuser_sp.c,v 1.61 2013/11/01 23:22:13 pooka Exp $	*/
 
 /*
  * Copyright (c) 2010, 2011 Antti Kantee.  All Rights Reserved.
@@ -37,7 +37,7 @@
 #include "rumpuser_port.h"
 
 #if !defined(lint)
-__RCSID("$NetBSD: rumpuser_sp.c,v 1.59 2013/07/18 12:28:26 pooka Exp $");
+__RCSID("$NetBSD: rumpuser_sp.c,v 1.61 2013/11/01 23:22:13 pooka Exp $");
 #endif /* !lint */
 
 #include <sys/types.h>
@@ -90,7 +90,7 @@ static char banner[MAXBANNER];
 
 
 /* how to use atomic ops on Linux? */
-#if defined(__linux__) || defined(__CYGWIN__)
+#if defined(__linux__) || defined(__APPLE__) || defined(__CYGWIN__)
 static pthread_mutex_t discomtx = PTHREAD_MUTEX_INITIALIZER;
 
 static void
@@ -1318,7 +1318,7 @@ rumpuser_sp_init(const char *url,
 	struct spservarg *sarg;
 	struct sockaddr *sap;
 	char *p;
-	unsigned idx;
+	unsigned idx = 0; /* XXXgcc */
 	int error, s;
 
 	p = strdup(url);
