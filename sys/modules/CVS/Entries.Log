@@ -106,6 +106,7 @@ A D/if_cas////
 A D/if_npflog////
 A D/if_rum////
 A D/if_run////
+A D/if_smsc////
 A D/if_urtwn////
 A D/iic////
 A D/ir////
@@ -199,6 +200,7 @@ A D/tprof_pmi////
 A D/tvpll////
 A D/uatp////
 A D/uaudio////
+A D/ubsec////
 A D/udf////
 A D/umap////
 A D/umapfs////
@@ -224,6 +226,7 @@ A D/xldscripts////
 A D/zfs////
 A D/zl10353////
 R D/umapfs////
+R D/ubsec////
 R D/securechroot////
 R D/portal////
 R D/nullfs////
@@ -233,6 +236,7 @@ R D/luapmf////
 R D/luacore////
 R D/lua////
 R D/ksem////
+R D/if_smsc////
 R D/if_axen////
 R D/i915drm2////
 R D/filecorefs////
