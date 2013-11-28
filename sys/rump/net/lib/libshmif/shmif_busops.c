@@ -28,15 +28,18 @@
  */
 
 #include <sys/cdefs.h>
+#ifdef __KERNEL_RCSID
+//Linux compatibility
 __KERNEL_RCSID(0, "$NetBSD: shmif_busops.c,v 1.9 2011/03/21 16:41:09 pooka Exp $");
+#endif
 
 #include <sys/param.h>
-#include <sys/atomic.h>
 
 #ifndef _KERNEL
 #include <assert.h>
 #include <stdbool.h>
 #include <string.h>
+#include <inttypes.h>
 
 #define KASSERT(a) assert(a)
 #else
