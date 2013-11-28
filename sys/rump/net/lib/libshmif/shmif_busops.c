@@ -32,7 +32,10 @@
 __KERNEL_RCSID(0, "$NetBSD: shmif_busops.c,v 1.11 2013/12/20 10:00:59 pooka Exp $");
 #else
 #include <rump/rumpuser_port.h>
+//Linux compatibility:
+#ifdef __RCSID
 __RCSID("$NetBSD: shmif_busops.c,v 1.11 2013/12/20 10:00:59 pooka Exp $");
+#endif
 #endif
 
 #include <sys/param.h>
@@ -42,6 +45,7 @@ __RCSID("$NetBSD: shmif_busops.c,v 1.11 2013/12/20 10:00:59 pooka Exp $");
 #include <inttypes.h>
 #include <stdbool.h>
 #include <string.h>
+#include <inttypes.h>
 
 #define KASSERT(a) assert(a)
 #endif
