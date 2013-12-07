@@ -119,6 +119,12 @@ dowakeup(struct shmif_sc *sc)
 	rumpuser_iovwrite(sc->sc_memfd, &iov, 1, IFMEM_WAKEUP, &n);
 }
 
+static void
+shmif_lockbus()
+{
+	rumpcomp_shmif_lock();
+}
+#if 0
 /*
  * This locking needs work and will misbehave severely if:
  * 1) the backing memory has to be paged in
@@ -141,7 +147,14 @@ shmif_lockbus(struct shmif_mem *busmem)
 	}
 	membar_enter();
 }
+#endif
 
+static void
+shmif_unlockbus()
+{
+	rumpcomp_shmif_unlock();
+}
+#if 0
 static void
 shmif_unlockbus(struct shmif_mem *busmem)
 {
@@ -151,6 +164,7 @@ shmif_unlockbus(struct shmif_mem *busmem)
 	old = atomic_swap_32(&busmem->shm_lock, LOCK_UNLOCKED);
 	KASSERT(old == LOCK_LOCKED);
 }
+#endif
 
 static int
 allocif(int unit, struct shmif_sc **scp)
@@ -225,7 +239,7 @@ initbackend(struct shmif_sc *sc, int memfd)
 	    && sc->sc_busmem->shm_magic != SHMIF_MAGIC) {
 		printf("bus is not magical");
 		rumpuser_unmap(sc->sc_busmem, BUSMEM_SIZE);
-		return ENOEXEC; 
+		return ENOEXEC;
 	}
 
 	/*
@@ -238,12 +252,25 @@ initbackend(struct shmif_sc *sc, int memfd)
 	    p += 512)
 		v = *p;
 
-	shmif_lockbus(sc->sc_busmem);
+	/*
+	 * At that point, we do not know our contestants yet,
+	 * so suspect all shmif clients to be a part of the race:
+	 */
+	rumpcomp_shmif_lockall();
 	/* we're first?  initialize bus */
 	if (sc->sc_busmem->shm_magic == 0) {
 		sc->sc_busmem->shm_magic = SHMIF_MAGIC;
 		sc->sc_busmem->shm_first = BUSMEM_DATASIZE;
+		/*
+		 * TODO: Add more entropy here (date/time?)
+		 * so that busnames do not accidentally overlap
+		 */
+		sc->sc_busmem->shm_lock = rumpcomp_shmif_getpid();
 	}
+	rumpcomp_shmif_unlockall();
+	rumpcomp_shmif_initsem(sc->sc_busmem->shm_lock);
+
+	shmif_lockbus();
 
 	sc->sc_nextpacket = sc->sc_busmem->shm_last;
 	sc->sc_devgen = sc->sc_busmem->shm_gen;
@@ -256,7 +283,7 @@ initbackend(struct shmif_sc *sc, int memfd)
 		*p = v;
 	}
 #endif
-	shmif_unlockbus(sc->sc_busmem);
+	shmif_unlockbus();
 
 	sc->sc_kq = -1;
 	error = rumpcomp_shmif_watchsetup(&sc->sc_kq, memfd);
@@ -286,6 +313,7 @@ finibackend(struct shmif_sc *sc)
 	rumpuser_unmap(sc->sc_busmem, BUSMEM_SIZE);
 	rumpuser_close(sc->sc_memfd);
 	rumpuser_close(sc->sc_kq);
+	rumpcomp_shmif_destroysem();
 
 	sc->sc_memfd = -1;
 }
@@ -543,7 +571,7 @@ shmif_start(struct ifnet *ifp)
 
 		bpf_mtap(ifp, m0);
 
-		shmif_lockbus(busmem);
+		shmif_lockbus();
 		KASSERT(busmem->shm_magic == SHMIF_MAGIC);
 		busmem->shm_last = shmif_nextpktoff(busmem, busmem->shm_last);
 
@@ -562,7 +590,7 @@ shmif_start(struct ifnet *ifp)
 			DPRINTF(("bus generation now %" PRIu64 "\n",
 			    busmem->shm_gen));
 		}
-		shmif_unlockbus(busmem);
+		shmif_unlockbus();
 
 		m_freem(m0);
 		wrote = true;
@@ -669,15 +697,15 @@ shmif_rcv(void *arg)
 		    sc->sc_nextpacket, sc->sc_devgen));
 		KASSERT(m->m_flags & M_EXT);
 
-		shmif_lockbus(busmem);
+		shmif_lockbus();
 		KASSERT(busmem->shm_magic == SHMIF_MAGIC);
 		KASSERT(busmem->shm_gen >= sc->sc_devgen);
 
 		/* need more data? */
-		if (sc->sc_devgen == busmem->shm_gen && 
+		if (sc->sc_devgen == busmem->shm_gen &&
 		    shmif_nextpktoff(busmem, busmem->shm_last)
 		     == sc->sc_nextpacket) {
-			shmif_unlockbus(busmem);
+			shmif_unlockbus();
 			error = 0;
 			rumpcomp_shmif_watchwait(sc->sc_kq);
 			if (__predict_false(error))
@@ -717,7 +745,7 @@ shmif_rcv(void *arg)
 		    sp.sp_len, nextpkt));
 
 		sc->sc_nextpacket = nextpkt;
-		shmif_unlockbus(sc->sc_busmem);
+		shmif_unlockbus();
 
 		if (wrap) {
 			sc->sc_devgen++;
