@@ -1,0 +1,12 @@
+A D/libbpfjit////
+A D/libcrypto////
+A D/libksem////
+A D/libsljit////
+A D/libsolaris////
+A D/libsys_cygwin////
+A D/libsys_linux////
+A D/libsys_sunos////
+A D/libtty////
+A D/libz////
+R D/libksem////
+R D/libbpfjit////

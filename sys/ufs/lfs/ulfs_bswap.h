@@ -1,4 +1,4 @@
-/*	$NetBSD: ulfs_bswap.h,v 1.4 2013/07/28 01:10:49 dholland Exp $	*/
+/*	$NetBSD: ulfs_bswap.h,v 1.6 2013/10/18 15:15:22 christos Exp $	*/
 /*  from NetBSD: ufs_bswap.h,v 1.19 2009/10/19 18:41:17 bouyer Exp  */
 
 /*
@@ -41,9 +41,9 @@
 #define ULFS_FSNEEDSWAP(fs)	((fs)->fs_flags & FS_SWAPPED)
 #define	ULFS_IPNEEDSWAP(ip)	ULFS_MPNEEDSWAP((ip)->i_lfs)
 #else
-#define	ULFS_MPNEEDSWAP(ump)	(0)
-#define ULFS_FSNEEDSWAP(fs)	(0)
-#define	ULFS_IPNEEDSWAP(ip)	(0)
+#define	ULFS_MPNEEDSWAP(ump)	(__USE(ump), 0)
+#define ULFS_FSNEEDSWAP(fs)	(__USE(fs), 0)
+#define	ULFS_IPNEEDSWAP(ip)	(__USE(ip), 0)
 #endif
 
 #if !defined(_KERNEL) || defined(LFS_EI)
@@ -66,9 +66,9 @@ ulfs_rw64(uint64_t a, int ns)
 	return ((ns) ? bswap64(a) : (a));
 }
 #else
-#define ulfs_rw16(a, ns) ((uint16_t)(a))
-#define ulfs_rw32(a, ns) ((uint32_t)(a))
-#define ulfs_rw64(a, ns) ((uint64_t)(a))
+#define ulfs_rw16(a, ns) (__USE(ns), (uint16_t)(a))
+#define ulfs_rw32(a, ns) (__USE(ns), (uint32_t)(a))
+#define ulfs_rw64(a, ns) (__USE(ns), (uint64_t)(a))
 #endif
 
 #define ulfs_add16(a, b, ns) \

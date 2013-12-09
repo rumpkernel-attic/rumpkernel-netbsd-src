@@ -1,4 +1,4 @@
-/*	$NetBSD: _setjmp.S,v 1.14 2013/09/12 15:36:15 joerg Exp $	*/
+/*	$NetBSD: _setjmp.S,v 1.16 2013/11/30 20:20:42 joerg Exp $	*/
 
 /*
  * Copyright (c) 1997 Mark Brinicombe
@@ -135,6 +135,7 @@ ENTRY(_longjmp)
 	vldmia	r3, {d8-d15}
 	ldr	r3, [r0, #(_JB_REG_FPSCR * 4)]
 	vmsr	fpscr, r3
+1:
 #endif /* __ARM_EABI__ && (_ARM_ARCH_T2 || !__thumb__) */
 
 	adds	r0, r0, #(_JB_REG_R4 * 4)
@@ -183,8 +184,8 @@ ENTRY(_longjmp)
 
 	/* validation failed, die die die. */
 botch:
-	bl	PIC_SYM(_C_LABEL(longjmperror), PLT)
-	bl	PIC_SYM(_C_LABEL(abort), PLT)
+	bl	PLT_SYM(_C_LABEL(longjmperror))
+	bl	PLT_SYM(_C_LABEL(abort))
 1:	b	1b		/* Cannot get here */
 
 	.align	0

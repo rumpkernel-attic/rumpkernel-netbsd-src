@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_bio.c,v 1.246 2013/09/15 15:57:26 martin Exp $	*/
+/*	$NetBSD: vfs_bio.c,v 1.248 2013/10/25 20:36:08 martin Exp $	*/
 
 /*-
  * Copyright (c) 2007, 2008, 2009 The NetBSD Foundation, Inc.
@@ -123,7 +123,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_bio.c,v 1.246 2013/09/15 15:57:26 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_bio.c,v 1.248 2013/10/25 20:36:08 martin Exp $");
 
 #include "opt_bufcache.h"
 
@@ -693,7 +693,7 @@ bio_doread(struct vnode *vp, daddr_t blkno, int size, kauth_cred_t cred,
 		brelse(bp, 0);
 
 	if (vp->v_type == VBLK)
-		mp = vp->v_specmountpoint;
+		mp = spec_node_getmountedfs(vp);
 	else
 		mp = vp->v_mount;
 
@@ -800,7 +800,7 @@ bwrite(buf_t *bp)
 	if (vp != NULL) {
 		KASSERT(bp->b_objlock == vp->v_interlock);
 		if (vp->v_type == VBLK)
-			mp = vp->v_specmountpoint;
+			mp = spec_node_getmountedfs(vp);
 		else
 			mp = vp->v_mount;
 	} else {
@@ -1211,7 +1211,7 @@ buf_t *
 geteblk(int size)
 {
 	buf_t *bp;
-	int error;
+	int error __diagused;
 
 	mutex_enter(&bufcache_lock);
 	while ((bp = getnewbuf(0, 0, 0)) == NULL)

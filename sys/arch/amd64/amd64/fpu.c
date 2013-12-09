@@ -1,4 +1,4 @@
-/*	$NetBSD: fpu.c,v 1.40 2012/12/31 16:20:17 dsl Exp $	*/
+/*	$NetBSD: fpu.c,v 1.43 2013/12/01 01:05:16 christos Exp $	*/
 
 /*-
  * Copyright (c) 2008 The NetBSD Foundation, Inc.  All
@@ -100,7 +100,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: fpu.c,v 1.40 2012/12/31 16:20:17 dsl Exp $");
+__KERNEL_RCSID(0, "$NetBSD: fpu.c,v 1.43 2013/12/01 01:05:16 christos Exp $");
 
 #include "opt_multiprocessor.h"
 
@@ -134,7 +134,6 @@ __KERNEL_RCSID(0, "$NetBSD: fpu.c,v 1.40 2012/12/31 16:20:17 dsl Exp $");
 #define stts() HYPERVISOR_fpu_taskswitch(1)
 #endif
 
-
 /*
  * We do lazy initialization and switching using the TS bit in cr0 and the
  * MDL_USEDFPU bit in mdlwp.
@@ -153,8 +152,8 @@ __KERNEL_RCSID(0, "$NetBSD: fpu.c,v 1.40 2012/12/31 16:20:17 dsl Exp $");
  * state is saved.
  */
 
-void fpudna(struct cpu_info *);
-static int x86fpflags_to_ksiginfo(uint32_t);
+void		fpudna(struct cpu_info *);
+static int	x86fpflags_to_ksiginfo(uint32_t);
 
 /*
  * Init the FPU.
@@ -178,11 +177,10 @@ fpuinit(struct cpu_info *ci)
 void
 fputrap(struct trapframe *frame)
 {
-	register struct lwp *l = curcpu()->ci_fpcurlwp;
+	struct lwp *l = curlwp;
 	struct pcb *pcb = lwp_getpcb(l);
 	struct savefpu *sfp = &pcb->pcb_savefpu;
 	uint32_t mxcsr, statbits;
-	uint16_t cw;
 	ksiginfo_t ksi;
 
 	KPREEMPT_DISABLE(l);
@@ -203,6 +201,8 @@ fputrap(struct trapframe *frame)
 		mxcsr &= ~0x3f;
 		x86_ldmxcsr(&mxcsr);
 	} else {
+		uint16_t cw;
+
 		fninit();
 		fwait();
 		cw = sfp->fp_fxsave.fx_fcw;
@@ -223,7 +223,6 @@ fputrap(struct trapframe *frame)
 static int
 x86fpflags_to_ksiginfo(uint32_t flags)
 {
-	int i;
 	static int x86fp_ksiginfo_table[] = {
 		FPE_FLTINV, /* bit 0 - invalid operation */
 		FPE_FLTRES, /* bit 1 - denormal operand */
@@ -234,12 +233,13 @@ x86fpflags_to_ksiginfo(uint32_t flags)
 		FPE_FLTINV, /* bit 6 - stack fault	*/
 	};
 
-	for (i=0;i < sizeof(x86fp_ksiginfo_table)/sizeof(int); i++) {
-		if (flags & (1 << i))
-			return (x86fp_ksiginfo_table[i]);
+	for (u_int i = 0; i < __arraycount(x86fp_ksiginfo_table); i++) {
+		if (flags & (1U << i))
+			return x86fp_ksiginfo_table[i];
 	}
-	/* punt if flags not set */
-	return (FPE_FLTINV);
+
+	/* Punt if flags not set. */
+	return FPE_FLTINV;
 }
 
 /*
@@ -321,6 +321,7 @@ fpudna(struct cpu_info *ci)
 		 */
 		static const double zero = 0.0;
 		int status;
+
 		/*
 		 * Clear the ES bit in the x87 status word if it is currently
 		 * set, in order to avoid causing a fault in the upcoming load.
@@ -328,6 +329,7 @@ fpudna(struct cpu_info *ci)
 		fnstsw(&status);
 		if (status & 0x80)
 			fnclex();
+
 		/*
 		 * Load the dummy variable into the x87 stack.  This mangles
 		 * the x87 stack, but we don't care since we're about to call

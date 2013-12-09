@@ -1,4 +1,4 @@
-/*	$NetBSD: xhci.c,v 1.1 2013/09/14 00:40:31 jakllsch Exp $	*/
+/*	$NetBSD: xhci.c,v 1.10 2013/11/17 16:11:35 skrll Exp $	*/
 
 /*
  * Copyright (c) 2013 Jonathan A. Kollasch
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: xhci.c,v 1.1 2013/09/14 00:40:31 jakllsch Exp $");
+__KERNEL_RCSID(0, "$NetBSD: xhci.c,v 1.10 2013/11/17 16:11:35 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -215,12 +215,14 @@ xhci_read_4(const struct xhci_softc * const sc, bus_size_t offset)
 	return bus_space_read_4(sc->sc_iot, sc->sc_ioh, offset);
 }
 
+#if 0 /* unused */
 static inline void
 xhci_write_4(const struct xhci_softc * const sc, bus_size_t offset,
     uint32_t value)
 {
 	bus_space_write_4(sc->sc_iot, sc->sc_ioh, offset, value);
 }
+#endif /* unused */
 
 static inline uint32_t
 xhci_cap_read_4(const struct xhci_softc * const sc, bus_size_t offset)
@@ -241,6 +243,7 @@ xhci_op_write_4(const struct xhci_softc * const sc, bus_size_t offset,
 	bus_space_write_4(sc->sc_iot, sc->sc_obh, offset, value);
 }
 
+#if 0 /* unused */
 static inline uint64_t
 xhci_op_read_8(const struct xhci_softc * const sc, bus_size_t offset)
 {
@@ -260,6 +263,7 @@ xhci_op_read_8(const struct xhci_softc * const sc, bus_size_t offset)
 
 	return value;
 }
+#endif /* unused */
 
 static inline void
 xhci_op_write_8(const struct xhci_softc * const sc, bus_size_t offset,
@@ -292,6 +296,7 @@ xhci_rt_write_4(const struct xhci_softc * const sc, bus_size_t offset,
 	bus_space_write_4(sc->sc_iot, sc->sc_rbh, offset, value);
 }
 
+#if 0 /* unused */
 static inline uint64_t
 xhci_rt_read_8(const struct xhci_softc * const sc, bus_size_t offset)
 {
@@ -311,6 +316,7 @@ xhci_rt_read_8(const struct xhci_softc * const sc, bus_size_t offset)
 
 	return value;
 }
+#endif /* unused */
 
 static inline void
 xhci_rt_write_8(const struct xhci_softc * const sc, bus_size_t offset,
@@ -330,11 +336,13 @@ xhci_rt_write_8(const struct xhci_softc * const sc, bus_size_t offset,
 	}
 }
 
+#if 0 /* unused */
 static inline uint32_t
 xhci_db_read_4(const struct xhci_softc * const sc, bus_size_t offset)
 {
 	return bus_space_read_4(sc->sc_iot, sc->sc_dbh, offset);
 }
+#endif /* unused */
 
 static inline void
 xhci_db_write_4(const struct xhci_softc * const sc, bus_size_t offset,
@@ -399,12 +407,14 @@ xhci_slot_get_dcv(struct xhci_softc * const sc, struct xhci_slot * const xs,
 	return KERNADDR(&xs->xs_dc_dma, sc->sc_ctxsz * dci);
 }
 
+#if 0 /* unused */
 static inline bus_addr_t
 xhci_slot_get_dcp(struct xhci_softc * const sc, struct xhci_slot * const xs,
     const u_int dci)
 {
 	return DMAADDR(&xs->xs_dc_dma, sc->sc_ctxsz * dci);
 }
+#endif /* unused */
 
 static inline void *
 xhci_slot_get_icv(struct xhci_softc * const sc, struct xhci_slot * const xs,
@@ -560,7 +570,7 @@ usbd_status
 xhci_init(struct xhci_softc *sc)
 {
 	bus_size_t bsz;
-	uint32_t cap, hcs1, hcs2, hcs3, hcc, dboff, rtsoff;
+	uint32_t cap, hcs1, hcs2, hcc, dboff, rtsoff;
 	uint32_t ecp, ecr;
 	uint32_t usbcmd, usbsts, pagesize, config;
 	int i;
@@ -595,7 +605,7 @@ xhci_init(struct xhci_softc *sc)
 	sc->sc_maxintrs = XHCI_HCS1_MAXINTRS(hcs1);
 	sc->sc_maxports = XHCI_HCS1_MAXPORTS(hcs1);
 	hcs2 = xhci_cap_read_4(sc, XHCI_HCSPARAMS2);
-	hcs3 = xhci_cap_read_4(sc, XHCI_HCSPARAMS3);
+	(void)xhci_cap_read_4(sc, XHCI_HCSPARAMS3);
 	hcc = xhci_cap_read_4(sc, XHCI_HCCPARAMS);
 
 	sc->sc_ac64 = XHCI_HCC_AC64(hcc);
@@ -693,14 +703,6 @@ xhci_init(struct xhci_softc *sc)
 	if (i >= 100)
 		return USBD_IOERROR;
 
-	device_printf(sc->sc_dev, "maxspbuf %d\n", XHCI_HCS2_MAXSPBUF(hcs2));
-	if (XHCI_HCS2_MAXSPBUF(hcs2) != 0) {
-		/* XXX */
-		aprint_error_dev(sc->sc_dev,
-		    "TODO implement scratchpad allocation\n");
-		return USBD_INVAL;
-	}
-
 	pagesize = xhci_op_read_4(sc, XHCI_PAGESIZE);
 	device_printf(sc->sc_dev, "PAGESIZE 0x%08x\n", pagesize);
 	pagesize = ffs(pagesize);
@@ -711,12 +713,39 @@ xhci_init(struct xhci_softc *sc)
 	device_printf(sc->sc_dev, "sc_maxslots 0x%08x\n",
 	    (uint32_t)sc->sc_maxslots);
 
+	usbd_status err;
+
+	sc->sc_maxspbuf = XHCI_HCS2_MAXSPBUF(hcs2);
+	device_printf(sc->sc_dev, "sc_maxspbuf %d\n", sc->sc_maxspbuf);
+	if (sc->sc_maxspbuf != 0) {
+		err = usb_allocmem(&sc->sc_bus,
+		    sizeof(uint64_t) * sc->sc_maxspbuf, sizeof(uint64_t),
+		    &sc->sc_spbufarray_dma);
+		if (err)
+			return err;
+		
+		sc->sc_spbuf_dma = kmem_zalloc(sizeof(*sc->sc_spbuf_dma) * sc->sc_maxspbuf, KM_SLEEP);
+		uint64_t *spbufarray = KERNADDR(&sc->sc_spbufarray_dma, 0);
+		for (i = 0; i < sc->sc_maxspbuf; i++) {
+			usb_dma_t * const dma = &sc->sc_spbuf_dma[i];
+			/* allocate contexts */
+			err = usb_allocmem(&sc->sc_bus, sc->sc_pgsz,
+			    sc->sc_pgsz, dma);
+			if (err)
+				return err;
+			spbufarray[i] = htole64(DMAADDR(dma, 0));
+			usb_syncmem(dma, 0, sc->sc_pgsz,
+			    BUS_DMASYNC_PREREAD|BUS_DMASYNC_PREWRITE);
+		}
+
+		usb_syncmem(&sc->sc_spbufarray_dma, 0, 
+		    sizeof(uint64_t) * sc->sc_maxspbuf, BUS_DMASYNC_PREWRITE);
+	}
+
 	config = xhci_op_read_4(sc, XHCI_CONFIG);
 	config &= ~0xFF;
 	config |= sc->sc_maxslots & 0xFF;
 	xhci_op_write_4(sc, XHCI_CONFIG, config);
-
-	usbd_status err;
 
 	err = xhci_ring_init(sc, &sc->sc_cr, XHCI_COMMAND_RING_TRBS,
 	    XHCI_COMMAND_RING_SEGMENTS_ALIGN);
@@ -757,6 +786,13 @@ xhci_init(struct xhci_softc *sc)
 		align = XHCI_DEVICE_CONTEXT_BASE_ADDRESS_ARRAY_ALIGN;
 		err = usb_allocmem(&sc->sc_bus, size, align, dma);
 		memset(KERNADDR(dma, 0), 0, size);
+		if (sc->sc_maxspbuf != 0) {
+			/*
+			 * DCBA entry 0 hold the scratchbuf array pointer.
+			 */
+			*(uint64_t *)KERNADDR(dma, 0) =
+			    htole64(DMAADDR(&sc->sc_spbufarray_dma, 0));
+		}
 		usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
 		device_printf(sc->sc_dev, "dcbaa: %s %016jx %p %zx\n",
 		    usbd_errstr(err),
@@ -1330,8 +1366,8 @@ xhci_allocx(struct usbd_bus *bus)
 
 	xfer = pool_cache_get(sc->sc_xferpool, PR_NOWAIT);
 	if (xfer != NULL) {
-#ifdef DIAGNOSTIC
 		memset(xfer, 0, sizeof(struct xhci_xfer));
+#ifdef DIAGNOSTIC
 		xfer->busy_free = XFER_BUSY;
 #endif
 	}
@@ -1488,7 +1524,8 @@ xhci_new_device(device_t parent, usbd_bus_handle bus, int depth,
 		if (err)
 			return err;
 		USETW(dev->def_ep_desc.wMaxPacketSize, dd->bMaxPacketSize);
-		device_printf(sc->sc_dev, "%s bMaxPacketSize %u\n", __func__, dd->bMaxPacketSize);
+		device_printf(sc->sc_dev, "%s bMaxPacketSize %u\n", __func__,
+		    dd->bMaxPacketSize);
 		xhci_update_ep0_mps(sc, xs, dd->bMaxPacketSize);
 		err = usbd_reload_device_desc(dev);
 		if (err)
@@ -1781,7 +1818,7 @@ xhci_set_dcba(struct xhci_softc * const sc, uint64_t dcba, int si)
 	device_printf(sc->sc_dev, "dcbaa %p dc %016"PRIx64" slot %d\n",
 	    &dcbaa[si], dcba, si);
 
-	dcbaa[si] = dcba;
+	dcbaa[si] = htole64(dcba);
 	usb_syncmem(&sc->sc_dcbaa_dma, si * sizeof(uint64_t), sizeof(uint64_t),
 	    BUS_DMASYNC_PREWRITE);
 }
@@ -1814,6 +1851,10 @@ xhci_init_slot(struct xhci_softc * const sc, uint32_t slot, int depth,
 		xspeed = 4;
 		mps = USB_3_MAX_CTRL_PACKET;
 		break;
+	default:
+		device_printf(sc->sc_dev, "%s: impossible speed: %x",
+		    __func__, speed);
+		return USBD_INVAL;
 	}
 
 	xs = &sc->sc_slots[slot];
@@ -2057,13 +2098,13 @@ xhci_root_ctrl_start(usbd_xfer_handle xfer)
 				goto ret;
 			}
 			totlen = l = min(len, USB_DEVICE_DESCRIPTOR_SIZE);
-			memcpy(buf, &xhci_devd, l);
+			memcpy(buf, &xhci_devd, min(l, sizeof(xhci_devd)));
 			break;
 		case UDESC_DEVICE_QUALIFIER:
 			if ((value & 0xff) != 0) {
 			}
 			totlen = l = min(len, USB_DEVICE_DESCRIPTOR_SIZE);
-			memcpy(buf, &xhci_odevd, l);
+			memcpy(buf, &xhci_odevd, min(l, sizeof(xhci_odevd)));
 			break;
 		case UDESC_OTHER_SPEED_CONFIGURATION:
 		case UDESC_CONFIG:
@@ -2072,19 +2113,19 @@ xhci_root_ctrl_start(usbd_xfer_handle xfer)
 				goto ret;
 			}
 			totlen = l = min(len, USB_CONFIG_DESCRIPTOR_SIZE);
-			memcpy(buf, &xhci_confd, l);
+			memcpy(buf, &xhci_confd, min(l, sizeof(xhci_confd)));
 			((usb_config_descriptor_t *)buf)->bDescriptorType =
 			    value >> 8;
 			buf = (char *)buf + l;
 			len -= l;
 			l = min(len, USB_INTERFACE_DESCRIPTOR_SIZE);
 			totlen += l;
-			memcpy(buf, &xhci_ifcd, l);
+			memcpy(buf, &xhci_ifcd, min(l, sizeof(xhci_ifcd)));
 			buf = (char *)buf + l;
 			len -= l;
 			l = min(len, USB_ENDPOINT_DESCRIPTOR_SIZE);
 			totlen += l;
-			memcpy(buf, &xhci_endpd, l);
+			memcpy(buf, &xhci_endpd, min(l, sizeof(xhci_endpd)));
 			break;
 		case UDESC_STRING:
 #define sd ((usb_string_descriptor_t *)buf)
@@ -2207,8 +2248,9 @@ xhci_root_ctrl_start(usbd_xfer_handle xfer)
 		hubd.bNbrPorts = sc->sc_hs_port_count;
 		USETW(hubd.wHubCharacteristics, UHD_PWR_NO_SWITCH);
 		hubd.bPwrOn2PwrGood = 200;
-		for (i = 0, l = sc->sc_maxports; l > 0; i++, l -= 8, v >>= 8)
-			hubd.DeviceRemovable[i++] = 0; /* XXX can't find out? */		hubd.bDescLength = USB_HUB_DESCRIPTOR_SIZE + i;
+		for (i = 0, l = sc->sc_maxports; l > 0; i++, l -= 8)
+			hubd.DeviceRemovable[i++] = 0; /* XXX can't find out? */
+		hubd.bDescLength = USB_HUB_DESCRIPTOR_SIZE + i;
 		l = min(len, hubd.bDescLength);
 		totlen = l;
 		memcpy(buf, &hubd, l);
@@ -2785,15 +2827,15 @@ xhci_device_intr_abort(usbd_xfer_handle xfer)
 {
 	struct xhci_softc * const sc = xfer->pipe->device->bus->hci_private;
 	DPRINTF(("%s\n", __func__));
+
+	KASSERT(mutex_owned(&sc->sc_lock));
 	device_printf(sc->sc_dev, "%s %p\n", __func__, xfer);
 	/* XXX */
 	if (xfer->pipe->intrxfer == xfer) {
 		xfer->pipe->intrxfer = NULL;
 	}
 	xfer->status = USBD_CANCELLED;
-	mutex_enter(&sc->sc_lock);
 	usb_transfer_complete(xfer);
-	mutex_exit(&sc->sc_lock);
 }
 
 static void

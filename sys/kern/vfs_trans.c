@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_trans.c,v 1.26 2013/01/21 09:14:01 hannken Exp $	*/
+/*	$NetBSD: vfs_trans.c,v 1.29 2013/11/23 13:35:36 christos Exp $	*/
 
 /*-
  * Copyright (c) 2007 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_trans.c,v 1.26 2013/01/21 09:14:01 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_trans.c,v 1.29 2013/11/23 13:35:36 christos Exp $");
 
 /*
  * File system transaction operations.
@@ -99,7 +99,7 @@ static void cow_change_done(const struct mount *);
 void
 fstrans_init(void)
 {
-	int error;
+	int error __diagused;
 
 	error = lwp_specific_key_create(&lwp_data_key, fstrans_lwp_dtor);
 	KASSERT(error == 0);
@@ -510,7 +510,7 @@ static bool
 cow_state_change_done(const struct mount *mp)
 {
 	struct fstrans_lwp_info *fli;
-	struct fstrans_mount_info *fmi;
+	struct fstrans_mount_info *fmi __diagused;
 
 	fmi = mp->mnt_transinfo;
 
@@ -657,7 +657,7 @@ fscow_run(struct buf *bp, bool data_valid)
 		return 0;
 	}
 	if (bp->b_vp->v_type == VBLK)
-		mp = bp->b_vp->v_specmountpoint;
+		mp = spec_node_getmountedfs(bp->b_vp);
 	else
 		mp = bp->b_vp->v_mount;
 	if (mp == NULL || (mp->mnt_iflag & IMNT_HAS_TRANS) == 0) {
@@ -812,7 +812,7 @@ fstrans_dump(int full)
 				fstrans_print_lwp(p, l, full == 1);
 
 	printf("Fstrans state by mount:\n");
-	CIRCLEQ_FOREACH(mp, &mountlist, mnt_list)
+	TAILQ_FOREACH(mp, &mountlist, mnt_list)
 		fstrans_print_mount(mp, full == 1);
 }
 #endif /* defined(DDB) */

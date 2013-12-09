@@ -1,4 +1,4 @@
-/*	$NetBSD: exec_elf.h,v 1.129 2013/09/10 16:24:02 matt Exp $	*/
+/*	$NetBSD: exec_elf.h,v 1.132 2013/11/05 14:26:19 martin Exp $	*/
 
 /*-
  * Copyright (c) 1994 The NetBSD Foundation, Inc.
@@ -301,6 +301,7 @@ typedef struct {
 #define EM_SEP		108	/* Sharp embedded microprocessor */
 #define EM_ARCA		109	/* Arca RISC microprocessor */
 #define EM_UNICORE	110	/* UNICORE from PKU-Unity Ltd. and MPRC Peking University */
+#define EM_AARCH64	183	/* AArch64 64-bit ARM microprocessor */
 
 /* Unofficial machine types follow */
 #define EM_AVR32	6317	/* used by NetBSD/avr32 */
@@ -693,6 +694,13 @@ typedef struct {
 #define DT_LOPROC	0x70000000	/* Processor-specific range */
 #define DT_HIPROC	0x7fffffff
 
+/* Flag values for DT_FLAGS */
+#define DF_ORIGIN	0x00000001	/* uses $ORIGIN */
+#define DF_SYMBOLIC	0x00000002	/* */
+#define DF_TEXTREL	0x00000004	/* */
+#define DF_BIND_NOW	0x00000008	/* */
+#define DF_STATICT_LS	0x00000010	/* */
+
 /* Flag values for DT_FLAGS_1 (incomplete) */
 #define DF_1_BIND_NOW	0x00000001	/* Same as DF_BIND_NOW */
 #define DF_1_NODELETE	0x00000008	/* Set the RTLD_NODELETE for object */
@@ -974,6 +982,21 @@ struct netbsd_elfcore_procinfo {
 #define ELF_NOTE_MARCH_NAMESZ		ELF_NOTE_NETBSD_NAMESZ
 /* NetBSD-specific note name */
 #define ELF_NOTE_MARCH_NAME		ELF_NOTE_NETBSD_NAME
+
+/*
+ * NetBSD-specific note type: MCMODEL
+ * There should be 1 NOTE per executable.
+ * name:	NetBSD\0
+ * namesz:	7
+ * code model:	string
+ */
+
+#define ELF_NOTE_TYPE_MCMODEL_TAG	6
+/* NetBSD-specific note name and description sizes */
+#define ELF_NOTE_MCMODEL_NAMESZ		ELF_NOTE_NETBSD_NAMESZ
+/* NetBSD-specific note name */
+#define ELF_NOTE_MCMODEL_NAME		ELF_NOTE_NETBSD_NAME
+
 
 #if !defined(ELFSIZE) && defined(ARCH_ELFSIZE)
 #define ELFSIZE ARCH_ELFSIZE

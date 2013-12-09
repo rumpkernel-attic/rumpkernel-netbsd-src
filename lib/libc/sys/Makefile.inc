@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.inc,v 1.219 2013/03/29 02:10:53 christos Exp $
+#	$NetBSD: Makefile.inc,v 1.221 2013/11/09 13:05:59 njoly Exp $
 #	@(#)Makefile.inc	8.3 (Berkeley) 10/24/94
 
 # sys sources
@@ -31,7 +31,7 @@ SRCS+=	posix_fadvise.c posix_madvise.c sched.c sigqueue.c sigtimedwait.c \
 # glue to provide compatibility between GCC 1.X and 2.X and for compat
 # with old syscall interfaces.
 GLUE+= ftruncate.c lseek.c mmap.c pread.c preadv.c pwrite.c \
-	pwritev.c truncate.c ntp_adjtime.c
+	pwritev.c truncate.c ntp_adjtime.c mknodat.c
 
 GLUE50+= adjtime.c clock_settime.c settimeofday.c
 
@@ -108,7 +108,7 @@ ASM=	access.S acct.S \
 		_lwp_wakeup.S _lwp_detach.S _lwp_setprivate.S \
 		_lwp_setname.S _lwp_getname.S _lwp_ctl.S \
 	madvise.S mincore.S minherit.S mkdir.S mkdirat.S mkfifo.S mkfifoat.S \
-		__mknod50.S mknodat.S mlock.S mlockall.S modctl.S __mount50.S \
+		__mknod50.S mlock.S mlockall.S modctl.S __mount50.S \
 		mprotect.S __msgctl50.S msgget.S munlock.S munlockall.S \
 		munmap.S \
 	nfssvc.S __ntp_gettime50.S \
@@ -334,7 +334,8 @@ MLINKS+=syscall.2 __syscall.2
 MLINKS+=truncate.2 ftruncate.2
 MLINKS+=unlink.2 unlinkat.2
 MLINKS+=utimes.2 futimes.2 utimes.2 lutimes.2
-MLINKS+=utimes.2 futimens.2 utimes.2 utimensat.2
+MLINKS+=utimes.2 utimens.2 utimes.2 futimens.2 utimes.2 lutimens.2
+MLINKS+=utimes.2 utimensat.2
 MLINKS+=wait.2 wait3.2 wait.2 wait4.2 wait.2 waitpid.2
 MLINKS+=write.2 writev.2 write.2 pwrite.2 write.2 pwritev.2
 MLINKS+=pipe.2 pipe2.2

@@ -1,4 +1,4 @@
-/*	$NetBSD: spec.c,v 1.86 2013/09/09 23:27:43 christos Exp $	*/
+/*	$NetBSD: spec.c,v 1.88 2013/10/17 17:22:59 christos Exp $	*/
 
 /*-
  * Copyright (c) 1989, 1993
@@ -67,7 +67,7 @@
 #if 0
 static char sccsid[] = "@(#)spec.c	8.2 (Berkeley) 4/28/95";
 #else
-__RCSID("$NetBSD: spec.c,v 1.86 2013/09/09 23:27:43 christos Exp $");
+__RCSID("$NetBSD: spec.c,v 1.88 2013/10/17 17:22:59 christos Exp $");
 #endif
 #endif /* not lint */
 
@@ -81,6 +81,7 @@ __RCSID("$NetBSD: spec.c,v 1.86 2013/09/09 23:27:43 christos Exp $");
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -217,6 +218,12 @@ noparent:		mtree_err("no parent node");
 				/*
 				 * empty tree
 				 */
+			/*
+			 * Allow a bare "." root node by forcing it to
+			 * type=dir for compatibility with FreeBSD.
+			 */
+			if (strcmp(centry->name, ".") == 0 && centry->type == 0)
+				centry->type = F_DIR;
 			if (strcmp(centry->name, ".") != 0 ||
 			    centry->type != F_DIR)
 				mtree_err(

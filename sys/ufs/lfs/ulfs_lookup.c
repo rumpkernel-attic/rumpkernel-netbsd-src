@@ -1,4 +1,4 @@
-/*	$NetBSD: ulfs_lookup.c,v 1.15 2013/07/28 01:10:49 dholland Exp $	*/
+/*	$NetBSD: ulfs_lookup.c,v 1.17 2013/10/25 20:05:39 martin Exp $	*/
 /*  from NetBSD: ufs_lookup.c,v 1.122 2013/01/22 09:39:18 dholland Exp  */
 
 /*
@@ -38,7 +38,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ulfs_lookup.c,v 1.15 2013/07/28 01:10:49 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ulfs_lookup.c,v 1.17 2013/10/25 20:05:39 martin Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_lfs.h"
@@ -814,7 +814,6 @@ ulfs_direnter(struct vnode *dvp, const struct ulfs_lookup_results *ulr,
     struct componentname *cnp, struct buf *newdirbp)
 {
 	kauth_cred_t cr;
-	struct lwp *l;
 	int newentrysize;
 	struct inode *dp;
 	struct buf *bp;
@@ -830,7 +829,6 @@ ulfs_direnter(struct vnode *dvp, const struct ulfs_lookup_results *ulr,
 
 	error = 0;
 	cr = cnp->cn_cred;
-	l = curlwp;
 
 	dp = VTOI(dvp);
 	newentrysize = LFS_DIRSIZ(0, dirp, 0);
@@ -1068,9 +1066,7 @@ ulfs_dirremove(struct vnode *dvp, const struct ulfs_lookup_results *ulr,
 	struct lfs_direct *ep;
 	struct buf *bp;
 	int error;
-#ifdef LFS_EI
 	const int needswap = ULFS_MPNEEDSWAP(dp->i_lfs);
-#endif
 
 	if (flags & DOWHITEOUT) {
 		/*
@@ -1476,7 +1472,7 @@ int
 ulfs_blkatoff(struct vnode *vp, off_t offset, char **res, struct buf **bpp,
     bool modify)
 {
-	struct inode *ip;
+	struct inode *ip __diagused;
 	struct buf *bp;
 	daddr_t lbn;
 	const int dirrablks = ulfs_dirrablks;

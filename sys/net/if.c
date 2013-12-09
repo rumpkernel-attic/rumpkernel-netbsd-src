@@ -1,4 +1,4 @@
-/*	$NetBSD: if.c,v 1.265 2013/06/29 21:06:58 rmind Exp $	*/
+/*	$NetBSD: if.c,v 1.269 2013/10/19 21:39:12 mrg Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2008 The NetBSD Foundation, Inc.
@@ -90,7 +90,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: if.c,v 1.265 2013/06/29 21:06:58 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: if.c,v 1.269 2013/10/19 21:39:12 mrg Exp $");
 
 #include "opt_inet.h"
 
@@ -1323,7 +1323,10 @@ link_rtrequest(int cmd, struct rtentry *rt, const struct rt_addrinfo *info)
 void
 if_link_state_change(struct ifnet *ifp, int link_state)
 {
-	int old_link_state, s;
+	int s;
+#if defined(DEBUG) || defined(INET6)
+	int old_link_state;
+#endif
 
 	s = splnet();
 	if (ifp->if_link_state == link_state) {
@@ -1331,7 +1334,9 @@ if_link_state_change(struct ifnet *ifp, int link_state)
 		return;
 	}
 
+#if defined(DEBUG) || defined(INET6)
 	old_link_state = ifp->if_link_state;
+#endif
 	ifp->if_link_state = link_state;
 #ifdef DEBUG
 	log(LOG_DEBUG, "%s: link state %s (was %s)\n", ifp->if_xname,
@@ -1642,6 +1647,11 @@ ifioctl_common(struct ifnet *ifp, u_long cmd, void *data)
 	case SIOCGIFDATA:
 		ifdr = data;
 		ifdr->ifdr_data = ifp->if_data;
+		break;
+
+	case SIOCGIFINDEX:
+		ifr = data;
+		ifr->ifr_index = ifp->if_index;
 		break;
 
 	case SIOCZIFDATA:

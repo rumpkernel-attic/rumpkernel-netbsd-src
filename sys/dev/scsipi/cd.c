@@ -1,4 +1,4 @@
-/*	$NetBSD: cd.c,v 1.313 2013/09/12 12:26:13 martin Exp $	*/
+/*	$NetBSD: cd.c,v 1.316 2013/10/25 11:35:55 martin Exp $	*/
 
 /*-
  * Copyright (c) 1998, 2001, 2003, 2004, 2005, 2008 The NetBSD Foundation,
@@ -50,7 +50,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: cd.c,v 1.313 2013/09/12 12:26:13 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: cd.c,v 1.316 2013/10/25 11:35:55 martin Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -748,7 +748,7 @@ cdstart(struct scsipi_periph *periph)
 	struct scsi_rw_6 cmd_small;
 	struct scsipi_generic *cmdp;
 	struct scsipi_xfer *xs;
-	int flags, nblks, cmdlen, error;
+	int flags, nblks, cmdlen, error __diagused;
 
 	SC_DEBUG(periph, SCSIPI_DB2, ("cdstart "));
 	/*
@@ -1246,7 +1246,7 @@ cdioctl(dev_t dev, u_long cmd, void *addr, int flag, struct lwp *l)
 	struct scsipi_periph *periph = cd->sc_periph;
 	struct cd_formatted_toc toc;
 	int part = CDPART(dev);
-	int error = 0;
+	int error;
 	int s;
 #ifdef __HAVE_OLD_DISKLABEL
 	struct disklabel *newlabel = NULL;
@@ -1305,6 +1305,7 @@ cdioctl(dev_t dev, u_long cmd, void *addr, int flag, struct lwp *l)
 	if (error != EPASSTHROUGH)
 		return (error);
 
+	error = 0;
 	switch (cmd) {
 	case DIOCGDINFO:
 		*(struct disklabel *)addr = *(cd->sc_dk.dk_label);

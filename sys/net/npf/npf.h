@@ -1,4 +1,4 @@
-/*	$NetBSD: npf.h,v 1.31 2013/09/19 01:04:46 rmind Exp $	*/
+/*	$NetBSD: npf.h,v 1.34 2013/12/06 01:33:37 rmind Exp $	*/
 
 /*-
  * Copyright (c) 2009-2013 The NetBSD Foundation, Inc.
@@ -45,7 +45,7 @@
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
 
-#define	NPF_VERSION		10
+#define	NPF_VERSION		12
 
 /*
  * Public declarations and definitions.
@@ -104,18 +104,24 @@ typedef uint8_t			npf_netmask_t;
 typedef struct {
 	/* Information flags. */
 	uint32_t		npc_info;
-	/* Pointers to the IP v4/v6 addresses. */
-	npf_addr_t *		npc_srcip;
-	npf_addr_t *		npc_dstip;
-	/* Size (v4 or v6) of IP addresses. */
+
+	/*
+	 * Pointers to the IP source and destination addresses,
+	 * and the address length (4 for IPv4 or 16 for IPv6).
+	 */
+	npf_addr_t *		npc_ips[2];
 	uint8_t			npc_alen;
+
+	/* IP header length and L4 protocol. */
 	uint8_t			npc_hlen;
 	uint16_t		npc_proto;
+
 	/* IPv4, IPv6. */
 	union {
 		struct ip *		v4;
 		struct ip6_hdr *	v6;
 	} npc_ip;
+
 	/* TCP, UDP, ICMP. */
 	union {
 		struct tcphdr *		tcp;
@@ -132,6 +138,9 @@ npf_iscached(const npf_cache_t *npc, const int inf)
 	return __predict_true((npc->npc_info & inf) != 0);
 }
 
+#define	NPF_SRC		0
+#define	NPF_DST		1
+
 /*
  * Network buffer interface.
  */
@@ -143,6 +152,7 @@ typedef struct {
 	struct mbuf *	nb_mbuf;
 	void *		nb_nptr;
 	const ifnet_t *	nb_ifp;
+	unsigned	nb_ifid;
 	int		nb_flags;
 } nbuf_t;
 
@@ -230,6 +240,8 @@ bool		npf_autounload_p(void);
 #define	NPF_TABLE_HASH			1
 #define	NPF_TABLE_TREE			2
 
+#define	NPF_TABLE_MAXNAMELEN		32
+
 /* Layers. */
 #define	NPF_LAYER_2			2
 #define	NPF_LAYER_3			3
@@ -271,7 +283,7 @@ typedef struct npf_ioctl_buf {
 
 typedef struct npf_ioctl_table {
 	int			nct_cmd;
-	u_int			nct_tid;
+	const char *		nct_name;
 	union {
 		npf_ioctl_ent_t	ent;
 		npf_ioctl_buf_t	buf;
