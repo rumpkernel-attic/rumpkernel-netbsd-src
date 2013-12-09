@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.README,v 1.319 2013/08/03 19:31:26 adam Exp $
+#	$NetBSD: bsd.README,v 1.323 2013/12/06 23:14:15 matt Exp $
 #	@(#)bsd.README	8.2 (Berkeley) 4/2/94
 
 This is the README file for the make "include" files for the NetBSD
@@ -880,6 +880,10 @@ TOOL_VGRIND		Grind nice listings of programs.  [vgrind -f]
 
 TOOL_ZIC		Time zone compiler.  [zic]
 
+For each possible value of MACHINE_CPU, MACHINES.${MACHINE_CPU} contain a
+list of what ports can be built for it.  This keeps those definitions in
+centralized place.
+
 <bsd.own.mk> is generally useful when building your own Makefiles so that
 they use the same default owners etc. as the rest of the tree.
 
@@ -1485,6 +1489,7 @@ DPADD		Additional dependencies for the program.  Usually used for
 		LIBCOMPAT?=	${DESTDIR}/usr/lib/libcompat.a
 		LIBCOM_ERR?=	${DESTDIR}/usr/lib/libcom_err.a
 		LIBCRT0?=	${DESTDIR}/usr/lib/crt0.o
+		LIBCRTI?=	${DESTDIR}/usr/lib/crti.o
 		LIBCRYPT?=	${DESTDIR}/usr/lib/libcrypt.a
 		LIBCRYPTO?=	${DESTDIR}/usr/lib/libcrypto.a
 		LIBCRYPTO_IDEA?=${DESTDIR}/usr/lib/libcrypto_idea.a
@@ -1594,6 +1599,7 @@ DPADD		Additional dependencies for the program.  Usually used for
 		LIBXTRAP?=	${DESTDIR}/usr/X11R7/lib/libXTrap.a
 		LIBXAU?=	${DESTDIR}/usr/X11R7/lib/libXau.a
 		LIBXAW?=	${DESTDIR}/usr/X11R7/lib/libXaw.a
+		LIBXCB?=	${DESTDIR}/usr/X11R7/lib/libxcb.a
 		LIBXDMCP?=	${DESTDIR}/usr/X11R7/lib/libXdmcp.a
 		LIBXEXT?=	${DESTDIR}/usr/X11R7/lib/libXext.a
 		LIBXFONT?=	${DESTDIR}/usr/X11R7/lib/libXfont.a
@@ -1807,6 +1813,8 @@ LORDER		List dependencies for object files.  [lorder]
 MAKE		make(1).  [make]
 
 MKDEP		Construct Makefile dependency list.  [mkdep]
+
+MKDEPCXX	Construct Makefile dependency list for C++ files.  [mkdep]
 
 NM		List symbols from object files.  [nm]
 

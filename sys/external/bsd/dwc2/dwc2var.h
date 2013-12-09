@@ -1,4 +1,4 @@
-/*	$NetBSD: dwc2var.h,v 1.1 2013/09/05 20:25:27 skrll Exp $	*/
+/*	$NetBSD: dwc2var.h,v 1.3 2013/10/22 12:57:40 skrll Exp $	*/
 
 /*-
  * Copyright (c) 2013 The NetBSD Foundation, Inc.
@@ -53,7 +53,6 @@ struct dwc2_pipe {
 
 	/* Current transfer */
 	void *priv;			/* QH */
-	usbd_xfer_handle xfer;
 
 	 /* DMA buffer for control endpoint requests */
 	usb_dma_t req_dma;
@@ -87,7 +86,6 @@ typedef struct dwc2_softc {
 	struct dwc2_hsotg *sc_hsotg;
 
 	kmutex_t sc_lock;
-	kmutex_t sc_intr_lock;
 
 	bool sc_hcdenabled;
 	void *sc_rhc_si;

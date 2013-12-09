@@ -1,4 +1,4 @@
-/*	$NetBSD: uhci.c,v 1.260 2013/09/14 13:17:21 joerg Exp $	*/
+/*	$NetBSD: uhci.c,v 1.263 2013/12/01 07:28:48 skrll Exp $	*/
 
 /*
  * Copyright (c) 1998, 2004, 2011, 2012 The NetBSD Foundation, Inc.
@@ -42,7 +42,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: uhci.c,v 1.260 2013/09/14 13:17:21 joerg Exp $");
+__KERNEL_RCSID(0, "$NetBSD: uhci.c,v 1.263 2013/12/01 07:28:48 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -291,6 +291,7 @@ const struct usbd_bus_methods uhci_bus_methods = {
 	.allocx =	uhci_allocx,
 	.freex =	uhci_freex,
 	.get_lock =	uhci_get_lock,
+	.new_device =	NULL,
 };
 
 const struct usbd_pipe_methods uhci_root_ctrl_methods = {
@@ -855,7 +856,7 @@ uhci_dump_all(uhci_softc_t *sc)
 	uhci_dumpregs(sc);
 	printf("intrs=%d\n", sc->sc_bus.no_intrs);
 	/*printf("framelist[i].link = %08x\n", sc->sc_framelist[0].link);*/
-	uhci_dump_qh(sc->sc_lctl_start);
+	uhci_dump_qhs(sc->sc_lctl_start);
 }
 
 
@@ -3119,7 +3120,7 @@ uhci_device_ctrl_done(usbd_xfer_handle xfer)
 	int len = UGETW(xfer->request.wLength);
 	int isread = (xfer->request.bmRequestType & UT_READ);
 
-	KASSERT(mutex_owned(&sc->sc_lock));
+	KASSERT(sc->sc_bus.use_polling || mutex_owned(&sc->sc_lock));
 
 #ifdef DIAGNOSTIC
 	if (!(xfer->rqflags & URQ_REQUEST))

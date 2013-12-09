@@ -8,7 +8,7 @@ echo Generating rumpdefs.h
 rm -f rumpdefs.h
 exec > rumpdefs.h
 
-printf '/*	$NetBSD: makerumpdefs.sh,v 1.21 2013/08/15 22:10:04 pooka Exp $	*/\n\n'
+printf '/*	$NetBSD: makerumpdefs.sh,v 1.23 2013/12/09 19:31:00 pooka Exp $	*/\n\n'
 printf '/*\n *\tAUTOMATICALLY GENERATED.  DO NOT EDIT.\n */\n\n'
 printf '#ifndef _RUMP_RUMPDEFS_H_\n'
 printf '#define _RUMP_RUMPDEFS_H_\n\n'
@@ -33,6 +33,22 @@ struct rump_'"$2"' {
 		b loop
 	}' < $1
 }
+
+# likewise not perfect, but as long as it's KNF, we're peachy (though
+# I personally like nectarines more)
+getenum () {
+	sed -n '/enum[ 	]*'"$2"'[ 	]*{/{
+		a\
+enum rump_'"$2"' {
+		:loop
+		n
+		s/^}.*;$/};/p
+		t
+		s/'$3'/RUMP_&/gp
+		b loop
+	}' < $1
+}
+
 
 fromvers ../../../sys/fcntl.h
 sed -n '/#define	O_[A-Z]*	*0x/s/O_/RUMP_O_/gp' \
@@ -87,8 +103,14 @@ sed -n '/#define[ 	]*_IO.*\\$/{:t;N;/\\$/bt;s/_IOC/_RUMP_IOC/g;s/IOC[A-Z]/RUMP_&
 sed -n '/#define[ 	]*_IO.*[^\]$/{s/_IO/_RUMP_IO/g;s/IOC_/RUMP_IOC_/gp}' <../../../sys/ioccom.h \
     | sed 's,/\*.*$,,'
 
+fromvers ../../../sys/ktrace.h
+sed -n '/#define[ 	]*KTROP_[A-Z_]/s/KTROP_/RUMP_&/gp' <../../../sys/ktrace.h | sed 's,/\*.*$,,'
+sed -n '/#define[ 	]*KTR_[A-Z_]/s/KTR_/RUMP_&/gp' <../../../sys/ktrace.h | sed 's,/\*.*$,,'
+sed -n '/#define[ 	]*KTRFAC_[A-Z_]/{s/KTRFAC_/RUMP_&/g;s/KTR_/RUMP_&/g;p;}' <../../../sys/ktrace.h | sed 's,/\*.*$,,'
+
 fromvers ../../../sys/module.h
 getstruct ../../../sys/module.h modctl_load
+getenum ../../../sys/module.h modctl MODCTL
 
 fromvers ../../../ufs/ufs/ufsmount.h
 getstruct ../../../ufs/ufs/ufsmount.h ufs_args

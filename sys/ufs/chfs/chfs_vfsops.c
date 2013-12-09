@@ -1,4 +1,4 @@
-/*	$NetBSD: chfs_vfsops.c,v 1.7 2013/01/22 09:39:15 dholland Exp $	*/
+/*	$NetBSD: chfs_vfsops.c,v 1.9 2013/10/20 17:18:38 christos Exp $	*/
 
 /*-
  * Copyright (c) 2010 Department of Software Engineering,
@@ -204,7 +204,6 @@ int
 chfs_mountfs(struct vnode *devvp, struct mount *mp)
 {
 	struct lwp *l = curlwp;
-	struct proc *p;
 	kauth_cred_t cred;
 	devmajor_t flash_major;
 	dev_t dev;
@@ -216,7 +215,6 @@ chfs_mountfs(struct vnode *devvp, struct mount *mp)
 	dbg("mountfs()\n");
 
 	dev = devvp->v_rdev;
-	p = l ? l->l_proc : NULL;
 	cred = l ? l->l_cred : NOCRED;
 
 	/* Flush out any old buffers remaining from a previous use. */
@@ -353,7 +351,7 @@ chfs_mountfs(struct vnode *devvp, struct mount *mp)
 	chfs_gc_trigger(chmp);
 	mutex_exit(&chmp->chm_lock_mountfields);
 
-	devvp->v_specmountpoint = mp;
+	spec_node_setmountedfs(devvp, mp);
 	return 0;
 
 fail:
@@ -411,7 +409,7 @@ chfs_unmount(struct mount *mp, int mntflags)
 
 	/* Unmount UFS. */
 	if (ump->um_devvp->v_type != VBAD) {
-		ump->um_devvp->v_specmountpoint = NULL;
+		spec_node_setmountedfs(ump->um_devvp, NULL);
 	}
 	vn_lock(ump->um_devvp, LK_EXCLUSIVE | LK_RETRY);
 	(void)VOP_CLOSE(ump->um_devvp, FREAD|FWRITE, NOCRED);

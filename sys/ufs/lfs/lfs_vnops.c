@@ -1,4 +1,4 @@
-/*	$NetBSD: lfs_vnops.c,v 1.257 2013/07/29 16:40:46 dholland Exp $	*/
+/*	$NetBSD: lfs_vnops.c,v 1.259 2013/10/18 15:15:22 christos Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2002, 2003 The NetBSD Foundation, Inc.
@@ -60,7 +60,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: lfs_vnops.c,v 1.257 2013/07/29 16:40:46 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: lfs_vnops.c,v 1.259 2013/10/18 15:15:22 christos Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_compat_netbsd.h"
@@ -621,7 +621,6 @@ lfs_mknod(void *v)
 	if (vap->va_rdev != VNOVAL) {
 		struct ulfsmount *ump = ip->i_ump;
 		struct lfs *fs = ip->i_lfs;
-		(void)fs; /* temporary: needed when LFS_EI is off */
 		/*
 		 * Want to be able to use this to make badblock
 		 * inodes, so don't truncate the dev number.
@@ -1391,7 +1390,7 @@ lfs_fcntl(void *v)
 	BLOCK_INFO *blkiov;
 	CLEANERINFO *cip;
 	SEGUSE *sup;
-	int blkcnt, error, oclean;
+	int blkcnt, error;
 	size_t fh_size;
 	struct lfs_fcntl_markv blkvp;
 	struct lwp *l;
@@ -1400,6 +1399,7 @@ lfs_fcntl(void *v)
 	struct buf *bp;
 	fhandle_t *fhp;
 	daddr_t off;
+	int oclean;
 
 	/* Only respect LFS fcntls on fs root or Ifile */
 	if (VTOI(ap->a_vp)->i_number != ULFS_ROOTINO &&
@@ -1510,6 +1510,9 @@ segwait_common:
 		      fs->lfs_offset - off, cip->clean - oclean,
 		      fs->lfs_activesb));
 		LFS_SYNC_CLEANERINFO(cip, fs, bp, 0);
+#else
+		__USE(oclean);
+		__USE(off);
 #endif
 
 		return 0;

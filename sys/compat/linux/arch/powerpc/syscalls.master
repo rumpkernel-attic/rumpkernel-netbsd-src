@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.54 2013/08/11 18:34:43 pooka Exp $  
+	$NetBSD: syscalls.master,v 1.57 2013/12/08 15:55:10 njoly Exp $  
 
 ;	@(#)syscalls.master	8.1 (Berkeley) 7/19/93
 
@@ -85,18 +85,18 @@
 3	NOARGS		{ int|sys||read(int fd, char *buf, u_int nbyte); }
 4	NOARGS		{ int|sys||write(int fd, char *buf, u_int nbyte); }
 5	STD		{ int|linux_sys||open(const char *path, int flags, \
-			    int mode); }
+			    linux_umode_t mode); }
 6	NOARGS		{ int|sys||close(int fd); }
 7	STD		{ int|linux_sys||waitpid(int pid, int *status, \
 			    int options);}
-8	STD		{ int|linux_sys||creat(const char *path, int mode); }
+8	STD		{ int|linux_sys||creat(const char *path, linux_umode_t mode); }
 9	NOARGS		{ int|sys||link(const char *path, const char *link); }
 10	STD		{ int|linux_sys||unlink(const char *path); }
 11	NOARGS		{ int|sys||execve(const char *path, char **argp, \
 			    char **envp); }
 12	NOARGS		{ int|sys||chdir(const char *path); }
 13	STD		{ int|linux_sys||time(linux_time_t *t); }
-14	STD		{ int|linux_sys||mknod(const char *path, int mode, \
+14	STD		{ int|linux_sys||mknod(const char *path, linux_umode_t mode, \
 			    int dev); }
 15	NOARGS		{ int|sys||chmod(const char *path, int mode); }
 16	NOARGS		{ int|sys||__posix_lchown(const char *path, int uid, \
@@ -127,9 +127,9 @@
 37	STD		{ int|linux_sys||kill(int pid, int signum); }
 38	NOARGS		{ int|sys||__posix_rename(const char *from, \
 			    const char *to); }
-39	NOARGS		{ int|sys||mkdir(const char *path, int mode); }
+39	NOARGS		{ int|sys||mkdir(const char *path, linux_umode_t mode); }
 40	NOARGS		{ int|sys||rmdir(const char *path); }
-41	NOARGS		{ int|sys||dup(u_int fd); }
+41	NOARGS		{ int|sys||dup(int fd); }
 42	STD		{ int|linux_sys||pipe(int *pfds); }
 43	STD		{ int|linux_sys||times(struct times *tms); }
 44	OBSOL		prof
@@ -154,7 +154,7 @@
 60	NOARGS		{ int|sys||umask(int newmask); }
 61	NOARGS		{ int|sys||chroot(char *path); }
 62	UNIMPL		ustat
-63	NOARGS		{ int|sys||dup2(u_int from, u_int to); }
+63	NOARGS		{ int|sys||dup2(int from, int to); }
 64	NOARGS		{ pid_t|sys||getppid(void); }
 65	NOARGS		{ int|sys||getpgrp(void); }
 66	NOARGS		{ int|sys||setsid(void); }
@@ -206,7 +206,7 @@
 92	NOARGS		{ int|compat_43_sys||truncate(const char *path, \
 			    long length); }
 93	NOARGS		{ int|compat_43_sys||ftruncate(int fd, long length); }
-94	NOARGS		{ int|sys||fchmod(int fd, int mode); }
+94	NOARGS		{ int|sys||fchmod(int fd, linux_umode_t mode); }
 95	NOARGS		{ int|sys||__posix_fchown(int fd, int uid, int gid); }
 96	STD		{ int|linux_sys||getpriority(int which, int who); }
 97	NOARGS		{ int|sys||setpriority(int which, int who, int prio); }
@@ -504,7 +504,8 @@
 301	UNIMPL		move_pages
 302	UNIMPL		getcpu
 303	UNIMPL		epoll_wait
-304	UNIMPL		utimensat
+304	STD		{ int|linux_sys||utimensat(int fd, const char *path, \
+			    struct linux_timespec *times, int flag); }
 305	UNIMPL		signalfd
 306	UNIMPL		timerfd_create
 307	UNIMPL		eventfd

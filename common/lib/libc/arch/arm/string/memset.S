@@ -1,4 +1,4 @@
-/*	$NetBSD: memset.S,v 1.5 2013/08/19 06:23:59 matt Exp $	*/
+/*	$NetBSD: memset.S,v 1.7 2013/12/02 21:21:33 joerg Exp $	*/
 
 /*
  * Copyright 2003 Wasabi Systems, Inc.
@@ -68,8 +68,23 @@
 
 #include <machine/asm.h>
 
-#if defined(__ARM_EABI__) && !defined(BZER0)
-STRONG_ALIAS(__aeabi_memset, memset)
+#if defined(__ARM_EABI__) && !defined(_BZERO)
+ENTRY(__aeabi_memset)
+	mov	r3, r1
+	mov	r1, r2
+	mov	r2, r3
+	b	memset
+END(__aeabi_memset)
+STRONG_ALIAS(__aeabi_memset4, __aeabi_memset)
+STRONG_ALIAS(__aeabi_memset8, __aeabi_memset)
+
+ENTRY(__aeabi_memclr)
+	mov	r2, r1
+	mov	r1, #0
+	b	memset
+END(__aeabi_memclr)
+STRONG_ALIAS(__aeabi_memclr4, __aeabi_memclr)
+STRONG_ALIAS(__aeabi_memclr8, __aeabi_memclr)
 #endif
 
 /*
@@ -128,22 +143,22 @@ ENTRY(memset)
 .Lmemset_loop128:
 	subs	r1, r1, #0x80
 #ifdef _ARM_ARCH_DWORD_OK
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
 #else
 	stmiage	ip!, {r2-r3}
 	stmiage	ip!, {r2-r3}
@@ -171,10 +186,10 @@ ENTRY(memset)
 .Lmemset_loop32:
 	subs	r1, r1, #0x20
 #ifdef _ARM_ARCH_DWORD_OK
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
 #else
 	stmiage	ip!, {r2-r3}
 	stmiage	ip!, {r2-r3}
@@ -188,8 +203,8 @@ ENTRY(memset)
 
 	/* Deal with 16 bytes or more */
 #ifdef _ARM_ARCH_DWORD_OK
-	strdge	r2, [ip], #0x08
-	strdge	r2, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
+	strdge	r2, r3, [ip], #0x08
 #else
 	stmiage	ip!, {r2-r3}
 	stmiage	ip!, {r2-r3}

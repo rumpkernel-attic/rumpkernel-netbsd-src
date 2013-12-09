@@ -1,4 +1,4 @@
-/*	$NetBSD: dwc2_hcd.h,v 1.2 2013/09/05 20:25:27 skrll Exp $	*/
+/*	$NetBSD: dwc2_hcd.h,v 1.7 2013/11/12 15:13:14 skrll Exp $	*/
 
 /*
  * hcd.h - DesignWare HS OTG Controller host-mode declarations
@@ -124,11 +124,11 @@ struct dwc2_host_chan {
 	unsigned ep_type:2;
 	unsigned max_packet:11;
 	unsigned data_pid_start:2;
-#define DWC2_HC_PID_DATA0	(TSIZ_SC_MC_PID_DATA0 >> TSIZ_SC_MC_PID_SHIFT)
-#define DWC2_HC_PID_DATA2	(TSIZ_SC_MC_PID_DATA2 >> TSIZ_SC_MC_PID_SHIFT)
-#define DWC2_HC_PID_DATA1	(TSIZ_SC_MC_PID_DATA1 >> TSIZ_SC_MC_PID_SHIFT)
-#define DWC2_HC_PID_MDATA	(TSIZ_SC_MC_PID_MDATA >> TSIZ_SC_MC_PID_SHIFT)
-#define DWC2_HC_PID_SETUP	(TSIZ_SC_MC_PID_SETUP >> TSIZ_SC_MC_PID_SHIFT)
+#define DWC2_HC_PID_DATA0	TSIZ_SC_MC_PID_DATA0
+#define DWC2_HC_PID_DATA2	TSIZ_SC_MC_PID_DATA2
+#define DWC2_HC_PID_DATA1	TSIZ_SC_MC_PID_DATA1
+#define DWC2_HC_PID_MDATA	TSIZ_SC_MC_PID_MDATA
+#define DWC2_HC_PID_SETUP	TSIZ_SC_MC_PID_SETUP
 
 	unsigned multi_count:2;
 
@@ -149,10 +149,10 @@ struct dwc2_host_chan {
 	u8 hub_addr;
 	u8 hub_port;
 	u8 xact_pos;
-#define DWC2_HCSPLT_XACTPOS_MID	(HCSPLT_XACTPOS_MID >> HCSPLT_XACTPOS_SHIFT)
-#define DWC2_HCSPLT_XACTPOS_END	(HCSPLT_XACTPOS_END >> HCSPLT_XACTPOS_SHIFT)
-#define DWC2_HCSPLT_XACTPOS_BEGIN (HCSPLT_XACTPOS_BEGIN >> HCSPLT_XACTPOS_SHIFT)
-#define DWC2_HCSPLT_XACTPOS_ALL	(HCSPLT_XACTPOS_ALL >> HCSPLT_XACTPOS_SHIFT)
+#define DWC2_HCSPLT_XACTPOS_MID	HCSPLT_XACTPOS_MID
+#define DWC2_HCSPLT_XACTPOS_END	HCSPLT_XACTPOS_END
+#define DWC2_HCSPLT_XACTPOS_BEGIN HCSPLT_XACTPOS_BEGIN
+#define DWC2_HCSPLT_XACTPOS_ALL	HCSPLT_XACTPOS_ALL
 
 	u8 requests;
 	u8 schinfo;
@@ -243,7 +243,6 @@ enum dwc2_transaction_type {
  * @interval:           Interval between transfers in (micro)frames
  * @sched_frame:        (Micro)frame to initialize a periodic transfer.
  *                      The transfer executes in the following (micro)frame.
- * @nak_frame:          Internal variable used by the NAK holdoff code
  * @frame_usecs:        Internal variable used by the microframe scheduler
  * @start_split_frame:  (Micro)frame at which last start split was initialized
  * @ntd:                Actual number of transfer descriptors in a list
@@ -278,7 +277,6 @@ struct dwc2_qh {
 	u16 usecs;
 	u16 interval;
 	u16 sched_frame;
-	u16 nak_frame;
 	u16 frame_usecs[8];
 	u16 start_split_frame;
 	u16 ntd;
@@ -465,6 +463,7 @@ extern void dwc2_hcd_remove(struct dwc2_hsotg *hsotg);
 extern int dwc2_set_parameters(struct dwc2_hsotg *hsotg,
 			       const struct dwc2_core_params *params);
 extern void dwc2_set_all_params(struct dwc2_core_params *params, int value);
+extern int dwc2_get_hwparams(struct dwc2_hsotg *hsotg);
 
 /* Transaction Execution Functions */
 extern enum dwc2_transaction_type dwc2_hcd_select_transactions(
@@ -509,7 +508,6 @@ extern void dwc2_hcd_qh_free_ddma(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh);
 #ifdef CONFIG_USB_DWC2_DEBUG_PERIODIC
 static inline bool dbg_hc(struct dwc2_host_chan *hc) { return true; }
 static inline bool dbg_qh(struct dwc2_qh *qh) { return true; }
-static inline bool dbg_urb(struct urb *urb) { return true; }
 static inline bool dbg_perio(void) { return true; }
 #else /* !CONFIG_USB_DWC2_DEBUG_PERIODIC */
 static inline bool dbg_hc(struct dwc2_host_chan *hc)
@@ -631,6 +629,18 @@ static inline int dwc2_hcd_is_bandwidth_allocated(struct dwc2_hsotg *hsotg,
 	return 0;
 }
 
+static inline u16 dwc2_hcd_get_ep_bandwidth(struct dwc2_hsotg *hsotg,
+					    struct dwc2_pipe *dpipe)
+{
+	struct dwc2_qh *qh = dpipe->priv;
+
+	if (!qh) {
+		WARN_ON(1);
+		return 0;
+	}
+
+	return qh->usecs;
+}
 
 extern void dwc2_hcd_save_data_toggle(struct dwc2_hsotg *hsotg,
 				      struct dwc2_host_chan *chan, int chnum,
@@ -775,5 +785,7 @@ struct dwc2_hcd_urb * dwc2_hcd_urb_alloc(struct dwc2_hsotg *, int, gfp_t);
 void dwc2_hcd_urb_free(struct dwc2_hsotg *, struct dwc2_hcd_urb *, int);
 
 int _dwc2_hcd_start(struct dwc2_hsotg *);
+
+int dwc2_host_is_b_hnp_enabled(struct dwc2_hsotg *);
 
 #endif /* __DWC2_HCD_H__ */

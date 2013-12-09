@@ -1,4 +1,4 @@
-/*	$NetBSD: machdep.c,v 1.195 2013/06/05 14:37:04 christos Exp $	*/
+/*	$NetBSD: machdep.c,v 1.200 2013/12/01 01:05:16 christos Exp $	*/
 
 /*-
  * Copyright (c) 1996, 1997, 1998, 2000, 2006, 2007, 2008, 2011
@@ -111,7 +111,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: machdep.c,v 1.195 2013/06/05 14:37:04 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: machdep.c,v 1.200 2013/12/01 01:05:16 christos Exp $");
 
 /* #define XENDEBUG_LOW  */
 
@@ -654,6 +654,7 @@ cpu_reboot(int howto, char *bootstr)
 {
 	static bool syncdone = false;
 	int s = IPL_NONE;
+	__USE(s);	/* ugly otherwise */
 
 	if (cold) {
 		howto |= RB_HALT;
@@ -1051,7 +1052,6 @@ cpu_dump_mempagecnt(void)
 int
 cpu_dump(void)
 {
-	int (*dump)(dev_t, daddr_t, void *, size_t);
 	kcore_seg_t seg;
 	cpu_kcore_hdr_t cpuhdr;
 	const struct bdevsw *bdev;
@@ -1059,8 +1059,6 @@ cpu_dump(void)
 	bdev = bdevsw_lookup(dumpdev);
 	if (bdev == NULL)
 		return (ENXIO);
-
-	dump = bdev->d_dump;
 
 	/*
 	 * Generate a segment header.
@@ -1336,7 +1334,10 @@ setregs(struct lwp *l, struct exec_package *pack, vaddr_t stack)
 
 	l->l_md.md_flags &= ~MDL_USEDFPU;
 	pcb->pcb_flags = 0;
-	pcb->pcb_savefpu.fp_fxsave.fx_fcw = __NetBSD_NPXCW__;
+	if (pack->ep_osversion >= 699002600)
+		pcb->pcb_savefpu.fp_fxsave.fx_fcw = __NetBSD_NPXCW__;
+	else
+		pcb->pcb_savefpu.fp_fxsave.fx_fcw = __NetBSD_COMPAT_NPXCW__;
 	pcb->pcb_savefpu.fp_fxsave.fx_mxcsr = __INITIAL_MXCSR__;
 	pcb->pcb_savefpu.fp_fxsave.fx_mxcsr_mask = __INITIAL_MXCSR_MASK__;
 
@@ -1567,7 +1568,6 @@ init_x86_64(paddr_t first_avail)
 	extern void consinit(void);
 	struct region_descriptor region;
 	struct mem_segment_descriptor *ldt_segp;
-	struct pcb *pcb;
 	int x;
 #ifndef XEN
 	int ist;
@@ -1588,11 +1588,11 @@ init_x86_64(paddr_t first_avail)
 
 	cpu_init_msrs(&cpu_info_primary, true);
 
-	pcb = lwp_getpcb(&lwp0);
 
 	use_pae = 1; /* PAE always enabled in long mode */
 
 #ifdef XEN
+	struct pcb *pcb = lwp_getpcb(&lwp0);
 	mutex_init(&pte_lock, MUTEX_DEFAULT, IPL_VM);
 	pcb->pcb_cr3 = xen_start_info.pt_base - KERNBASE;
 	__PRINTK(("pcb_cr3 0x%lx\n", xen_start_info.pt_base - KERNBASE));

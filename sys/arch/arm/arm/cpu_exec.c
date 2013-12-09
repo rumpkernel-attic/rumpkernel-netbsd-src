@@ -1,4 +1,4 @@
-/*	$NetBSD: cpu_exec.c,v 1.5 2013/09/10 21:30:21 matt Exp $	*/
+/*	$NetBSD: cpu_exec.c,v 1.7 2013/10/22 21:37:33 matt Exp $	*/
 
 /*-
  * Copyright (c) 2012 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: cpu_exec.c,v 1.5 2013/09/10 21:30:21 matt Exp $");
+__KERNEL_RCSID(0, "$NetBSD: cpu_exec.c,v 1.7 2013/10/22 21:37:33 matt Exp $");
 
 #include "opt_compat_netbsd.h"
 #include "opt_compat_netbsd32.h"
@@ -75,14 +75,13 @@ arm_netbsd_elf32_probe(struct lwp *l, struct exec_package *epp, void *eh0,
 	 * If the BE-8 model is supported, CPSR[7] will be clear.
 	 * If the BE-32 model is supported, CPSR[7] will be set.
 	 */
-	register_t cpsr;
-	__asm("mrs\t%0, cpsr" : "=r"(cpsr));
-	if ((cpsr & CPU_CONTROL_BEND_ENABLE) == be8_p)
+	register_t ctl = armreg_sctrl_read();
+	if (((ctl & CPU_CONTROL_BEND_ENABLE) != 0) == be8_p)
 		return ENOEXEC;
 #endif /* __ARMEB__ */
 
 	/*
-	 * This is subtle.  If are netbsd32, then we don't want to match the
+	 * This is subtle.  If we are netbsd32, then we don't want to match the
 	 * same ABI as the kernel.  If we aren't (netbsd32 == false), then we
 	 * don't want to be different from the kernel's ABI.
 	 *    true   true   true  ENOEXEC

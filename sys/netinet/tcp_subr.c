@@ -1,4 +1,4 @@
-/*	$NetBSD: tcp_subr.c,v 1.250 2013/06/05 19:01:26 christos Exp $	*/
+/*	$NetBSD: tcp_subr.c,v 1.252 2013/11/23 14:20:21 christos Exp $	*/
 
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
@@ -91,7 +91,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: tcp_subr.c,v 1.250 2013/06/05 19:01:26 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: tcp_subr.c,v 1.252 2013/11/23 14:20:21 christos Exp $");
 
 #include "opt_inet.h"
 #include "opt_ipsec.h"
@@ -963,6 +963,9 @@ static struct tcpcb tcpcb_template = {
 	.snd_cwnd = TCP_MAXWIN << TCP_MAX_WINSHIFT,
 	.snd_ssthresh = TCP_MAXWIN << TCP_MAX_WINSHIFT,
 	.snd_numholes = 0,
+	.snd_cubic_wmax = 0,
+	.snd_cubic_wmax_last = 0,
+	.snd_cubic_ctime = 0,
 
 	.t_partialacks = -1,
 	.t_bytes_acked = 0,
@@ -1348,7 +1351,7 @@ tcp_drain(void)
 	/*
 	 * Free the sequence queue of all TCP connections.
 	 */
-	CIRCLEQ_FOREACH(inph, &tcbtable.inpt_queue, inph_queue) {
+	TAILQ_FOREACH(inph, &tcbtable.inpt_queue, inph_queue) {
 		switch (inph->inph_af) {
 		case AF_INET:
 			tp = intotcpcb((struct inpcb *)inph);

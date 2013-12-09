@@ -1,4 +1,4 @@
-/*	$NetBSD: bpf.c,v 1.177 2013/09/18 23:34:55 rmind Exp $	*/
+/*	$NetBSD: bpf.c,v 1.180 2013/12/05 15:55:35 christos Exp $	*/
 
 /*
  * Copyright (c) 1990, 1991, 1993
@@ -39,7 +39,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: bpf.c,v 1.177 2013/09/18 23:34:55 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: bpf.c,v 1.180 2013/12/05 15:55:35 christos Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_bpf.h"
@@ -184,6 +184,23 @@ const struct cdevsw bpf_cdevsw = {
 	bpfopen, noclose, noread, nowrite, noioctl,
 	nostop, notty, nopoll, nommap, nokqfilter, D_OTHER
 };
+
+bpfjit_func_t
+bpf_jit_generate(bpf_ctx_t *bc, void *code, size_t size)
+{
+	membar_consumer();
+	if (bpfjit_module_ops.bj_generate_code != NULL) {
+		return bpfjit_module_ops.bj_generate_code(bc, code, size);
+	}
+	return NULL;
+}
+
+void
+bpf_jit_freecode(bpfjit_func_t jcode)
+{
+	KASSERT(bpfjit_module_ops.bj_free_code != NULL);
+	bpfjit_module_ops.bj_free_code(jcode);
+}
 
 static int
 bpf_movein(struct uio *uio, int linktype, uint64_t mtu, struct mbuf **mp,
@@ -339,7 +356,7 @@ bpf_detachd(struct bpf_d *d)
 	 * If so, turn it off.
 	 */
 	if (d->bd_promisc) {
-		int error;
+		int error __diagused;
 
 		d->bd_promisc = 0;
 		/*
@@ -350,8 +367,10 @@ bpf_detachd(struct bpf_d *d)
 		 * if we don't get an unexpected error.
 		 */
   		error = ifpromisc(bp->bif_ifp, 0);
-		if (error && error != EINVAL)
-			panic("%s: ifpromisc failed: %d", __func__, error);
+#ifdef DIAGNOSTIC
+		if (error)
+			printf("%s: ifpromisc failed: %d", __func__, error);
+#endif
 	}
 	/* Remove d from the interface's descriptor list. */
 	p = &bp->bif_dlist;
@@ -1062,7 +1081,7 @@ int
 bpf_setf(struct bpf_d *d, struct bpf_program *fp)
 {
 	struct bpf_insn *fcode, *old;
-	bpfjit_function_t jcode, oldj;
+	bpfjit_func_t jcode, oldj;
 	size_t flen, size;
 	int s;
 
@@ -1086,8 +1105,9 @@ bpf_setf(struct bpf_d *d, struct bpf_program *fp)
 			return EINVAL;
 		}
 		membar_consumer();
-		if (bpf_jit && bpfjit_module_ops.bj_generate_code != NULL) {
-			jcode = bpfjit_module_ops.bj_generate_code(fcode, flen);
+		if (bpf_jit) {
+			bpf_ctx_t *bc = bpf_default_ctx();
+			jcode = bpf_jit_generate(bc, fcode, flen);
 		}
 	} else {
 		fcode = NULL;
@@ -1104,10 +1124,8 @@ bpf_setf(struct bpf_d *d, struct bpf_program *fp)
 	if (old) {
 		free(old, M_DEVBUF);
 	}
-
-	if (oldj != NULL) {
-		KASSERT(bpfjit_module_ops.bj_free_code != NULL);
-		bpfjit_module_ops.bj_free_code(oldj);
+	if (oldj) {
+		bpf_jit_freecode(oldj);
 	}
 
 	return 0;
@@ -1361,6 +1379,13 @@ static inline void
 bpf_deliver(struct bpf_if *bp, void *(*cpfn)(void *, const void *, size_t),
     void *pkt, u_int pktlen, u_int buflen, const bool rcv)
 {
+	bpf_ctx_t *bc = bpf_default_ctx();
+	bpf_args_t args = {
+		.pkt = pkt,
+		.wirelen = pktlen,
+		.buflen = buflen,
+		.arg = NULL
+	};
 	struct bpf_d *d;
 	struct timespec ts;
 	bool gottime = false;
@@ -1379,10 +1404,10 @@ bpf_deliver(struct bpf_if *bp, void *(*cpfn)(void *, const void *, size_t),
 		d->bd_rcount++;
 		bpf_gstats.bs_recv++;
 
-		if (d->bd_jitcode != NULL)
+		if (d->bd_jitcode)
 			slen = d->bd_jitcode(pkt, pktlen, buflen);
 		else
-			slen = bpf_filter(d->bd_filter, pkt, pktlen, buflen);
+			slen = bpf_filter_ext(bc, d->bd_filter, &args);
 
 		if (!slen) {
 			continue;
@@ -1719,8 +1744,7 @@ bpf_freed(struct bpf_d *d)
 		free(d->bd_filter, M_DEVBUF);
 
 	if (d->bd_jitcode != NULL) {
-		KASSERT(bpfjit_module_ops.bj_free_code != NULL);
-		bpfjit_module_ops.bj_free_code(d->bd_jitcode);
+		bpf_jit_freecode(d->bd_jitcode);
 	}
 }
 

@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.119 2013/03/12 20:49:22 christos Exp $
+#	$NetBSD: Makefile,v 1.127 2013/11/18 16:23:47 bad Exp $
 
 .include <bsd.own.mk>
 
@@ -32,11 +32,16 @@ SUBDIR+=	gpioow
 SUBDIR+=	gpiosim
 SUBDIR+=	hfs
 SUBDIR+=	if_axe
+SUBDIR+=	if_axen
 SUBDIR+=	if_npflog
+SUBDIR+=	if_smsc
 SUBDIR+=	iic
 SUBDIR+=	kernfs
 SUBDIR+=	layerfs
 SUBDIR+=	lfs
+SUBDIR+=	lua
+SUBDIR+=	luacore
+SUBDIR+=	luapmf
 SUBDIR+=	mfs
 SUBDIR+=	miiverbose
 SUBDIR+=	miniroot
@@ -123,11 +128,14 @@ SUBDIR+=	tprof_amdpmi
 SUBDIR+=	vmt
 .endif
 
+.if ${MKSLJIT} != "no"
+# No modules for arm, mips and powerpc yet.
 .if ${MACHINE_ARCH} == "i386" || \
     ${MACHINE_ARCH} == "x86_64" || \
     ${MACHINE_ARCH} == "sparc"
 SUBDIR+=	bpfjit
 SUBDIR+=	sljit
+.endif
 .endif
 
 #

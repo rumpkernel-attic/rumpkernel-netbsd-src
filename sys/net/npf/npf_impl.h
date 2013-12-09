@@ -1,4 +1,4 @@
-/*	$NetBSD: npf_impl.h,v 1.33 2013/09/19 01:49:07 rmind Exp $	*/
+/*	$NetBSD: npf_impl.h,v 1.45 2013/12/06 01:33:37 rmind Exp $	*/
 
 /*-
  * Copyright (c) 2009-2013 The NetBSD Foundation, Inc.
@@ -86,11 +86,11 @@ typedef struct npf_session	npf_session_t;
 
 struct npf_sehash;
 struct npf_table;
+struct npf_tableset;
 
 typedef struct npf_sehash	npf_sehash_t;
 typedef struct npf_table	npf_table_t;
-
-typedef npf_table_t *		npf_tableset_t;
+typedef struct npf_tableset	npf_tableset_t;
 
 /*
  * DEFINITIONS.
@@ -100,7 +100,15 @@ typedef bool (*npf_alg_func_t)(npf_cache_t *, nbuf_t *, npf_nat_t *, int);
 typedef npf_session_t *(*npf_alg_sfunc_t)(npf_cache_t *, nbuf_t *, int);
 typedef void (*npf_workfunc_t)(void);
 
-#define	NPF_TABLE_SLOTS		32
+/*
+ * Some artificial limits.
+ * Note: very unlikely to have many ALGs.
+ */
+#define	NPF_MAX_RULES		(1024 * 1024)
+#define	NPF_MAX_ALGS		4
+#define	NPF_MAX_TABLES		128
+#define	NPF_MAX_RPROCS		128
+#define	NPF_MAX_IFMAP		64
 
 /*
  * SESSION STATE STRUCTURES
@@ -118,7 +126,7 @@ typedef struct {
 
 typedef struct {
 	kmutex_t	nst_lock;
-	int		nst_state;
+	u_int		nst_state;
 	npf_tcpstate_t	nst_tcpst[2];
 } npf_state_t;
 
@@ -164,9 +172,15 @@ int		npfctl_table(void *);
 void		npf_stats_inc(npf_stats_t);
 void		npf_stats_dec(npf_stats_t);
 
+u_int		npf_ifmap_register(const char *);
+void		npf_ifmap_flush(void);
+void		npf_ifmap_attach(ifnet_t *);
+void		npf_ifmap_detach(ifnet_t *);
+u_int		npf_ifmap_id(const ifnet_t *);
+
 /* Packet filter hooks. */
-int		npf_pfil_register(void);
-void		npf_pfil_unregister(void);
+int		npf_pfil_register(bool);
+void		npf_pfil_unregister(bool);
 bool		npf_pfil_registered_p(void);
 int		npf_packet_handler(void *, struct mbuf **, ifnet_t *, int);
 
@@ -174,16 +188,16 @@ int		npf_packet_handler(void *, struct mbuf **, ifnet_t *, int);
 int		npf_cache_all(npf_cache_t *, nbuf_t *);
 void		npf_recache(npf_cache_t *, nbuf_t *);
 
-bool		npf_rwrip(const npf_cache_t *, int, const npf_addr_t *);
-bool		npf_rwrport(const npf_cache_t *, int, const in_port_t);
-bool		npf_rwrcksum(const npf_cache_t *, const int,
+bool		npf_rwrip(const npf_cache_t *, u_int, const npf_addr_t *);
+bool		npf_rwrport(const npf_cache_t *, u_int, const in_port_t);
+bool		npf_rwrcksum(const npf_cache_t *, u_int,
 		    const npf_addr_t *, const in_port_t);
 
 uint16_t	npf_fixup16_cksum(uint16_t, uint16_t, uint16_t);
 uint16_t	npf_fixup32_cksum(uint16_t, uint32_t, uint32_t);
 uint16_t	npf_addr_cksum(uint16_t, int, const npf_addr_t *,
 		    const npf_addr_t *);
-uint32_t	npf_addr_sum(const int, const npf_addr_t *, const npf_addr_t *);
+uint32_t	npf_addr_mix(const int, const npf_addr_t *, const npf_addr_t *);
 int		npf_addr_cmp(const npf_addr_t *, const npf_netmask_t,
 		    const npf_addr_t *, const npf_netmask_t, const int);
 void		npf_addr_mask(const npf_addr_t *, const npf_netmask_t,
@@ -197,8 +211,8 @@ bool		npf_return_block(npf_cache_t *, nbuf_t *, const int);
 /* BPF interface. */
 void		npf_bpf_sysinit(void);
 void		npf_bpf_sysfini(void);
-int		npf_bpf_filter(npf_cache_t *, nbuf_t *,
-		    const void *, bpfjit_function_t);
+int		npf_bpf_filter(bpf_args_t *, const void *, bpfjit_func_t);
+void *		npf_bpf_compile(void *, size_t);
 bool		npf_bpf_validate(const void *, size_t);
 
 /* Tableset interface. */
@@ -207,23 +221,25 @@ void		npf_tableset_sysfini(void);
 
 extern const pt_tree_ops_t npf_table_ptree_ops;
 
-npf_tableset_t *npf_tableset_create(void);
+npf_tableset_t *npf_tableset_create(u_int);
 void		npf_tableset_destroy(npf_tableset_t *);
 int		npf_tableset_insert(npf_tableset_t *, npf_table_t *);
+npf_table_t *	npf_tableset_getbyname(npf_tableset_t *, const char *);
+npf_table_t *	npf_tableset_getbyid(npf_tableset_t *, u_int);
 void		npf_tableset_reload(npf_tableset_t *, npf_tableset_t *);
+void		npf_tableset_syncdict(const npf_tableset_t *, prop_dictionary_t);
 
-npf_table_t *	npf_table_create(u_int, int, size_t);
+npf_table_t *	npf_table_create(const char *, u_int, int, size_t);
 void		npf_table_destroy(npf_table_t *);
 
-int		npf_table_check(const npf_tableset_t *, u_int, int);
-int		npf_table_insert(npf_tableset_t *, u_int,
-		    const int, const npf_addr_t *, const npf_netmask_t);
-int		npf_table_remove(npf_tableset_t *, u_int,
-		    const int, const npf_addr_t *, const npf_netmask_t);
-int		npf_table_lookup(npf_tableset_t *, u_int,
-		    const int, const npf_addr_t *);
-int		npf_table_list(npf_tableset_t *, u_int, void *, size_t);
-int		npf_table_flush(npf_tableset_t *, u_int);
+int		npf_table_check(npf_tableset_t *, const char *, u_int, int);
+int		npf_table_insert(npf_table_t *, const int,
+		    const npf_addr_t *, const npf_netmask_t);
+int		npf_table_remove(npf_table_t *, const int,
+		    const npf_addr_t *, const npf_netmask_t);
+int		npf_table_lookup(npf_table_t *, const int, const npf_addr_t *);
+int		npf_table_list(npf_table_t *, void *, size_t);
+int		npf_table_flush(npf_table_t *);
 
 /* Ruleset interface. */
 npf_ruleset_t *	npf_ruleset_create(size_t);
@@ -255,7 +271,7 @@ void		npf_rule_free(npf_rule_t *);
 uint64_t	npf_rule_getid(const npf_rule_t *);
 npf_natpolicy_t *npf_rule_getnat(const npf_rule_t *);
 void		npf_rule_setnat(npf_rule_t *, npf_natpolicy_t *);
-npf_rproc_t *	npf_rule_getrproc(npf_rule_t *);
+npf_rproc_t *	npf_rule_getrproc(const npf_rule_t *);
 
 void		npf_ext_sysinit(void);
 void		npf_ext_sysfini(void);
@@ -288,7 +304,7 @@ void		npf_session_release(npf_session_t *);
 void		npf_session_expire(npf_session_t *);
 bool		npf_session_pass(const npf_session_t *, npf_rproc_t **);
 void		npf_session_setpass(npf_session_t *, npf_rproc_t *);
-int		npf_session_setnat(npf_session_t *, npf_nat_t *, const int);
+int		npf_session_setnat(npf_session_t *, npf_nat_t *, u_int);
 npf_nat_t *	npf_session_retnat(npf_session_t *, const int, bool *);
 
 void		npf_session_load(npf_sehash_t *);
@@ -315,9 +331,8 @@ bool		npf_nat_sharepm(npf_natpolicy_t *, npf_natpolicy_t *);
 void		npf_nat_freealg(npf_natpolicy_t *, npf_alg_t *);
 
 int		npf_do_nat(npf_cache_t *, npf_session_t *, nbuf_t *, const int);
-int		npf_nat_translate(npf_cache_t *, nbuf_t *, npf_nat_t *,
-		    const bool, const int);
-void		npf_nat_expire(npf_nat_t *);
+int		npf_nat_translate(npf_cache_t *, nbuf_t *, npf_nat_t *, bool);
+void		npf_nat_destroy(npf_nat_t *);
 void		npf_nat_getorig(npf_nat_t *, npf_addr_t **, in_port_t *);
 void		npf_nat_gettrans(npf_nat_t *, npf_addr_t **, in_port_t *);
 void		npf_nat_setalg(npf_nat_t *, npf_alg_t *, uintptr_t);
@@ -333,7 +348,7 @@ npf_alg_t *	npf_alg_register(const char *, npf_alg_func_t, npf_alg_func_t,
 int		npf_alg_unregister(npf_alg_t *);
 npf_alg_t *	npf_alg_construct(const char *);
 bool		npf_alg_match(npf_cache_t *, nbuf_t *, npf_nat_t *, int);
-void		npf_alg_exec(npf_cache_t *, nbuf_t *, npf_nat_t *, int);
+void		npf_alg_exec(npf_cache_t *, nbuf_t *, npf_nat_t *, bool);
 npf_session_t *	npf_alg_session(npf_cache_t *, nbuf_t *, int);
 
 /* Debugging routines. */

@@ -1,4 +1,4 @@
-/*	$NetBSD: atomic_swap_64.S,v 1.5 2013/08/20 07:52:31 matt Exp $	*/
+/*	$NetBSD: atomic_swap_64.S,v 1.7 2013/11/30 21:09:11 joerg Exp $	*/
 /*-
  * Copyright (c) 2012 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -37,8 +37,8 @@ ENTRY_NP(_atomic_swap_64)
 	mov	r3, r2			/* r2 will be overwriten by r1 */
 	mov	r2, r1			/* and r1 will be overwritten by ldrexd */
 #endif
-1:	ldrexd	r0, [ip]		/* load old value */
-	strexd	r4, r2, [ip]		/* store new value */
+1:	ldrexd	r0, r1, [ip]		/* load old value */
+	strexd	r4, r2, r3, [ip]	/* store new value */
 	cmp	r4, #0			/*   succeed? */
 	bne	1b			/*    no, try again */
 #ifdef _ARM_ARCH_7
@@ -48,5 +48,13 @@ ENTRY_NP(_atomic_swap_64)
 #endif
 	pop	{r3,r4}			/* restore temporary */
 	RET
-	END(_atomic_swap_64)
+END(_atomic_swap_64)
 ATOMIC_OP_ALIAS(atomic_swap_64,_atomic_swap_64)
+STRONG_ALIAS(__sync_lock_test_and_set_8,_atomic_swap_64)
+
+ENTRY_NP(__sync_lock_release_8)
+	mov	r2, #0
+	mov	r3, #0
+	strd	r2, r3, [r0]
+	RET
+END(__sync_lock_release_8)

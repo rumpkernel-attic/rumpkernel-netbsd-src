@@ -1,26 +1,13 @@
-#	$NetBSD: Makefile,v 1.57 2013/07/18 22:00:48 matt Exp $
+#	$NetBSD: Makefile,v 1.61 2013/11/28 12:08:57 mrg Exp $
 
 .include <bsd.own.mk>
 
 GCC_LANGUAGES=c c++ objc
 MODULE=			gcc4
 
-MKNATIVE_CONFIG_TARGET_LIBS= \
-	configure-target-libstdc++-v3 \
-	configure-target-libobjc
-
 .if ${HAVE_GCC} == 45
-MKNATIVE_TARGET=	gcc45
 GNUHOSTDIST=		${.CURDIR}/../../external/gpl3/gcc/dist
-MKNATIVE_CONFIG_TARGET_LIBS+= \
-	configure-target-libgomp
-.else
-MKNATIVE_TARGET=	gcc4
 .endif
-
-BINENV=		/usr/bin/env -i
-
-VAX_CONFIGURE_ARGS=
 
 .if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "sparc64"
 MULTILIB_ARGS= --enable-multilib
@@ -38,7 +25,6 @@ COMMON_CONFIGURE_ARGS=	--target=${MACHINE_GNU_PLATFORM} \
 			--with-bugurl=http://www.NetBSD.org/Misc/send-pr.html \
 			--with-pkgversion="NetBSD nb1 20120916" \
 			--with-system-zlib \
-			${VAX_CONFIGURE_ARGS} \
 			--enable-__cxa_atexit
 .if defined(GCC_CONFIG_ARCH.${MACHINE_ARCH})
 COMMON_CONFIGURE_ARGS+=	--with-arch=${GCC_CONFIG_ARCH.${MACHINE_ARCH}}
@@ -72,6 +58,29 @@ MAKE_ARGS=	MACHINE= MAKEINFO=${TOOL_MAKEINFO:Q} \
 CONFIGURE_ENV+= gcc_cv_libc_provides_ssp=yes \
 		gcc_cv_as_sparc_gotdata_op=no
 
+ALL_TARGET=	all-gcc
+INSTALL_TARGET=	install-gcc
+
+.include "${.CURDIR}/../Makefile.gmakehost"
+BUILD_MAKE=${TOOL_GMAKE}
+
+#
+# mknative-gcc specific stuff
+#
+MKNATIVE_CONFIG_TARGET_LIBS= \
+	configure-target-libstdc++-v3 \
+	configure-target-libobjc
+
+.if ${HAVE_GCC} == 45
+MKNATIVE_TARGET=	gcc45
+MKNATIVE_CONFIG_TARGET_LIBS+= \
+	configure-target-libgomp
+.else
+MKNATIVE_TARGET=	gcc4
+.endif
+
+BINENV=		/usr/bin/env -i
+
 MKNATIVE_ENV=	${BINENV} ${CONFIGURE_ENV:NC*:NLD*} \
 			CC_FOR_BUILD=${HOST_CC:Q} \
 			CC=${CC:Q}' '${CCADDFLAGS:Q} \
@@ -92,16 +101,6 @@ MKNATIVE_ENV=	${BINENV} ${CONFIGURE_ENV:NC*:NLD*} \
 			gdb_cv_printf_has_long_long=yes \
 			gdb_cv_scanf_has_long_double=yes \
 			gcc_cv_as_sparc_gotdata_op=no
-
-ALL_TARGET=	all-gcc
-INSTALL_TARGET=	install-gcc
-
-.include "${.CURDIR}/../Makefile.gmakehost"
-BUILD_MAKE=${TOOL_GMAKE}
-
-#
-# mknative-gcc specific stuff
-#
 
 .if ${HAVE_GCC} < 45
 GCCSRCDIR=${.CURDIR}/../../gnu/dist/gcc4
@@ -131,7 +130,7 @@ native-gcc: .native/.configure_done
 
 NATIVE_CONFIGURE_ARGS=	${COMMON_CONFIGURE_ARGS}
 .if ${HAVE_GCC} >= 45
-MPC=		${NETBSDSRCDIR}/external/lgpl2/mpc
+MPC=		${NETBSDSRCDIR}/external/lgpl3/mpc
 MPFR=		${NETBSDSRCDIR}/external/lgpl3/mpfr
 GMP=		${NETBSDSRCDIR}/external/lgpl3/gmp
 MPCOBJ!=	cd ${MPC}/lib/libmpc && ${PRINTOBJDIR}

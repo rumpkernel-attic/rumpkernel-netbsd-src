@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_mount.c,v 1.20 2013/08/30 12:58:22 hannken Exp $	*/
+/*	$NetBSD: vfs_mount.c,v 1.25 2013/11/27 17:25:46 christos Exp $	*/
 
 /*-
  * Copyright (c) 1997-2011 The NetBSD Foundation, Inc.
@@ -67,7 +67,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_mount.c,v 1.20 2013/08/30 12:58:22 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_mount.c,v 1.25 2013/11/27 17:25:46 christos Exp $");
 
 #include <sys/param.h>
 #include <sys/kernel.h>
@@ -115,7 +115,7 @@ void
 vfs_mount_sysinit(void)
 {
 
-	CIRCLEQ_INIT(&mountlist);
+	TAILQ_INIT(&mountlist);
 	mutex_init(&mountlist_lock, MUTEX_DEFAULT, IPL_NONE);
 	mutex_init(&mntvnode_lock, MUTEX_DEFAULT, IPL_NONE);
 	mutex_init(&vfs_list_lock, MUTEX_DEFAULT, IPL_NONE);
@@ -130,7 +130,7 @@ struct mount *
 vfs_mountalloc(struct vfsops *vfsops, vnode_t *vp)
 {
 	struct mount *mp;
-	int error;
+	int error __diagused;
 
 	mp = kmem_zalloc(sizeof(*mp), KM_SLEEP);
 	if (mp == NULL)
@@ -213,7 +213,7 @@ vfs_getnewfsid(struct mount *mp)
 		++xxxfs_mntid;
 	tfsid.__fsid_val[0] = makedev(mtype & 0xff, xxxfs_mntid);
 	tfsid.__fsid_val[1] = mtype;
-	if (!CIRCLEQ_EMPTY(&mountlist)) {
+	if (!TAILQ_EMPTY(&mountlist)) {
 		while (vfs_getvfs(&tfsid)) {
 			tfsid.__fsid_val[0]++;
 			xxxfs_mntid++;
@@ -235,7 +235,7 @@ vfs_getvfs(fsid_t *fsid)
 	struct mount *mp;
 
 	mutex_enter(&mountlist_lock);
-	CIRCLEQ_FOREACH(mp, &mountlist, mnt_list) {
+	TAILQ_FOREACH(mp, &mountlist, mnt_list) {
 		if (mp->mnt_stat.f_fsidx.__fsid_val[0] == fsid->__fsid_val[0] &&
 		    mp->mnt_stat.f_fsidx.__fsid_val[1] == fsid->__fsid_val[1]) {
 			mutex_exit(&mountlist_lock);
@@ -293,7 +293,7 @@ vfs_busy(struct mount *mp, struct mount **nextp)
 		mutex_exit(&mp->mnt_unmounting);
 		if (nextp != NULL) {
 			KASSERT(mutex_owned(&mountlist_lock));
-			*nextp = CIRCLEQ_NEXT(mp, mnt_list);
+			*nextp = TAILQ_NEXT(mp, mnt_list);
 		}
 		return ENOENT;
 	}
@@ -333,7 +333,7 @@ vfs_unbusy(struct mount *mp, bool keepref, struct mount **nextp)
 	}
 	if (nextp != NULL) {
 		KASSERT(mutex_owned(&mountlist_lock));
-		*nextp = CIRCLEQ_NEXT(mp, mnt_list);
+		*nextp = TAILQ_NEXT(mp, mnt_list);
 	}
 }
 
@@ -455,7 +455,8 @@ vflush(struct mount *mp, vnode_t *skipvp, int flags)
 	 * and vclean() are called.
 	 */
 	mutex_enter(&mntvnode_lock);
-	for (vp = TAILQ_FIRST(&mp->mnt_vnodelist); vp != NULL;
+	for (vp = TAILQ_FIRST(&mp->mnt_vnodelist);
+	    vp != NULL;
 	    vp = vflushnext(mvp, &when)) {
 		vmark(mvp, vp);
 		if (vp->v_mount != mp || vismarker(vp))
@@ -465,6 +466,13 @@ vflush(struct mount *mp, vnode_t *skipvp, int flags)
 		 */
 		if (vp == skipvp)
 			continue;
+		/*
+		 * First try to recycle the vnode.
+		 */
+		if (vrecycle(vp, &mntvnode_lock)) {
+			mutex_enter(&mntvnode_lock);
+			continue;
+		}
 		mutex_enter(vp->v_interlock);
 		/*
 		 * Ignore clean but still referenced vnodes.
@@ -490,19 +498,6 @@ vflush(struct mount *mp, vnode_t *skipvp, int flags)
 			continue;
 		}
 		/*
-		 * With v_usecount == 0, all we need to do is clear
-		 * out the vnode data structures and we are done.
-		 */
-		if (vp->v_usecount == 0) {
-			mutex_exit(&mntvnode_lock);
-			vremfree(vp);
-			vp->v_usecount = 1;
-			vclean(vp, DOCLOSE);
-			vrelel(vp, 0);
-			mutex_enter(&mntvnode_lock);
-			continue;
-		}
-		/*
 		 * If FORCECLOSE is set, forcibly close the vnode.
 		 * For block or character devices, revert to an
 		 * anonymous device.  For all other files, just
@@ -510,22 +505,8 @@ vflush(struct mount *mp, vnode_t *skipvp, int flags)
 		 */
 		if (flags & FORCECLOSE) {
 			mutex_exit(&mntvnode_lock);
-			atomic_inc_uint(&vp->v_usecount);
-			if (vp->v_type != VBLK && vp->v_type != VCHR) {
-				vclean(vp, DOCLOSE);
-				vrelel(vp, 0);
-			} else {
-				vclean(vp, 0);
-				vp->v_op = spec_vnodeop_p; /* XXXSMP */
-				mutex_exit(vp->v_interlock);
-				/*
-				 * The vnode isn't clean, but still resides
-				 * on the mount list.  Remove it. XXX This
-				 * is a bit dodgy.
-				 */
-				vfs_insmntque(vp, NULL);
-				vrele(vp);
-			}
+			if (vget(vp, 0) == 0)
+				vgone(vp);
 			mutex_enter(&mntvnode_lock);
 			continue;
 		}
@@ -553,8 +534,7 @@ vfs_scrubvnlist(struct mount *mp)
 
 retry:
 	mutex_enter(&mntvnode_lock);
-	for (vp = TAILQ_FIRST(&mp->mnt_vnodelist); vp; vp = nvp) {
-		nvp = TAILQ_NEXT(vp, v_mntvnodes);
+	TAILQ_FOREACH_SAFE(vp, &mp->mnt_vnodelist, v_mntvnodes, nvp) {
 		mutex_enter(vp->v_interlock);
 		if ((vp->v_iflag & VI_CLEAN) != 0) {
 			TAILQ_REMOVE(&mp->mnt_vnodelist, vp, v_mntvnodes);
@@ -728,7 +708,7 @@ mount_domount(struct lwp *l, vnode_t **vpp, struct vfsops *vfsops,
 	mp->mnt_iflag &= ~IMNT_WANTRDWR;
 
 	mutex_enter(&mountlist_lock);
-	CIRCLEQ_INSERT_TAIL(&mountlist, mp, mnt_list);
+	TAILQ_INSERT_TAIL(&mountlist, mp, mnt_list);
 	mutex_exit(&mountlist_lock);
 	if ((mp->mnt_flag & (MNT_RDONLY | MNT_ASYNC)) == 0)
 		error = vfs_allocate_syncvnode(mp);
@@ -761,7 +741,7 @@ mount_domount(struct lwp *l, vnode_t **vpp, struct vfsops *vfsops,
 
 err_onmountlist:
 	mutex_enter(&mountlist_lock);
-	CIRCLEQ_REMOVE(&mountlist, mp, mnt_list);
+	TAILQ_REMOVE(&mountlist, mp, mnt_list);
 	mp->mnt_iflag |= IMNT_GONE;
 	mutex_exit(&mountlist_lock);
 
@@ -884,7 +864,7 @@ dounmount(struct mount *mp, int flags, struct lwp *l)
 		VOP_UNLOCK(coveredvp);
 	}
 	mutex_enter(&mountlist_lock);
-	CIRCLEQ_REMOVE(&mountlist, mp, mnt_list);
+	TAILQ_REMOVE(&mountlist, mp, mnt_list);
 	mutex_exit(&mountlist_lock);
 	if (TAILQ_FIRST(&mp->mnt_vnodelist) != NULL)
 		panic("unmount: dangling vnode");
@@ -929,7 +909,7 @@ vfs_unmount_forceone(struct lwp *l)
 
 	nmp = NULL;
 
-	CIRCLEQ_FOREACH_REVERSE(mp, &mountlist, mnt_list) {
+	TAILQ_FOREACH_REVERSE(mp, &mountlist, mntlist, mnt_list) {
 		if (nmp == NULL || mp->mnt_gen > nmp->mnt_gen) {
 			nmp = mp;
 		}
@@ -965,10 +945,7 @@ vfs_unmountall1(struct lwp *l, bool force, bool verbose)
 	bool any_error = false, progress = false;
 	int error;
 
-	for (mp = CIRCLEQ_LAST(&mountlist);
-	     mp != (void *)&mountlist;
-	     mp = nmp) {
-		nmp = CIRCLEQ_PREV(mp, mnt_list);
+	TAILQ_FOREACH_REVERSE_SAFE(mp, &mountlist, mntlist, mnt_list, nmp) {
 #ifdef DEBUG
 		printf("unmounting %p %s (%s)...\n",
 		    (void *)mp, mp->mnt_stat.f_mntonname,
@@ -1170,16 +1147,18 @@ done:
 		vrele(rootvp);
 	}
 	if (error == 0) {
+		struct mount *mp;
 		extern struct cwdinfo cwdi0;
 
-		CIRCLEQ_FIRST(&mountlist)->mnt_flag |= MNT_ROOTFS;
-		CIRCLEQ_FIRST(&mountlist)->mnt_op->vfs_refcount++;
+		mp = TAILQ_FIRST(&mountlist);
+		mp->mnt_flag |= MNT_ROOTFS;
+		mp->mnt_op->vfs_refcount++;
 
 		/*
 		 * Get the vnode for '/'.  Set cwdi0.cwdi_cdir to
 		 * reference it.
 		 */
-		error = VFS_ROOT(CIRCLEQ_FIRST(&mountlist), &rootvnode);
+		error = VFS_ROOT(mp, &rootvnode);
 		if (error)
 			panic("cannot find root vnode, error=%d", error);
 		cwdi0.cwdi_cdir = rootvnode;
@@ -1233,7 +1212,7 @@ mount_specific_key_delete(specificdata_key_t key)
 void
 mount_initspecific(struct mount *mp)
 {
-	int error;
+	int error __diagused;
 
 	error = specificdata_init(mount_specificdata_domain,
 				  &mp->mnt_specdataref);
@@ -1286,10 +1265,10 @@ vfs_mountedon(vnode_t *vp)
 
 	if (vp->v_type != VBLK)
 		return ENOTBLK;
-	if (vp->v_specmountpoint != NULL)
+	if (spec_node_getmountedfs(vp) != NULL)
 		return EBUSY;
 	if (spec_node_lookup_by_dev(vp->v_type, vp->v_rdev, &vq) == 0) {
-		if (vq->v_specmountpoint != NULL)
+		if (spec_node_getmountedfs(vq) != NULL)
 			error = EBUSY;
 		vrele(vq);
 	}
@@ -1387,4 +1366,12 @@ makefstype(const char *type)
 		rv ^= *type;
 	}
 	return rv;
+}
+
+void
+mountlist_append(struct mount *mp)
+{
+	mutex_enter(&mountlist_lock);
+	TAILQ_INSERT_TAIL(&mountlist, mp, mnt_list);
+	mutex_exit(&mountlist_lock);
 }

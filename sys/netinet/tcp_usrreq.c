@@ -1,4 +1,4 @@
-/*	$NetBSD: tcp_usrreq.c,v 1.167 2013/09/15 14:45:50 martin Exp $	*/
+/*	$NetBSD: tcp_usrreq.c,v 1.170 2013/12/02 09:39:54 kefren Exp $	*/
 
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
@@ -95,7 +95,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: tcp_usrreq.c,v 1.167 2013/09/15 14:45:50 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: tcp_usrreq.c,v 1.170 2013/12/02 09:39:54 kefren Exp $");
 
 #include "opt_inet.h"
 #include "opt_ipsec.h"
@@ -1044,7 +1044,40 @@ sysctl_net_inet_tcp_mssdflt(SYSCTLFN_ARGS)
 		return (EINVAL);
 	tcp_mssdflt = mssdflt;
 
+	mutex_enter(softnet_lock);
+	tcp_tcpcb_template();
+	mutex_exit(softnet_lock);
+
 	return (0);
+}
+
+/*
+ * sysctl helper for TCP CB template update
+ */
+static int
+sysctl_update_tcpcb_template(SYSCTLFN_ARGS)
+{
+	int t, error;
+	struct sysctlnode node;
+
+	/* follow procedures in sysctl(9) manpage */
+	t = *(int *)rnode->sysctl_data;
+	node = *rnode;
+	node.sysctl_data = &t;
+	error = sysctl_lookup(SYSCTLFN_CALL(&node));
+	if (error || newp == NULL)
+		return error;
+
+	if (t < 0)
+		return EINVAL;
+
+	*(int *)rnode->sysctl_data = t;
+
+	mutex_enter(softnet_lock);
+	tcp_tcpcb_template();
+	mutex_exit(softnet_lock);
+
+	return 0;
 }
 
 /*
@@ -1164,18 +1197,20 @@ sysctl_net_inet_ip_ports(SYSCTLFN_ARGS)
 static inline int
 copyout_uid(struct socket *sockp, void *oldp, size_t *oldlenp)
 {
-	size_t sz;
-	int error;
-	uid_t uid;
-
-	uid = kauth_cred_geteuid(sockp->so_cred);
 	if (oldp) {
+		size_t sz;
+		uid_t uid;
+		int error;
+
+		if (sockp->so_cred == NULL)
+			return EPERM;
+
+		uid = kauth_cred_geteuid(sockp->so_cred);
 		sz = MIN(sizeof(uid), *oldlenp);
-		error = copyout(&uid, oldp, sz);
-		if (error)
+		if ((error = copyout(&uid, oldp, sz)) != 0)
 			return error;
 	}
-	*oldlenp = sizeof(uid);
+	*oldlenp = sizeof(uid_t);
 	return 0;
 }
 
@@ -1394,10 +1429,6 @@ sysctl_inpcblist(SYSCTLFN_ARGS)
 	struct sockaddr_in6 *in6;
 	const struct in6pcb *in6p;
 #endif
-	/*
-	 * sysctl_data is const, but CIRCLEQ_FOREACH can't use a const
-	 * struct inpcbtable pointer, so we have to discard const.  :-/
-	 */
 	struct inpcbtable *pcbtbl = __UNCONST(rnode->sysctl_data);
 	const struct inpcb_hdr *inph;
 	struct tcpcb *tp;
@@ -1437,7 +1468,7 @@ sysctl_inpcblist(SYSCTLFN_ARGS)
 
 	mutex_enter(softnet_lock);
 
-	CIRCLEQ_FOREACH(inph, &pcbtbl->inpt_queue, inph_queue) {
+	TAILQ_FOREACH(inph, &pcbtbl->inpt_queue, inph_queue) {
 #ifdef INET
 		inp = (const struct inpcb *)inph;
 #endif
@@ -1688,7 +1719,7 @@ sysctl_net_inet_tcp_setup2(struct sysctllog **clog, int pf, const char *pfname,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
 		       CTLTYPE_INT, "rfc1323",
 		       SYSCTL_DESCR("Enable RFC1323 TCP extensions"),
-		       NULL, 0, &tcp_do_rfc1323, 0,
+		       sysctl_update_tcpcb_template, 0, &tcp_do_rfc1323, 0,
 		       CTL_NET, pf, IPPROTO_TCP, TCPCTL_RFC1323, CTL_EOL);
 	sysctl_createv(clog, 0, NULL, NULL,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
@@ -1788,13 +1819,13 @@ sysctl_net_inet_tcp_setup2(struct sysctllog **clog, int pf, const char *pfname,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
 		       CTLTYPE_INT, "win_scale",
 		       SYSCTL_DESCR("Use RFC1323 window scale options"),
-		       NULL, 0, &tcp_do_win_scale, 0,
+		       sysctl_update_tcpcb_template, 0, &tcp_do_win_scale, 0,
 		       CTL_NET, pf, IPPROTO_TCP, TCPCTL_WSCALE, CTL_EOL);
 	sysctl_createv(clog, 0, NULL, NULL,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
 		       CTLTYPE_INT, "timestamps",
 		       SYSCTL_DESCR("Use RFC1323 time stamp options"),
-		       NULL, 0, &tcp_do_timestamps, 0,
+		       sysctl_update_tcpcb_template, 0, &tcp_do_timestamps, 0,
 		       CTL_NET, pf, IPPROTO_TCP, TCPCTL_TSTAMP, CTL_EOL);
 	sysctl_createv(clog, 0, NULL, NULL,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
