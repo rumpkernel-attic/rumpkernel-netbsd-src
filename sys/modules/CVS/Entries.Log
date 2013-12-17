@@ -125,6 +125,7 @@ A D/lm_wbsio////
 A D/lua////
 A D/luacore////
 A D/luapmf////
+A D/luasystm////
 A D/mach64drm////
 A D/mfs////
 A D/mgadrm////
@@ -231,6 +232,7 @@ R D/portal////
 R D/nullfs////
 R D/npf_ext_normalise////
 R D/msdosfs////
+R D/luasystm////
 R D/ksem////
 R D/i915drm2////
 R D/filecorefs////
