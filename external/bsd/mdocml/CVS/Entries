@@ -1,4 +1,7 @@
 /Makefile/1.1/Wed Oct 21 18:04:52 2009//D2013.12.09.20.00.00
 /Makefile.inc/1.15/Thu Feb 16 22:56:12 2012//D2013.12.09.20.00.00
 /prepare-import.sh/1.5/Wed Apr  3 14:51:31 2013//D2013.12.09.20.00.00
-D
+D/bin////
+D/dist////
+D/lib////
+D/man////
