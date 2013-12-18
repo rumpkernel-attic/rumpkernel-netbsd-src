@@ -1,4 +1,14 @@
 /Makefile/1.6/Sun Jan 22 18:36:16 2012//D2013.12.09.20.00.00
 /Makefile.inc/1.7/Sun Jan 22 18:36:16 2012//D2013.12.09.20.00.00
 /shlib_version/1.1/Sat Mar 11 21:07:18 2006//D2013.12.09.20.00.00
-D
+D/arch////
+D/db////
+D/gen////
+D/include////
+D/locale////
+D/net////
+D/rpc////
+D/stdio////
+D/stdlib////
+D/sys////
+D/time////
