@@ -120,7 +120,7 @@ dowakeup(struct shmif_sc *sc)
 }
 
 static void
-shmif_lockbus()
+shmif_lockbus(void)
 {
 	rumpcomp_shmif_lock();
 }
@@ -150,7 +150,7 @@ shmif_lockbus(struct shmif_mem *busmem)
 #endif
 
 static void
-shmif_unlockbus()
+shmif_unlockbus(void)
 {
 	rumpcomp_shmif_unlock();
 }
