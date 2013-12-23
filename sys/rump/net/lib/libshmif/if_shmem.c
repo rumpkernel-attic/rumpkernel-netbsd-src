@@ -252,25 +252,15 @@ initbackend(struct shmif_sc *sc, int memfd)
 	    p += 512)
 		v = *p;
 
-	/*
-	 * At that point, we do not know our contestants yet,
-	 * so suspect all shmif clients to be a part of the race:
-	 */
-	rumpcomp_shmif_lockall();
+	shmif_lockbus();
+
 	/* we're first?  initialize bus */
 	if (sc->sc_busmem->shm_magic == 0) {
 		sc->sc_busmem->shm_magic = SHMIF_MAGIC;
 		sc->sc_busmem->shm_first = BUSMEM_DATASIZE;
-		/*
-		 * TODO: Add more entropy here (date/time?)
-		 * so that busnames do not accidentally overlap
-		 */
-		sc->sc_busmem->shm_lock = rumpcomp_shmif_getpid();
+		// backward compatibility:
+		sc->sc_busmem->shm_lock = LOCK_LOCKED;
 	}
-	rumpcomp_shmif_unlockall();
-	rumpcomp_shmif_initsem(sc->sc_busmem->shm_lock);
-
-	shmif_lockbus();
 
 	sc->sc_nextpacket = sc->sc_busmem->shm_last;
 	sc->sc_devgen = sc->sc_busmem->shm_gen;
@@ -331,6 +321,7 @@ rump_shmif_create(const char *path, int *ifnum)
 		    RUMPUSER_OPEN_RDWR | RUMPUSER_OPEN_CREATE, &memfd);
 		if (error)
 			return error;
+		rumpcomp_shmif_initsem(path);
 	}
 
 	error = vmem_xalloc(shmif_units, 1, 0, 0, 0,
@@ -514,6 +505,7 @@ shmif_ioctl(struct ifnet *ifp, u_long cmd, void *data)
 			kmem_free(path, ifd->ifd_len);
 			break;
 		}
+		rumpcomp_shmif_initsem(path);
 		rv = initbackend(sc, memfd);
 		if (rv) {
 			kmem_free(path, ifd->ifd_len);
