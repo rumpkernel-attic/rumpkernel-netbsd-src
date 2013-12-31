@@ -53,11 +53,13 @@ A D/compat_svr4////
 A D/coram////
 A D/coredump////
 A D/coretemp////
+A D/crypto////
 A D/cx24227////
 A D/cxdtv////
 A D/cyclic////
 A D/dbcool////
 A D/dirhash////
+A D/dk_subr////
 A D/dm////
 A D/drm////
 A D/drm2////
@@ -155,6 +157,7 @@ A D/nullfs////
 A D/nxt2k////
 A D/odcm////
 A D/onewire////
+A D/opencrypto////
 A D/overlay////
 A D/pad////
 A D/padlock////
@@ -190,6 +193,7 @@ A D/smsc////
 A D/solaris////
 A D/spdmem////
 A D/suser////
+A D/swcrypto////
 A D/swsensor////
 A D/sysvbfs////
 A D/tdfxdrm////
@@ -226,9 +230,13 @@ A D/xc5k////
 A D/xldscripts////
 A D/zfs////
 A D/zl10353////
+A D/zlib////
+R D/zlib////
 R D/umapfs////
+R D/swcrypto////
 R D/securechroot////
 R D/portal////
+R D/opencrypto////
 R D/nullfs////
 R D/npf_ext_normalise////
 R D/msdosfs////
@@ -238,7 +246,9 @@ R D/i915drm2////
 R D/filecorefs////
 R D/drm2pci////
 R D/drm2////
+R D/dk_subr////
 R D/dirhash////
+R D/crypto////
 R D/compat_irix////
 R D/bpf_filter////
 R D/accf_http////
