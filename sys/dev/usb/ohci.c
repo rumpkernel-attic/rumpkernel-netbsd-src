@@ -1,4 +1,4 @@
-/*	$NetBSD: ohci.c,v 1.245 2013/12/01 07:28:47 skrll Exp $	*/
+/*	$NetBSD: ohci.c,v 1.248 2013/12/16 10:04:20 skrll Exp $	*/
 
 /*
  * Copyright (c) 1998, 2004, 2005, 2012 The NetBSD Foundation, Inc.
@@ -41,7 +41,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ohci.c,v 1.245 2013/12/01 07:28:47 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ohci.c,v 1.248 2013/12/16 10:04:20 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>

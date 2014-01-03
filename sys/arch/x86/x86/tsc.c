@@ -1,4 +1,4 @@
-/*	$NetBSD: tsc.c,v 1.34 2013/12/08 04:07:38 msaitoh Exp $	*/
+/*	$NetBSD: tsc.c,v 1.36 2013/12/18 03:20:19 msaitoh Exp $	*/
 
 /*-
  * Copyright (c) 2008 The NetBSD Foundation, Inc.
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: tsc.c,v 1.34 2013/12/08 04:07:38 msaitoh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: tsc.c,v 1.36 2013/12/18 03:20:19 msaitoh Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -63,23 +63,19 @@ static struct timecounter tsc_timecounter = {
 	.tc_quality = 3000,
 };
 
-void
-tsc_tc_init(void)
+bool
+tsc_is_invariant(void)
 {
 	struct cpu_info *ci;
 	uint32_t descs[4];
 	uint32_t family;
 	bool invariant;
 
-	if (!cpu_hascounter()) {
-		return;
-	}
+	if (!cpu_hascounter())
+		return false;
 
 	ci = curcpu();
 	invariant = false;
-	tsc_freq = ci->ci_data.cpu_cc_freq;
-	tsc_good = (cpu_feature[0] & CPUID_MSR) != 0 &&
-	    (rdmsr(MSR_TSC) != 0 || rdmsr(MSR_TSC) != 0);
 
 	if (cpu_vendor == CPUVENDOR_INTEL) {
 		/*
@@ -120,9 +116,9 @@ tsc_tc_init(void)
 		 * http://lkml.org/lkml/2005/11/4/173
 		 *
 		 * See Appendix E.4.7 CPUID Fn8000_0007_EDX Advanced Power
-		 * Management Features, AMD64 Architecture ProgrammerVolume 3:
-		 * General-Purpose and System Instructions. The check is
-		 * done below.
+		 * Management Features, AMD64 Architecture Programmer's
+		 * Manual Volume 3: General-Purpose and System Instructions.
+		 * The check is done below.
 		 */
 	}
 
@@ -140,6 +136,24 @@ tsc_tc_init(void)
 		}
 	}
 
+	return invariant;
+}
+
+void
+tsc_tc_init(void)
+{
+	struct cpu_info *ci;
+	bool invariant;
+
+	if (!cpu_hascounter())
+		return;
+
+	ci = curcpu();
+	tsc_freq = ci->ci_data.cpu_cc_freq;
+	tsc_good = (cpu_feature[0] & CPUID_MSR) != 0 &&
+	    (rdmsr(MSR_TSC) != 0 || rdmsr(MSR_TSC) != 0);
+
+	invariant = tsc_is_invariant();
 	if (!invariant) {
 		aprint_debug("TSC not known invariant on this CPU\n");
 		tsc_timecounter.tc_quality = -100;

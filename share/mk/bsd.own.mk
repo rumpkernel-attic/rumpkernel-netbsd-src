@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.757 2013/12/06 23:14:15 matt Exp $
+#	$NetBSD: bsd.own.mk,v 1.760 2013/12/31 18:46:09 christos Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -481,7 +481,8 @@ CXX=		${TOOL_CXX.${ACTIVE_CXX}}
 FC=		${TOOL_FC.${ACTIVE_FC}}
 OBJC=		${TOOL_OBJC.${ACTIVE_OBJC}}
 
-.if exists(/usr/bin/${TOOL_CTFCONVERT}) || exists(${TOOL_CTFCONVERT})
+# Override with tools versions if needed
+.if exists(${TOOL_CTFCONVERT}) && exists(${TOOL_CTFMERGE})
 CTFCONVERT=	${TOOL_CTFCONVERT}
 CTFMERGE=	${TOOL_CTFMERGE}
 .endif
@@ -754,6 +755,12 @@ MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf-${MACHINE_ARCH:C/eb//:C/v[4
 MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf
 .else
 MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsd
+.endif
+
+.if !empty(MACHINE_ARCH:M*arm*)
+# Flags to pass to CC for using the old APCS ABI on ARM for compat or stand.
+ARM_APCS_FLAGS=	-mabi=apcs-gnu -mfloat-abi=soft
+ARM_APCS_FLAGS+=${${ACTIVE_CC} == "clang":? -target ${MACHINE_GNU_ARCH}--netbsdelf -B ${TOOLDIR}/${MACHINE_GNU_PLATFORM}/bin :}
 .endif
 
 #

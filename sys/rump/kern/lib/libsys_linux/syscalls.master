@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.8 2013/12/08 08:54:48 njoly Exp $
+	$NetBSD: syscalls.master,v 1.10 2013/12/14 17:34:47 njoly Exp $
 
 ;	@(#)syscalls.master	8.2 (Berkeley) 1/13/94
 
@@ -249,9 +249,9 @@
 170	UNIMPL		1.0 msgsys
 171	UNIMPL		1.0 shmsys
 172	UNIMPL
-173	NODEF 	 	{ ssize_t|linux_sys||pread(int fd, char *buf, \
+173	NOARGS 	 	{ ssize_t|sys||pread(int fd, char *buf, \
 			    size_t nbyte, int PAD, linux_off_t offset); }
-174	NODEF 	 	{ ssize_t|linux_sys||pwrite(int fd, char *buf, \
+174	NOARGS 	 	{ ssize_t|sys||pwrite(int fd, char *buf, \
 			    size_t nbyte, int PAD, linux_off_t offset); }
 175	UNIMPL		ntp_gettime
 176	UNIMPL		ntp_adjtime
@@ -589,8 +589,8 @@
 458	NOARGS		{ int|sys||renameat(int fromfd, const char *from, \
 			    int tofd, const char *to); }
 459	UNIMPL		mkfifoat
-460	NODEF		{ int|linux_sys||mknodat(int fd, const char *path, \
-			    mode_t mode, unsigned dev); }
+460	STD		{ int|rump_linux_sys||mknodat(int fd, const char *path, \
+			    mode_t mode, int PAD, unsigned dev); }
 461	NOARGS		{ int|sys||mkdirat(int fd, const char *path, \
 			    mode_t mode); }
 462	NODEF		{ int|linux_sys||faccessat(int fd, const char *path, \

@@ -1,4 +1,4 @@
-/*	$NetBSD: nfs_serv.c,v 1.166 2013/09/14 22:29:08 martin Exp $	*/
+/*	$NetBSD: nfs_serv.c,v 1.168 2013/12/14 22:04:03 christos Exp $	*/
 
 /*
  * Copyright (c) 1989, 1993
@@ -55,7 +55,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: nfs_serv.c,v 1.166 2013/09/14 22:29:08 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: nfs_serv.c,v 1.168 2013/12/14 22:04:03 christos Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -144,6 +144,10 @@ nfsserver_modcmd(modcmd_t cmd, void *arg)
 		nfsrv_finicache();
 		nfs_fini();
 		return 0;
+	case MODULE_CMD_AUTOUNLOAD:
+		if (netexport_hasexports())
+			return EBUSY;
+		/*FALLTHROUGH*/
 	default:
 		return ENOTTY;
 	}

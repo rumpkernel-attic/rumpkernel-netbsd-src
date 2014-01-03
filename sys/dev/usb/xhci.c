@@ -1,4 +1,4 @@
-/*	$NetBSD: xhci.c,v 1.10 2013/11/17 16:11:35 skrll Exp $	*/
+/*	$NetBSD: xhci.c,v 1.12 2013/12/14 16:03:04 jakllsch Exp $	*/
 
 /*
  * Copyright (c) 2013 Jonathan A. Kollasch
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: xhci.c,v 1.10 2013/11/17 16:11:35 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: xhci.c,v 1.12 2013/12/14 16:03:04 jakllsch Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -610,14 +610,14 @@ xhci_init(struct xhci_softc *sc)
 
 	sc->sc_ac64 = XHCI_HCC_AC64(hcc);
 	sc->sc_ctxsz = XHCI_HCC_CSZ(hcc) ? 64 : 32;
-	device_printf(sc->sc_dev, "ac64 %d ctxsz %d\n", sc->sc_ac64,
+	aprint_debug_dev(sc->sc_dev, "ac64 %d ctxsz %d\n", sc->sc_ac64,
 	    sc->sc_ctxsz);
 
-	device_printf(sc->sc_dev, "xECP %x\n", XHCI_HCC_XECP(hcc) * 4);
+	aprint_debug_dev(sc->sc_dev, "xECP %x\n", XHCI_HCC_XECP(hcc) * 4);
 	ecp = XHCI_HCC_XECP(hcc) * 4;
 	while (ecp != 0) {
 		ecr = xhci_read_4(sc, ecp);
-		device_printf(sc->sc_dev, "ECR %x: %08x\n", ecp, ecr);
+		aprint_debug_dev(sc->sc_dev, "ECR %x: %08x\n", ecp, ecr);
 		switch (XHCI_XECP_ID(ecr)) {
 		case XHCI_ID_PROTOCOLS: {
 			uint32_t w0, w4, w8;
@@ -626,7 +626,7 @@ xhci_init(struct xhci_softc *sc)
 			w2 = (w0 >> 16) & 0xffff;
 			w4 = xhci_read_4(sc, ecp + 4);
 			w8 = xhci_read_4(sc, ecp + 8);
-			device_printf(sc->sc_dev, "SP: %08x %08x %08x\n",
+			aprint_debug_dev(sc->sc_dev, "SP: %08x %08x %08x\n",
 			    w0, w4, w8);
 			if (w4 == 0x20425355 && w2 == 0x0300) {
 				sc->sc_ss_port_start = (w8 >> 0) & 0xff;;
@@ -704,19 +704,19 @@ xhci_init(struct xhci_softc *sc)
 		return USBD_IOERROR;
 
 	pagesize = xhci_op_read_4(sc, XHCI_PAGESIZE);
-	device_printf(sc->sc_dev, "PAGESIZE 0x%08x\n", pagesize);
+	aprint_debug_dev(sc->sc_dev, "PAGESIZE 0x%08x\n", pagesize);
 	pagesize = ffs(pagesize);
 	if (pagesize == 0)
 		return USBD_IOERROR;
 	sc->sc_pgsz = 1 << (12 + (pagesize - 1));
-	device_printf(sc->sc_dev, "sc_pgsz 0x%08x\n", (uint32_t)sc->sc_pgsz);
-	device_printf(sc->sc_dev, "sc_maxslots 0x%08x\n",
+	aprint_debug_dev(sc->sc_dev, "sc_pgsz 0x%08x\n", (uint32_t)sc->sc_pgsz);
+	aprint_debug_dev(sc->sc_dev, "sc_maxslots 0x%08x\n",
 	    (uint32_t)sc->sc_maxslots);
 
 	usbd_status err;
 
 	sc->sc_maxspbuf = XHCI_HCS2_MAXSPBUF(hcs2);
-	device_printf(sc->sc_dev, "sc_maxspbuf %d\n", sc->sc_maxspbuf);
+	aprint_debug_dev(sc->sc_dev, "sc_maxspbuf %d\n", sc->sc_maxspbuf);
 	if (sc->sc_maxspbuf != 0) {
 		err = usb_allocmem(&sc->sc_bus,
 		    sizeof(uint64_t) * sc->sc_maxspbuf, sizeof(uint64_t),
@@ -774,7 +774,7 @@ xhci_init(struct xhci_softc *sc)
 		err = usb_allocmem(&sc->sc_bus, size, align, dma);
 		memset(KERNADDR(dma, 0), 0, size);
 		usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
-		device_printf(sc->sc_dev, "eventst: %s %016jx %p %zx\n",
+		aprint_debug_dev(sc->sc_dev, "eventst: %s %016jx %p %zx\n",
 		    usbd_errstr(err),
 		    (uintmax_t)DMAADDR(&sc->sc_eventst_dma, 0),
 		    KERNADDR(&sc->sc_eventst_dma, 0),
@@ -794,7 +794,7 @@ xhci_init(struct xhci_softc *sc)
 			    htole64(DMAADDR(&sc->sc_spbufarray_dma, 0));
 		}
 		usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
-		device_printf(sc->sc_dev, "dcbaa: %s %016jx %p %zx\n",
+		aprint_debug_dev(sc->sc_dev, "dcbaa: %s %016jx %p %zx\n",
 		    usbd_errstr(err),
 		    (uintmax_t)DMAADDR(&sc->sc_dcbaa_dma, 0),
 		    KERNADDR(&sc->sc_dcbaa_dma, 0),
@@ -831,7 +831,7 @@ xhci_init(struct xhci_softc *sc)
 	xhci_rt_write_4(sc, XHCI_IMOD(0), 0);
 
 	xhci_op_write_4(sc, XHCI_USBCMD, XHCI_CMD_INTE|XHCI_CMD_RS); /* Go! */
-	device_printf(sc->sc_dev, "USBCMD %08"PRIx32"\n",
+	aprint_debug_dev(sc->sc_dev, "USBCMD %08"PRIx32"\n",
 	    xhci_op_read_4(sc, XHCI_USBCMD));
 
 	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_SOFTUSB);
@@ -1621,6 +1621,15 @@ xhci_ring_put(struct xhci_softc * const sc, struct xhci_ring * const xr,
 	ri = xr->xr_ep;
 	cs = xr->xr_cs;
 
+	/*
+	 * Although the xhci hardware can do scatter/gather dma from
+	 * arbitrary sized buffers, there is a non-obvious restriction
+	 * that a LINK trb is only allowed at the end of a burst of
+	 * transfers - which might be 16kB.
+	 * Arbitrary aligned LINK trb definitely fail on Ivy bridge.
+	 * The simple solution is not to allow a LINK trb in the middle
+	 * of anything - as here.
+	 */
 	if (ri + ntrbs >= (xr->xr_ntrb - 1)) {
 		parameter = xhci_ring_trbp(xr, 0);
 		status = 0;
@@ -1639,6 +1648,7 @@ xhci_ring_put(struct xhci_softc * const sc, struct xhci_ring * const xr,
 
 	ri++;
 
+	/* Write any subsequent TRB first */
 	for (i = 1; i < ntrbs; i++) {
 		parameter = trbs[i].trb_0;
 		status = trbs[i].trb_2;
@@ -1658,6 +1668,7 @@ xhci_ring_put(struct xhci_softc * const sc, struct xhci_ring * const xr,
 		ri++;
 	}
 
+	/* Write the first TRB last */
 	i = 0;
 	{
 		parameter = trbs[i].trb_0;
@@ -2659,6 +2670,17 @@ xhci_device_bulk_start(usbd_xfer_handle xfer)
 	KASSERT((xfer->rqflags & URQ_REQUEST) == 0);
 
 	parameter = DMAADDR(dma, 0);
+	/*
+	 * XXX: The physical buffer must not cross a 64k boundary.
+	 * If the user supplied buffer crosses such a boundary then 2
+	 * (or more) TRB should be used.
+	 * If multiple TRB are used the td_size field must be set correctly.
+	 * For v1.0 devices (like ivy bridge) this is the number of usb data
+	 * blocks needed to complete the transfer.
+	 * Setting it to 1 in the last TRB causes an extra zero-length
+	 * data block be sent.
+	 * The earlier documentation differs, I don't know how it behaves.
+	 */
 	KASSERT(len <= 0x10000);
 	status = XHCI_TRB_2_IRQ_SET(0) |
 	    XHCI_TRB_2_TDSZ_SET(1) |

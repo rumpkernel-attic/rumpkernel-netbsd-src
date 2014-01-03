@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.127 2013/11/18 16:23:47 bad Exp $
+#	$NetBSD: Makefile,v 1.134 2014/01/01 16:06:00 pgoyette Exp $
 
 .include <bsd.own.mk>
 
@@ -8,15 +8,23 @@ SUBDIR=		accf_dataready
 SUBDIR+=	accf_httpready
 SUBDIR+=	adosfs
 SUBDIR+=	aio
+SUBDIR+=	blowfish
 SUBDIR+=	bpf
+SUBDIR+=	camellia
+SUBDIR+=	cast128
+SUBDIR+=	ccd
 SUBDIR+=	cd9660
+SUBDIR+=	cgd
+SUBDIR+=	chfs
+SUBDIR+=	crypto
 SUBDIR+=	coda
 SUBDIR+=	coda5
 SUBDIR+=	compat
 SUBDIR+=	compat_ossaudio
 SUBDIR+=	coredump
-SUBDIR+=	chfs
 SUBDIR+=	dbcool
+SUBDIR+=	des
+SUBDIR+=	dk_subr
 SUBDIR+=	efs
 SUBDIR+=	ext2fs
 SUBDIR+=	exec_script
@@ -40,7 +48,7 @@ SUBDIR+=	kernfs
 SUBDIR+=	layerfs
 SUBDIR+=	lfs
 SUBDIR+=	lua
-SUBDIR+=	luacore
+SUBDIR+=	luasystm
 SUBDIR+=	luapmf
 SUBDIR+=	mfs
 SUBDIR+=	miiverbose
@@ -60,6 +68,7 @@ SUBDIR+=	npf_ext_rndblock
 SUBDIR+=	ntfs
 SUBDIR+=	null
 SUBDIR+=	onewire
+SUBDIR+=	opencrypto
 SUBDIR+=	overlay
 SUBDIR+=	pciverbose
 SUBDIR+=	pf
@@ -75,10 +84,12 @@ SUBDIR+=	secmodel_bsd44
 SUBDIR+=	secmodel_extensions
 SUBDIR+=	secmodel_overlay
 SUBDIR+=	securelevel
+SUBDIR+=	skipjack
 SUBDIR+=	smbfs
 SUBDIR+=	spdmem
 SUBDIR+=	sysvbfs
 SUBDIR+=	suser
+SUBDIR+=	swcrypto
 SUBDIR+=	swsensor
 SUBDIR+=	tmpfs
 SUBDIR+=	uatp
@@ -89,6 +100,7 @@ SUBDIR+=	usbverbose
 SUBDIR+=	vcoda
 SUBDIR+=	v7fs
 SUBDIR+=	vnd
+SUBDIR+=	zlib
 SUBDIR+=	tprof
 .if (defined(NOTYET))
 SUBDIR+=	unionfs

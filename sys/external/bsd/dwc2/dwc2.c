@@ -1,4 +1,4 @@
-/*	$NetBSD: dwc2.c,v 1.21 2013/11/28 06:56:36 skrll Exp $	*/
+/*	$NetBSD: dwc2.c,v 1.25 2014/01/03 12:20:26 skrll Exp $	*/
 
 /*-
  * Copyright (c) 2013 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: dwc2.c,v 1.21 2013/11/28 06:56:36 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: dwc2.c,v 1.25 2014/01/03 12:20:26 skrll Exp $");
 
 #include "opt_usb.h"
 
@@ -342,6 +342,10 @@ dwc2_softintr(void *v)
 
 	mutex_spin_enter(&hsotg->lock);
 	while ((dxfer = TAILQ_FIRST(&sc->sc_complete)) != NULL) {
+
+    		KASSERTMSG(!callout_pending(&dxfer->xfer.timeout_handle), 
+		    "xfer %p pipe %p\n", dxfer, dxfer->xfer.pipe);
+
 		/*
 		 * dwc2_abort_xfer will remove this transfer from the
 		 * sc_complete queue
@@ -353,8 +357,6 @@ dwc2_softintr(void *v)
 		}
 
 		TAILQ_REMOVE(&sc->sc_complete, dxfer, xnext);
-		/* XXXNH Already done - can I assert this? */
-		callout_stop(&dxfer->xfer.timeout_handle);
 
 		mutex_spin_exit(&hsotg->lock);
 		usb_transfer_complete(&dxfer->xfer);
@@ -1297,7 +1299,6 @@ dwc2_device_start(usbd_xfer_handle xfer)
 	memset(dwc2_urb, 0, sizeof(*dwc2_urb) +
 	    sizeof(dwc2_urb->iso_descs[0]) * DWC2_MAXISOCPACKETS);
 
-	dwc2_urb->priv = xfer;
 	dwc2_hcd_urb_set_pipeinfo(hsotg, dwc2_urb, addr, epnum, xfertype, dir,
 				  mps);
 
@@ -1378,24 +1379,27 @@ dwc2_device_start(usbd_xfer_handle xfer)
 	}
 
 	/* might need to check cpu_intr_p */
-	retval = dwc2_hcd_urb_enqueue(hsotg, dwc2_urb, &dpipe->priv, 0);
-	if (retval)
-		goto fail;
+	mutex_spin_enter(&hsotg->lock);
 
 	if (xfer->timeout && !sc->sc_bus.use_polling) {
 		callout_reset(&xfer->timeout_handle, mstohz(xfer->timeout),
 		    dwc2_timeout, xfer);
 	}
 
+	dwc2_urb->priv = xfer;
+	retval = dwc2_hcd_urb_enqueue(hsotg, dwc2_urb, &dpipe->priv, 0);
+	if (retval)
+		goto fail;
+
 	if (alloc_bandwidth) {
-		mutex_spin_enter(&hsotg->lock);
 		dwc2_allocate_bus_bandwidth(hsotg,
 				dwc2_hcd_get_ep_bandwidth(hsotg, dpipe),
 				xfer);
-		mutex_spin_exit(&hsotg->lock);
 	}
 
 fail:
+	mutex_spin_exit(&hsotg->lock);
+
 // 	mutex_exit(&sc->sc_lock);
 
 	switch (retval) {
@@ -1698,6 +1702,8 @@ void dwc2_host_complete(struct dwc2_hsotg *hsotg, struct dwc2_qtd *qtd,
 	xfertype = UE_GET_XFERTYPE(ed->bmAttributes);
 
 	xfer->actlen = dwc2_hcd_urb_get_actual_length(qtd->urb);
+
+	DPRINTFN(3, "xfer=%p actlen=%d\n", xfer, xfer->actlen);
 
 	if (xfertype == UE_ISOCHRONOUS && dbg_perio()) {
 		int i;
