@@ -98,6 +98,7 @@ A D/gpiosim////
 A D/hdafg////
 A D/hdaudio////
 A D/hfs////
+A D/hifn////
 A D/hpacel////
 A D/hpet////
 A D/hpqlb////
@@ -245,6 +246,7 @@ R D/msdosfs////
 R D/luacore////
 R D/ksem////
 R D/i915drm2////
+R D/hifn////
 R D/filecorefs////
 R D/drm2pci////
 R D/drm2////
