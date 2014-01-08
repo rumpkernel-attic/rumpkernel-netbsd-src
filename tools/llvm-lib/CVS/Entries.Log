@@ -44,8 +44,10 @@ A D/libLLVMPowerPCTargetInfo////
 A D/libLLVMRuntimeDyld////
 A D/libLLVMScalarOpts////
 A D/libLLVMSelectionDAG////
+A D/libLLVMSparcAsmParser////
 A D/libLLVMSparcAsmPrinter////
 A D/libLLVMSparcCodeGen////
+A D/libLLVMSparcDisassembler////
 A D/libLLVMSparcMCTargetDesc////
 A D/libLLVMSparcTargetInfo////
 A D/libLLVMSupport////
@@ -117,6 +119,8 @@ R D/liblldReaderWriterELFMips////
 R D/libclangStaticAnalyzer////
 R D/libclangRewrite////
 R D/libMCLinkerScript////
+R D/libLLVMSparcDisassembler////
 R D/libLLVMSparcAsmPrinter////
+R D/libLLVMSparcAsmParser////
 R D/libLLVMPowerPCDisassembler////
 R D/libLLVMCore////
