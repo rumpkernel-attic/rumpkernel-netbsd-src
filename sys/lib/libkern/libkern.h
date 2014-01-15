@@ -1,4 +1,4 @@
-/*	$NetBSD: libkern.h,v 1.108 2013/08/28 16:20:38 riastradh Exp $	*/
+/*	$NetBSD: libkern.h,v 1.112 2013/12/27 20:25:33 christos Exp $	*/
 
 /*-
  * Copyright (c) 1992, 1993
@@ -189,9 +189,15 @@ tolower(int ch)
 #endif
 #endif
 
+#ifndef	CTASSERT
 #define	CTASSERT(x)		__CTASSERT(x)
+#endif
+#ifndef	CTASSERT_SIGNED
 #define	CTASSERT_SIGNED(x)	__CTASSERT(((typeof(x))-1) < 0)
+#endif
+#ifndef	CTASSERT_UNSIGNED
 #define	CTASSERT_UNSIGNED(x)	__CTASSERT(((typeof(x))-1) >= 0)
+#endif
 
 #ifndef DIAGNOSTIC
 #define _DIAGASSERT(a)	(void)0
@@ -286,6 +292,7 @@ char	*strsep(char **, const char *);
 /* These exist in GCC 3.x, but we don't bother. */
 char	*strcat(char *, const char *);
 char	*strncpy(char *, const char *, size_t);
+char	*strncat(char *, const char *, size_t);
 int	 strncmp(const char *, const char *, size_t);
 char	*strchr(const char *, int);
 char	*strrchr(const char *, int);
@@ -321,6 +328,8 @@ char	*initstate(unsigned long, char *, size_t);
 char	*setstate(char *);
 #endif /* SMALL_RANDOM */
 long	 random(void);
+void	 mi_vector_hash(const void * __restrict, size_t, uint32_t,
+	    uint32_t[3]);
 void	 mtprng_init32(struct mtprng_state *, uint32_t);
 void	 mtprng_initarray(struct mtprng_state *, const uint32_t *, size_t);
 uint32_t mtprng_rawrandom(struct mtprng_state *);
@@ -334,6 +343,7 @@ int	 strncasecmp(const char *, const char *, size_t);
 u_long	 strtoul(const char *, char **, int);
 long long strtoll(const char *, char **, int);
 unsigned long long strtoull(const char *, char **, int);
+intmax_t  strtoimax(const char *, char **, int);
 uintmax_t strtoumax(const char *, char **, int);
 int	 snprintb(char *, size_t, const char *, uint64_t);
 int	 snprintb_m(char *, size_t, const char *, uint64_t, size_t);

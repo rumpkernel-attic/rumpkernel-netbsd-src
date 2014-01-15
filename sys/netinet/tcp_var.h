@@ -1,4 +1,4 @@
-/*	$NetBSD: tcp_var.h,v 1.170 2013/04/10 00:16:04 christos Exp $	*/
+/*	$NetBSD: tcp_var.h,v 1.172 2014/01/02 18:29:01 pooka Exp $	*/
 
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
@@ -327,6 +327,11 @@ struct tcpcb {
 					   episode starts at this seq number*/
 	tcp_seq snd_fack;		/* FACK TCP.  Forward-most data held by
 					   peer. */
+
+/* CUBIC variables */
+	ulong snd_cubic_wmax;		/* W_max */
+	ulong snd_cubic_wmax_last;	/* Used for fast convergence */
+	ulong snd_cubic_ctime;		/* Last congestion time */
 
 /* pointer for syn cache entries*/
 	LIST_HEAD(, syn_cache) t_sc;	/* list of entries by this tcb */
@@ -907,6 +912,7 @@ void	 tcp_drain(void);
 void	 tcp_drainstub(void);
 void	 tcp_established(struct tcpcb *);
 void	 tcp_init(void);
+void	 tcp_init_common(unsigned);
 #ifdef INET6
 int	 tcp6_input(struct mbuf **, int *, int);
 #endif
@@ -930,6 +936,9 @@ void	 tcp_quench(struct inpcb *, int);
 void	 tcp6_quench(struct in6pcb *, int);
 #endif
 void	 tcp_mtudisc(struct inpcb *, int);
+#ifdef INET6
+void	 tcp6_mtudisc_callback(struct in6_addr *);
+#endif
 
 void	tcpipqent_init(void);
 struct ipqent *tcpipqent_alloc(void);
@@ -943,7 +952,8 @@ void	 tcp_setpersist(struct tcpcb *);
 int	 tcp_signature_compute(struct mbuf *, struct tcphdr *, int, int,
 	    int, u_char *, u_int);
 #endif
-void	 tcp_slowtimo(void);
+void	 tcp_slowtimo(void *);
+extern callout_t tcp_slowtimo_ch;
 void	 tcp_fasttimo(void);
 struct mbuf *
 	 tcp_template(struct tcpcb *);
@@ -966,7 +976,6 @@ void	 tcp_del_sackholes(struct tcpcb *, const struct tcphdr *);
 void	 tcp_free_sackholes(struct tcpcb *);
 void	 tcp_sack_adjust(struct tcpcb *tp);
 struct sackhole *tcp_sack_output(struct tcpcb *tp, int *sack_bytes_rexmt);
-void	 tcp_sack_newack(struct tcpcb *, const struct tcphdr *);
 int	 tcp_sack_numblks(const struct tcpcb *);
 #define	TCP_SACK_OPTLEN(nblks)	((nblks) * 8 + 2 + 2)
 

@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.263 2013/08/30 10:33:10 pooka Exp $
+	$NetBSD: syscalls.master,v 1.266 2013/12/11 09:40:56 pooka Exp $
 
 ;	@(#)syscalls.master	8.2 (Berkeley) 1/13/94
 
@@ -130,7 +130,7 @@
 43	NOERR 	RUMP	{ gid_t|sys||getegid(void); }
 44	STD 		{ int|sys||profil(char *samples, size_t size, \
 			    u_long offset, u_int scale); }
-45	STD 		{ int|sys||ktrace(const char *fname, int ops, \
+45	STD 	RUMP	{ int|sys||ktrace(const char *fname, int ops, \
 			    int facs, pid_t pid); }
 46	COMPAT_13 MODULAR { int|sys||sigaction(int signum, \
 			    const struct sigaction13 *nsa, \
@@ -550,7 +550,7 @@
 			    gid_t gid); }
 286	STD 	RUMP	{ pid_t|sys||getsid(pid_t pid); }
 287	STD 		{ pid_t|sys||__clone(int flags, void *stack); }
-288	STD 		{ int|sys||fktrace(int fd, int ops, \
+288	STD 	RUMP	{ int|sys||fktrace(int fd, int ops, \
 			    int facs, pid_t pid); }
 289	STD 	RUMP	{ ssize_t|sys||preadv(int fd, \
 			    const struct iovec *iovp, int iovcnt, \
@@ -594,7 +594,7 @@
 #endif
 304	STD 	 RUMP	{ int|sys||lchflags(const char *path, u_long flags); }
 305	NOERR 	RUMP	{ int|sys||issetugid(void); }
-306	STD 		{ int|sys||utrace(const char *label, void *addr, \
+306	STD	RUMP	{ int|sys||utrace(const char *label, void *addr, \
 				size_t len); }
 307	STD 		{ int|sys||getcontext(struct __ucontext *ucp); }
 308	STD 		{ int|sys||setcontext(const struct __ucontext *ucp); }
@@ -902,7 +902,7 @@
 459	STD  RUMP	{ int|sys||mkfifoat(int fd, const char *path, \
 			    mode_t mode); }
 460	STD  RUMP	{ int|sys||mknodat(int fd, const char *path, \
-			    mode_t mode, uint32_t dev); }
+			    mode_t mode, int PAD, dev_t dev); }
 461	STD  RUMP	{ int|sys||mkdirat(int fd, const char *path, \
 			    mode_t mode); }
 462	STD  RUMP	{ int|sys||faccessat(int fd, const char *path, \

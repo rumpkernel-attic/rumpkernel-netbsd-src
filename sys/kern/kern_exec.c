@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_exec.c,v 1.363 2013/09/12 19:01:38 christos Exp $	*/
+/*	$NetBSD: kern_exec.c,v 1.368 2013/12/24 14:47:04 christos Exp $	*/
 
 /*-
  * Copyright (c) 2008 The NetBSD Foundation, Inc.
@@ -59,7 +59,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.363 2013/09/12 19:01:38 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.368 2013/12/24 14:47:04 christos Exp $");
 
 #include "opt_exec.h"
 #include "opt_execfmt.h"
@@ -111,6 +111,14 @@ __KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.363 2013/09/12 19:01:38 christos Exp
 #include <machine/reg.h>
 
 #include <compat/common/compat_util.h>
+
+#ifndef MD_TOPDOWN_INIT
+#ifdef __USING_TOPDOWN_VM
+#define	MD_TOPDOWN_INIT(epp)	(epp)->ep_flags |= EXEC_TOPDOWN_VM
+#else
+#define	MD_TOPDOWN_INIT(epp)
+#endif
+#endif
 
 static int exec_sigcode_map(struct proc *, const struct emul *);
 
@@ -311,8 +319,9 @@ check_exec(struct lwp *l, struct exec_package *epp, struct pathbuf *pb)
 	if ((error = namei(&nd)) != 0)
 		return error;
 	epp->ep_vp = vp = nd.ni_vp;
-	/* this cannot overflow as both are size PATH_MAX */
-	strcpy(epp->ep_resolvedname, nd.ni_pnbuf);
+	/* normally this can't fail */
+	if ((error = copystr(nd.ni_pnbuf, epp->ep_resolvedname, PATH_MAX, NULL)))
+		goto bad1;
 
 #ifdef DIAGNOSTIC
 	/* paranoia (take this out once namei stuff stabilizes) */
@@ -632,11 +641,7 @@ execve_loadvm(struct lwp *l, const char *path, char * const *args,
 		goto clrflg;
 	}
 	data->ed_pathstring = pathbuf_stringcopy_get(data->ed_pathbuf);
-
 	data->ed_resolvedpathbuf = PNBUF_GET();
-#ifdef DIAGNOSTIC
-	strcpy(data->ed_resolvedpathbuf, "/wrong");
-#endif
 
 	/*
 	 * initialize the fields of the exec package.
@@ -653,6 +658,7 @@ execve_loadvm(struct lwp *l, const char *path, char * const *args,
 	data->ed_pack.ep_vmcmds.evs_used = 0;
 	data->ed_pack.ep_vap = &data->ed_attr;
 	data->ed_pack.ep_flags = 0;
+	MD_TOPDOWN_INIT(&data->ed_pack);
 	data->ed_pack.ep_emul_root = NULL;
 	data->ed_pack.ep_interp = NULL;
 	data->ed_pack.ep_esch = NULL;
@@ -933,10 +939,12 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	 */
 	if (is_spawn)
 		uvmspace_spawn(l, data->ed_pack.ep_vm_minaddr,
-		    data->ed_pack.ep_vm_maxaddr);
+		    data->ed_pack.ep_vm_maxaddr,
+		    data->ed_pack.ep_flags & EXEC_TOPDOWN_VM);
 	else
 		uvmspace_exec(l, data->ed_pack.ep_vm_minaddr,
-		    data->ed_pack.ep_vm_maxaddr);
+		    data->ed_pack.ep_vm_maxaddr,
+		    data->ed_pack.ep_flags & EXEC_TOPDOWN_VM);
 
 	/* record proc's vnode, for use by procfs and others */
         if (p->p_textvp)
@@ -1072,10 +1080,11 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 #ifdef notyet
 	/*
 	 * Although this works most of the time [since the entry was just
-	 * entered in the cache] we don't use it because it theoretically
-	 * can fail and it is not the cleanest interface, because there
-	 * could be races. When the namei cache is re-written, this can
-	 * be changed to use the appropriate function.
+	 * entered in the cache] we don't use it because it will fail for
+	 * entries that are not placed in the cache because their name is
+	 * longer than NCHNAMLEN and it is not the cleanest interface,
+	 * because there could be races. When the namei cache is re-written,
+	 * this can be changed to use the appropriate function.
 	 */
 	else if (!(error = vnode_to_path(dp, MAXPATHLEN, p->p_textvp, l, p)))
 		data->ed_pack.ep_path = dp;
@@ -2215,7 +2224,7 @@ do_posix_spawn(struct lwp *l1, pid_t *pid_res, bool *child_ok, const char *path,
 	    (unsigned) ((char *)&p2->p_endcopy - (char *)&p2->p_startcopy));
 	p2->p_vmspace = proc0.p_vmspace;
 
-	CIRCLEQ_INIT(&p2->p_sigpend.sp_info);
+	TAILQ_INIT(&p2->p_sigpend.sp_info);
 
 	LIST_INIT(&p2->p_lwps);
 	LIST_INIT(&p2->p_sigwaiters);

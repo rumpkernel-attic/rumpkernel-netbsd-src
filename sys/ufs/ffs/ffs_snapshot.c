@@ -1,4 +1,4 @@
-/*	$NetBSD: ffs_snapshot.c,v 1.128 2013/09/13 20:15:33 joerg Exp $	*/
+/*	$NetBSD: ffs_snapshot.c,v 1.132 2013/12/17 01:17:39 joerg Exp $	*/
 
 /*
  * Copyright 2000 Marshall Kirk McKusick. All Rights Reserved.
@@ -38,7 +38,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ffs_snapshot.c,v 1.128 2013/09/13 20:15:33 joerg Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ffs_snapshot.c,v 1.132 2013/12/17 01:17:39 joerg Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_ffs.h"
@@ -958,7 +958,7 @@ cgaccount1(int cg, struct vnode *vp, void *data, int passno)
 	struct fs *fs;
 	struct lwp *l = curlwp;
 	daddr_t base, numblks;
-	int error, len, loc, ns, indiroff;
+	int error, len, loc, ns __unused, indiroff;
 
 	ip = VTOI(vp);
 	fs = ip->i_fs;
@@ -1035,7 +1035,7 @@ static int
 expunge(struct vnode *snapvp, struct inode *cancelip, struct fs *fs,
     acctfunc_t acctfunc, int expungetype)
 {
-	int i, error, ns;
+	int i, error, ns __unused;
 	daddr_t lbn, rlbn;
 	daddr_t len, blkno, numblks, blksperindir;
 	struct ufs1_dinode *dip1;
@@ -1374,7 +1374,7 @@ void
 ffs_snapgone(struct vnode *vp)
 {
 	struct inode *xp, *ip = VTOI(vp);
-	struct mount *mp = ip->i_devvp->v_specmountpoint;
+	struct mount *mp = spec_node_getmountedfs(ip->i_devvp);
 	struct fs *fs;
 	struct snap_info *si;
 	int snaploc;
@@ -1425,7 +1425,7 @@ ffs_snapremove(struct vnode *vp)
 	struct inode *ip = VTOI(vp), *xp;
 	struct vnode *devvp = ip->i_devvp;
 	struct fs *fs = ip->i_fs;
-	struct mount *mp = devvp->v_specmountpoint;
+	struct mount *mp = spec_node_getmountedfs(devvp);
 	struct buf *ibp;
 	struct snap_info *si;
 	struct lwp *l = curlwp;
@@ -1541,7 +1541,7 @@ int
 ffs_snapblkfree(struct fs *fs, struct vnode *devvp, daddr_t bno,
     long size, ino_t inum)
 {
-	struct mount *mp = devvp->v_specmountpoint;
+	struct mount *mp = spec_node_getmountedfs(devvp);
 	struct buf *ibp;
 	struct inode *ip;
 	struct vnode *vp = NULL;
@@ -1727,7 +1727,7 @@ ffs_snapshot_mount(struct mount *mp)
 	struct inode *ip, *xp;
 	struct snap_info *si;
 	daddr_t snaplistsize, *snapblklist;
-	int i, error, ns, snaploc, loc;
+	int i, error, ns __unused, snaploc, loc;
 
 	/*
 	 * No persistent snapshots on apple ufs file systems.
@@ -1877,7 +1877,7 @@ ffs_copyonwrite(void *v, struct buf *bp, bool data_valid)
 	struct fs *fs;
 	struct inode *ip;
 	struct vnode *devvp = v, *vp = NULL;
-	struct mount *mp = devvp->v_specmountpoint;
+	struct mount *mp = spec_node_getmountedfs(devvp);
 	struct snap_info *si;
 	void *saved_data = NULL;
 	daddr_t lbn, blkno, *snapblklist;
@@ -2297,7 +2297,7 @@ db_assign(struct inode *ip, int loc, daddr_t val)
 		ip->i_ffs2_db[loc] = ufs_rw64(val, UFS_IPNEEDSWAP(ip));
 }
 
-static inline daddr_t
+__unused static inline daddr_t
 ib_get(struct inode *ip, int loc)
 {
 	if (ip->i_ump->um_fstype == UFS1)

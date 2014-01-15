@@ -387,7 +387,7 @@ remote_event_create(REMOTE_EVENT_T *event)
 	_sema_init(event->event, 0);
 }
 
-static inline void
+__unused static inline void
 remote_event_destroy(REMOTE_EVENT_T *event)
 {
 	(void)event;
@@ -1462,12 +1462,11 @@ parse_open(VCHIQ_STATE_T *state, VCHIQ_HEADER_T *header)
 {
 	VCHIQ_SERVICE_T *service = NULL;
 	int msgid, size;
-	int type;
 	unsigned int localport, remoteport;
 
 	msgid = header->msgid;
 	size = header->size;
-	type = VCHIQ_MSG_TYPE(msgid);
+	//int type = VCHIQ_MSG_TYPE(msgid);
 	localport = VCHIQ_MSG_DSTPORT(msgid);
 	remoteport = VCHIQ_MSG_SRCPORT(msgid);
 	if (size >= sizeof(struct vchiq_open_payload)) {
@@ -3664,7 +3663,7 @@ vchiq_dump_service_state(void *dump_context, VCHIQ_SERVICE_T *service)
 			if (service->public_fourcc != VCHIQ_FOURCC_INVALID)
 				snprintf(remoteport + len2,
 					sizeof(remoteport) - len2,
-					" (client %x)", service->client_id);
+					" (client %8x)", service->client_id);
 		} else
 			strcpy(remoteport, "n/a");
 

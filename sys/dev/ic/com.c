@@ -1,4 +1,4 @@
-/* $NetBSD: com.c,v 1.316 2013/09/12 12:54:39 martin Exp $ */
+/* $NetBSD: com.c,v 1.322 2013/12/22 18:20:46 matt Exp $ */
 
 /*-
  * Copyright (c) 1998, 1999, 2004, 2008 The NetBSD Foundation, Inc.
@@ -66,7 +66,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: com.c,v 1.316 2013/09/12 12:54:39 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: com.c,v 1.322 2013/12/22 18:20:46 matt Exp $");
 
 #include "opt_com.h"
 #include "opt_ddb.h"
@@ -247,7 +247,17 @@ void	com_kgdb_putc(void *, int);
 #define	COM_REG_16550	{ \
 	com_data, com_data, com_dlbl, com_dlbh, com_ier, com_iir, com_fifo, \
 	com_efr, com_lcr, com_mcr, com_lsr, com_msr }
+/* 16750-specific register set, additional UART status register */
+#define	COM_REG_16750	{ \
+	com_data, com_data, com_dlbl, com_dlbh, com_ier, com_iir, com_fifo, \
+	com_efr, com_lcr, com_mcr, com_lsr, com_msr, 0, 0, 0, 0, 0, 0, 0, 0, \
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, com_usr }
+
+#ifdef COM_16750
+const bus_size_t com_std_map[32] = COM_REG_16750;
+#else
 const bus_size_t com_std_map[16] = COM_REG_16550;
+#endif /* COM_16750 */
 #endif /* COM_REGMAP */
 
 #define	COMUNIT_MASK	0x7ffff
@@ -375,7 +385,9 @@ com_attach_subr(struct com_softc *sc)
 {
 	struct com_regs *regsp = &sc->sc_regs;
 	struct tty *tp;
+#if defined(COM_16650) || defined(COM_16750)
 	u_int8_t lcr;
+#endif
 	const char *fifo_msg = NULL;
 	prop_dictionary_t	dict;
 	bool is_console = true;
@@ -405,7 +417,10 @@ com_attach_subr(struct com_softc *sc)
 			    (u_long)comcons_info.regs.cr_iobase);
 		}
 
-		sc->sc_lcr = cflag2lcr(comcons_info.cflag);
+#ifdef COM_16750
+		/* Use in comintr(). */
+ 		sc->sc_lcr = cflag2lcr(comcons_info.cflag);
+#endif
 
 		/* Make sure the console is always "hardwired". */
 		delay(10000);			/* wait for output to finish */
@@ -479,6 +494,7 @@ com_attach_subr(struct com_softc *sc)
 #endif
 				sc->sc_fifolen = 16;
 
+#ifdef COM_16750
 			/*
 			 * TL16C750 can enable 64byte FIFO, only when DLAB
 			 * is 1.  However, some 16750 may always enable.  For
@@ -509,6 +525,7 @@ com_attach_subr(struct com_softc *sc)
 				SET(sc->sc_hwflags, COM_HW_AFE);
 			} else
 				CSR_WRITE_1(regsp, COM_REG_FIFO, fcr);
+#endif
 
 #ifdef COM_16650
 			CSR_WRITE_1(regsp, COM_REG_LCR, lcr);
@@ -518,9 +535,11 @@ com_attach_subr(struct com_softc *sc)
 				fifo_msg = "st16650a, working fifo";
 			else
 #endif
+#ifdef COM_16750
 			if (sc->sc_fifolen == 64)
 				fifo_msg = "tl16c750, working fifo";
 			else
+#endif
 				fifo_msg = "ns16550a, working fifo";
 		} else
 			fifo_msg = "ns16550, broken fifo";
@@ -1511,19 +1530,19 @@ com_iflush(struct com_softc *sc)
 		aprint_error_dev(sc->sc_dev, "com_iflush timeout %02x\n", reg);
 #endif
 
-	if (sc->sc_type == COM_TYPE_ARMADAXP) {
-		uint8_t fifo;
-		/*
-		 * Reset all Rx/Tx FIFO, preserve current FIFO length.
-		 * This should prevent triggering busy interrupt while
-		 * manipulating divisors.
-		 */
-		fifo = CSR_READ_1(regsp, COM_REG_FIFO) & (FIFO_TRIGGER_1 |
-		    FIFO_TRIGGER_4 | FIFO_TRIGGER_8 | FIFO_TRIGGER_14);
-		CSR_WRITE_1(regsp, COM_REG_FIFO,
-		    fifo | FIFO_ENABLE | FIFO_RCV_RST | FIFO_XMT_RST);
-		delay(100);
-	}
+#ifdef COM_16750
+	uint8_t fifo;
+	/*
+	 * Reset all Rx/Tx FIFO, preserve current FIFO length.
+	 * This should prevent triggering busy interrupt while
+	 * manipulating divisors.
+	 */
+	fifo = CSR_READ_1(regsp, COM_REG_FIFO) & (FIFO_TRIGGER_1 |
+	    FIFO_TRIGGER_4 | FIFO_TRIGGER_8 | FIFO_TRIGGER_14);
+	CSR_WRITE_1(regsp, COM_REG_FIFO, fifo | FIFO_ENABLE | FIFO_RCV_RST |
+	    FIFO_XMT_RST);
+	delay(100);
+#endif
 }
 
 void
@@ -1951,6 +1970,26 @@ comintr(void *arg)
 	mutex_spin_enter(&sc->sc_lock);
 	iir = CSR_READ_1(regsp, COM_REG_IIR);
 
+	/* Handle ns16750-specific busy interrupt. */
+#ifdef COM_16750
+	int timeout;
+	if ((iir & IIR_BUSY) == IIR_BUSY) {
+		for (timeout = 10000;
+		    (CSR_READ_1(regsp, COM_REG_USR) & 0x1) != 0; timeout--)
+			if (timeout <= 0) {
+				aprint_error_dev(sc->sc_dev,
+				    "timeout while waiting for BUSY interrupt "
+				    "acknowledge\n");
+				mutex_spin_exit(&sc->sc_lock);
+				return (0);
+			}
+
+		CSR_WRITE_1(regsp, COM_REG_LCR, sc->sc_lcr);
+		iir = CSR_READ_1(regsp, COM_REG_IIR);
+	}
+#endif /* COM_16750 */
+
+
 	if (ISSET(iir, IIR_NOPEND)) {
 		mutex_spin_exit(&sc->sc_lock);
 		return (0);
@@ -2178,9 +2217,11 @@ com_common_getc(dev_t dev, struct com_regs *regsp)
 		return (c);
 	}
 
-	/* block until a character becomes available */
-	while (!ISSET(stat = CSR_READ_1(regsp, COM_REG_LSR), LSR_RXRDY))
-		;
+	/* don't block until a character becomes available */
+	if (!ISSET(stat = CSR_READ_1(regsp, COM_REG_LSR), LSR_RXRDY)) {
+		splx(s);
+		return -1;
+	}
 
 	c = CSR_READ_1(regsp, COM_REG_RXDATA);
 	stat = CSR_READ_1(regsp, COM_REG_IIR);

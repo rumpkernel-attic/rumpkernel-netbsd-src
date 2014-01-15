@@ -1,4 +1,4 @@
-/*	$NetBSD: dwc2_hcdddma.c,v 1.2 2013/09/05 20:25:27 skrll Exp $	*/
+/*	$NetBSD: dwc2_hcdddma.c,v 1.5 2013/12/14 09:58:03 skrll Exp $	*/
 
 /*
  * hcd_ddma.c - DesignWare HS OTG Controller descriptor DMA routines
@@ -40,7 +40,7 @@
  * This file contains the Descriptor DMA implementation for Host mode
  */
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: dwc2_hcdddma.c,v 1.2 2013/09/05 20:25:27 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: dwc2_hcdddma.c,v 1.5 2013/12/14 09:58:03 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -164,8 +164,7 @@ static int dwc2_frame_list_alloc(struct dwc2_hsotg *hsotg, gfp_t mem_flags)
 
 static void dwc2_frame_list_free(struct dwc2_hsotg *hsotg)
 {
-	u32 *frame_list;
-	dma_addr_t frame_list_dma;
+	usb_dma_t frame_list_usbdma;
 	unsigned long flags;
 
 	spin_lock_irqsave(&hsotg->lock, flags);
@@ -175,13 +174,12 @@ static void dwc2_frame_list_free(struct dwc2_hsotg *hsotg)
 		return;
 	}
 
-	frame_list = hsotg->frame_list;
-	frame_list_dma = hsotg->frame_list_dma;
+	frame_list_usbdma = hsotg->frame_list_usbdma;
 	hsotg->frame_list = NULL;
 
 	spin_unlock_irqrestore(&hsotg->lock, flags);
 
-	usb_freemem(&hsotg->hsotg_sc->sc_bus, &hsotg->frame_list_usbdma);
+	usb_freemem(&hsotg->hsotg_sc->sc_bus, &frame_list_usbdma);
 }
 
 static void dwc2_per_sched_enable(struct dwc2_hsotg *hsotg, u32 fr_list_en)
@@ -833,8 +831,8 @@ static int dwc2_cmpl_host_isoc_dma_desc(struct dwc2_hsotg *hsotg,
 	frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index_last];
 	dma_desc->buf = (u32)(DMAADDR(qtd->urb->usbdma, frame_desc->offset));
 	if (chan->ep_is_in)
-		remain = dma_desc->status >> HOST_DMA_ISOC_NBYTES_SHIFT &
-			HOST_DMA_ISOC_NBYTES_MASK >> HOST_DMA_ISOC_NBYTES_SHIFT;
+		remain = (dma_desc->status & HOST_DMA_ISOC_NBYTES_MASK) >>
+			 HOST_DMA_ISOC_NBYTES_SHIFT;
 
 	if ((dma_desc->status & HOST_DMA_STS_MASK) == HOST_DMA_STS_PKTERR) {
 		/*
@@ -962,8 +960,8 @@ static int dwc2_update_non_isoc_urb_state_ddma(struct dwc2_hsotg *hsotg,
 	u16 remain = 0;
 
 	if (chan->ep_is_in)
-		remain = dma_desc->status >> HOST_DMA_NBYTES_SHIFT &
-			 HOST_DMA_NBYTES_MASK >> HOST_DMA_NBYTES_SHIFT;
+		remain = (dma_desc->status & HOST_DMA_NBYTES_MASK) >>
+			 HOST_DMA_NBYTES_SHIFT;
 
 	dev_vdbg(hsotg->dev, "remain=%d dwc2_urb=%p\n", remain, urb);
 

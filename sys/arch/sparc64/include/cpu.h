@@ -1,4 +1,4 @@
-/*	$NetBSD: cpu.h,v 1.104 2013/09/13 21:36:38 martin Exp $ */
+/*	$NetBSD: cpu.h,v 1.106 2013/12/16 20:17:35 palle Exp $ */
 
 /*
  * Copyright (c) 1992, 1993
@@ -220,9 +220,8 @@ extern struct pool_cache *fpstate_cache;
 #define	cpu_number()	(curcpu()->ci_index)
 #define	CPU_IS_PRIMARY(ci)	((ci)->ci_flags & CPUF_PRIMARY)
 
-#define CPU_INFO_ITERATOR		int
-#define CPU_INFO_FOREACH(cii, ci)	(void)cii, ci = cpus; ci != NULL; \
-					ci = ci->ci_next
+#define CPU_INFO_ITERATOR		int __unused
+#define CPU_INFO_FOREACH(cii, ci)	ci = cpus; ci != NULL; ci = ci->ci_next
 
 #define curlwp		curcpu()->ci_curlwp
 #define fplwp		curcpu()->ci_fplwp
@@ -348,6 +347,9 @@ void	intr_establish(int level, bool mpsafe, struct intrhand *);
 void	*sparc_softintr_establish(int, int (*)(void *), void *);
 void	sparc_softintr_schedule(void *);
 void	sparc_softintr_disestablish(void *);
+
+/* cpu.c */
+int	cpu_myid(void);
 
 /* disksubr.c */
 struct dkbad;

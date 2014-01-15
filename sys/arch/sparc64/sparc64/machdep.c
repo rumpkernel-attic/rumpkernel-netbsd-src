@@ -1,4 +1,4 @@
-/*	$NetBSD: machdep.c,v 1.272 2013/02/04 22:19:43 macallan Exp $ */
+/*	$NetBSD: machdep.c,v 1.274 2013/12/14 05:28:47 nakayama Exp $ */
 
 /*-
  * Copyright (c) 1996, 1997, 1998 The NetBSD Foundation, Inc.
@@ -71,7 +71,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: machdep.c,v 1.272 2013/02/04 22:19:43 macallan Exp $");
+__KERNEL_RCSID(0, "$NetBSD: machdep.c,v 1.274 2013/12/14 05:28:47 nakayama Exp $");
 
 #include "opt_ddb.h"
 #include "opt_multiprocessor.h"
@@ -154,10 +154,7 @@ extern vaddr_t avail_end;
 #ifdef MODULAR
 vaddr_t module_start, module_end;
 static struct vm_map module_map_store;
-extern struct vm_map *module_map;
 #endif
-
-extern	void *msgbufaddr;
 
 /*
  * Maximum number of DMA segments we'll allow in dmamem_load()
@@ -592,8 +589,6 @@ cpu_reboot(int howto, char *user_boot_string)
 	maybe_dump(howto);
 
 	if ((howto & RB_NOSYNC) == 0 && !syncdone) {
-		extern struct lwp lwp0;
-
 		if (!syncdone) {
 		syncdone = true;
 		vfs_shutdown();
@@ -2749,3 +2744,24 @@ mm_md_readwrite(dev_t dev, struct uio *uio)
 
 	return ENXIO;
 }
+
+#ifdef __arch64__
+void
+sparc64_elf_mcmodel_check(struct exec_package *epp, const char *model,
+    size_t len)
+{
+	/* no model specific execution for 32bit processes */
+	if (epp->ep_flags & EXEC_32)
+		return;
+
+#ifdef __USING_TOPDOWN_VM
+	/*
+	 * we allow TOPDOWN_VM for all processes where the binary is compiled
+	 * with the medany or medmid code model.
+	 */
+	if (strncmp(model, "medany", len) == 0 ||
+	    strncmp(model, "medmid", len) == 0)
+		epp->ep_flags |= EXEC_TOPDOWN_VM;
+#endif
+}
+#endif

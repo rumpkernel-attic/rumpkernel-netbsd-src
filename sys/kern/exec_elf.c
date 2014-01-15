@@ -1,4 +1,4 @@
-/*	$NetBSD: exec_elf.c,v 1.47 2013/09/10 21:30:21 matt Exp $	*/
+/*	$NetBSD: exec_elf.c,v 1.53 2013/12/21 17:44:33 skrll Exp $	*/
 
 /*-
  * Copyright (c) 1994, 2000, 2005 The NetBSD Foundation, Inc.
@@ -57,7 +57,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(1, "$NetBSD: exec_elf.c,v 1.47 2013/09/10 21:30:21 matt Exp $");
+__KERNEL_RCSID(1, "$NetBSD: exec_elf.c,v 1.53 2013/12/21 17:44:33 skrll Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_pax.h"
@@ -422,14 +422,15 @@ elf_load_file(struct lwp *l, struct exec_package *epp, char *path,
 	p = l->l_proc;
 
 	KASSERT(p->p_vmspace);
-	if (__predict_true(p->p_vmspace != proc0.p_vmspace))
+	if (__predict_true(p->p_vmspace != proc0.p_vmspace)) {
 		use_topdown = p->p_vmspace->vm_map.flags & VM_MAP_TOPDOWN;
-	else
+	} else {
 #ifdef __USING_TOPDOWN_VM
-		use_topdown = true;
+		use_topdown = epp->ep_flags & EXEC_TOPDOWN_VM;
 #else
 		use_topdown = false;
 #endif
+	}
 
 	/*
 	 * 1. open file
@@ -703,15 +704,19 @@ exec_elf_makecmds(struct lwp *l, struct exec_package *epp)
 	for (i = 0; i < eh->e_phnum; i++) {
 		pp = &ph[i];
 		if (pp->p_type == PT_INTERP) {
-			if (pp->p_filesz >= MAXPATHLEN) {
+			if (pp->p_filesz < 2 || pp->p_filesz > MAXPATHLEN) {
 				error = ENOEXEC;
 				goto bad;
 			}
 			interp = PNBUF_GET();
-			interp[0] = '\0';
 			if ((error = exec_read_from(l, epp->ep_vp,
 			    pp->p_offset, interp, pp->p_filesz)) != 0)
 				goto bad;
+			/* Ensure interp is NUL-terminated and of the expected length */
+			if (strnlen(interp, pp->p_filesz) != pp->p_filesz - 1) {
+				error = ENOEXEC;
+				goto bad;
+			}
 			break;
 		}
 	}
@@ -902,6 +907,9 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 			    np->n_descsz == ELF_NOTE_NETBSD_DESCSZ &&
 			    memcmp(ndata, ELF_NOTE_NETBSD_NAME,
 			    ELF_NOTE_NETBSD_NAMESZ) == 0) {
+				memcpy(&epp->ep_osversion,
+				    ndata + ELF_NOTE_NETBSD_NAMESZ + 1,
+				    ELF_NOTE_NETBSD_DESCSZ);
 				isnetbsd = 1;
 				break;
 			}
@@ -958,11 +966,21 @@ bad:
 				    sizeof(epp->ep_machine_arch));
 				break;
 			}
-
+		case ELF_NOTE_TYPE_MCMODEL_TAG:
 			/*
-			 * Dunno, warn for diagnostic
+			 * arch specific check for code model
 			 */
-			goto bad;
+#ifdef ELF_MD_MCMODEL_CHECK
+			if (np->n_namesz == ELF_NOTE_MCMODEL_NAMESZ
+			    && memcmp(ndata, ELF_NOTE_MCMODEL_NAME,
+				    ELF_NOTE_MCMODEL_NAMESZ) == 0) {
+				ELF_MD_MCMODEL_CHECK(epp, 
+				    ndata + roundup(ELF_NOTE_MCMODEL_NAMESZ, 4),
+				    np->n_descsz);
+				break;
+			}
+#endif
+			break;
 
 		case ELF_NOTE_TYPE_SUSE_VERSION_TAG:
 			break;

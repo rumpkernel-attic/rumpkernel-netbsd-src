@@ -1,4 +1,4 @@
-/*	$NetBSD: ext2fs_vfsops.c,v 1.172 2013/08/11 04:36:17 dholland Exp $	*/
+/*	$NetBSD: ext2fs_vfsops.c,v 1.175 2013/11/23 13:35:36 christos Exp $	*/
 
 /*
  * Copyright (c) 1989, 1991, 1993, 1994
@@ -60,7 +60,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ext2fs_vfsops.c,v 1.172 2013/08/11 04:36:17 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ext2fs_vfsops.c,v 1.175 2013/11/23 13:35:36 christos Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_compat_netbsd.h"
@@ -278,9 +278,7 @@ ext2fs_mountroot(void)
 		vfs_destroy(mp);
 		return (error);
 	}
-	mutex_enter(&mountlist_lock);
-	CIRCLEQ_INSERT_TAIL(&mountlist, mp, mnt_list);
-	mutex_exit(&mountlist_lock);
+	mountlist_append(mp);
 	ump = VFSTOUFS(mp);
 	fs = ump->um_e2fs;
 	memset(fs->e2fs_fsmnt, 0, sizeof(fs->e2fs_fsmnt));
@@ -607,7 +605,7 @@ loop:
 		/*
 		 * Step 4: invalidate all inactive vnodes.
 		 */
-		if (vrecycle(vp, &mntvnode_lock, l)) {
+		if (vrecycle(vp, &mntvnode_lock)) {
 			mutex_enter(&mntvnode_lock);
 			(void)vunmark(mvp);
 			goto loop;
@@ -763,7 +761,7 @@ ext2fs_mountfs(struct vnode *devvp, struct mount *mp)
 	ump->um_maxsymlinklen = EXT2_MAXSYMLINKLEN;
 	ump->um_dirblksiz = m_fs->e2fs_bsize;
 	ump->um_maxfilesize = ((uint64_t)0x80000000 * m_fs->e2fs_bsize - 1);
-	devvp->v_specmountpoint = mp;
+	spec_node_setmountedfs(devvp, mp);
 	return (0);
 
 out:
@@ -801,7 +799,7 @@ ext2fs_unmount(struct mount *mp, int mntflags)
 		(void) ext2fs_sbupdate(ump, MNT_WAIT);
 	}
 	if (ump->um_devvp->v_type != VBAD)
-		ump->um_devvp->v_specmountpoint = NULL;
+		spec_node_setmountedfs(ump->um_devvp, NULL);
 	vn_lock(ump->um_devvp, LK_EXCLUSIVE | LK_RETRY);
 	error = VOP_CLOSE(ump->um_devvp, fs->e2fs_ronly ? FREAD : FREAD|FWRITE,
 	    NOCRED);

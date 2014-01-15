@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.rumpkern,v 1.132 2013/09/07 17:58:00 pooka Exp $
+#	$NetBSD: Makefile.rumpkern,v 1.134 2013/12/09 17:57:11 pooka Exp $
 #
 
 .include "${RUMPTOP}/Makefile.rump"
@@ -156,6 +156,10 @@ SRCS+=		subr_kmem.c subr_pool.c
 
 .ifdef RUMP_LOCKDEBUG
 SRCS+=		subr_lockdebug.c
+.endif
+
+.if ${RUMP_KTRACE} == "yes"
+SRCS+=		kern_ktrace.c
 .endif
 
 # no shlib_version because this is automatically in sync with lib/librump

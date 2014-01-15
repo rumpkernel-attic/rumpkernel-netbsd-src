@@ -1,4 +1,4 @@
-/*	$NetBSD: lfs_vfsops.c,v 1.313 2013/07/28 01:26:13 dholland Exp $	*/
+/*	$NetBSD: lfs_vfsops.c,v 1.317 2013/11/27 17:24:44 christos Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2002, 2003, 2007, 2007
@@ -61,7 +61,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: lfs_vfsops.c,v 1.313 2013/07/28 01:26:13 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: lfs_vfsops.c,v 1.317 2013/11/27 17:24:44 christos Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_lfs.h"
@@ -394,7 +394,6 @@ lfs_writerd(void *arg)
  	struct lfs *fs;
 	struct vfsops *vfs = NULL;
  	int fsflags;
- 	int loopcount;
 	int skipc;
 	int lfsc;
 	int wrote_something = 0;
@@ -415,7 +414,6 @@ lfs_writerd(void *arg)
 				&lfs_lock);
 
 		KASSERT(mutex_owned(&lfs_lock));
-		loopcount = 0;
 		wrote_something = 0;
 
 		/*
@@ -456,8 +454,7 @@ lfs_writerd(void *arg)
  		mutex_enter(&mountlist_lock);
 		lfsc = 0;
 		skipc = 0;
- 		for (mp = CIRCLEQ_FIRST(&mountlist); mp != (void *)&mountlist;
- 		     mp = nmp) {
+ 		for (mp = TAILQ_FIRST(&mountlist); mp != NULL; mp = nmp) {
  			if (vfs_busy(mp, &nmp)) {
 				++skipc;
  				continue;
@@ -611,9 +608,7 @@ lfs_mountroot(void)
 		vfs_destroy(mp);
 		return (error);
 	}
-	mutex_enter(&mountlist_lock);
-	CIRCLEQ_INSERT_TAIL(&mountlist, mp, mnt_list);
-	mutex_exit(&mountlist_lock);
+	mountlist_append(mp);
 	ump = VFSTOULFS(mp);
 	fs = ump->um_lfs;
 	memset(fs->lfs_fsmnt, 0, sizeof(fs->lfs_fsmnt));
@@ -1070,7 +1065,7 @@ lfs_mountfs(struct vnode *devvp, struct mount *mp, struct lwp *l)
 	ump->um_devvp = devvp;
 	for (i = 0; i < ULFS_MAXQUOTAS; i++)
 		ump->um_quotas[i] = NULLVP;
-	devvp->v_specmountpoint = mp;
+	spec_node_setmountedfs(devvp, mp);
 
 	/* Set up reserved memory for pageout */
 	lfs_setup_resblks(fs);
@@ -1325,7 +1320,7 @@ lfs_unmount(struct mount *mp, int mntflags)
 
 	ronly = !fs->lfs_ronly;
 	if (ump->um_devvp->v_type != VBAD)
-		ump->um_devvp->v_specmountpoint = NULL;
+		spec_node_setmountedfs(ump->um_devvp, NULL);
 	vn_lock(ump->um_devvp, LK_EXCLUSIVE | LK_RETRY);
 	error = VOP_CLOSE(ump->um_devvp,
 	    ronly ? FREAD : FREAD|FWRITE, NOCRED);

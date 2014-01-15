@@ -1,4 +1,4 @@
-/* $NetBSD: udf_vnops.c,v 1.85 2013/07/10 15:10:56 reinoud Exp $ */
+/* $NetBSD: udf_vnops.c,v 1.87 2013/10/18 19:56:55 christos Exp $ */
 
 /*
  * Copyright (c) 2006, 2008 Reinoud Zandijk
@@ -32,7 +32,7 @@
 
 #include <sys/cdefs.h>
 #ifndef lint
-__KERNEL_RCSID(0, "$NetBSD: udf_vnops.c,v 1.85 2013/07/10 15:10:56 reinoud Exp $");
+__KERNEL_RCSID(0, "$NetBSD: udf_vnops.c,v 1.87 2013/10/18 19:56:55 christos Exp $");
 #endif /* not lint */
 
 
@@ -118,7 +118,6 @@ udf_inactive(void *v)
 		*ap->a_recycle = true;
 		udf_delete_node(udf_node);
 		VOP_UNLOCK(vp);
-		vrecycle(vp, NULL, curlwp);
 		return 0;
 	}
 
@@ -465,8 +464,7 @@ udf_vfsstrategy(void *v)
 	struct vnode *vp = ap->a_vp;
 	struct buf   *bp = ap->a_bp;
 	struct udf_node *udf_node = VTOI(vp);
-	uint32_t lb_size, from, sectors;
-	int error;
+	uint32_t lb_size, sectors;
 
 	DPRINTF(STRATEGY, ("udf_strategy called\n"));
 
@@ -480,9 +478,6 @@ udf_vfsstrategy(void *v)
 	/* get sector size */
 	lb_size = udf_rw32(udf_node->ump->logical_vol->lb_size);
 
-	/* calculate sector to start from */
-	from = bp->b_blkno;
-
 	/* calculate length to fetch/store in sectors */
 	sectors = bp->b_bcount / lb_size;
 	assert(bp->b_bcount > 0);
@@ -494,18 +489,17 @@ udf_vfsstrategy(void *v)
 	assert(sectors * lb_size == bp->b_bcount);
 
 	/* issue buffer */
-	error = 0;
 	if (bp->b_flags & B_READ) {
 		DPRINTF(STRATEGY, ("\tread vp %p buf %p (blk no %"PRIu64")"
-		    ", sector %d for %d sectors\n",
-		    vp, bp, bp->b_blkno, from, sectors));
+		    ", for %d sectors\n",
+		    vp, bp, bp->b_blkno, sectors));
 
 		/* read buffer from the udf_node, translate vtop on the way*/
 		udf_read_filebuf(udf_node, bp);
 	} else {
 		DPRINTF(STRATEGY, ("\twrite vp %p buf %p (blk no %"PRIu64")"
-		    ", sector %d for %d sectors\n",
-		    vp, bp, bp->b_blkno, from, sectors));
+		    ", for %d sectors\n",
+		    vp, bp, bp->b_blkno, sectors));
 
 		/* write buffer to the udf_node, translate vtop on the way*/
 		udf_write_filebuf(udf_node, bp);

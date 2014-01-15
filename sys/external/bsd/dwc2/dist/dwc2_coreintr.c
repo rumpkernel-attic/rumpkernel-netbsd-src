@@ -1,3 +1,5 @@
+/*	$NetBSD: dwc2_coreintr.c,v 1.5 2013/10/05 06:51:43 skrll Exp $	*/
+
 /*
  * core_intr.c - DesignWare HS OTG Controller common interrupt handling
  *
@@ -39,7 +41,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: dwc2_coreintr.c,v 1.2 2013/09/05 20:25:27 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: dwc2_coreintr.c,v 1.5 2013/10/05 06:51:43 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/kernel.h>
@@ -177,7 +179,7 @@ static void dwc2_handle_otg_intr(struct dwc2_hsotg *hsotg)
 		 * WA for 3.00a- HW is not setting cur_mode, even sometimes
 		 * this does not help
 		 */
-		if (hsotg->snpsid >= DWC2_CORE_REV_3_00a)
+		if (hsotg->hw_params.snpsid >= DWC2_CORE_REV_3_00a)
 			udelay(100);
 		if (gotgctl & GOTGCTL_HSTNEGSCS) {
 			if (dwc2_is_host_mode(hsotg)) {
@@ -391,7 +393,7 @@ static void dwc2_handle_usb_suspend_intr(struct dwc2_hsotg *hsotg)
 		dev_dbg(hsotg->dev,
 			"DSTS.Suspend Status=%d HWCFG4.Power Optimize=%d\n",
 			!!(dsts & DSTS_SUSPSTS),
-			!!(hsotg->hwcfg4 & GHWCFG4_POWER_OPTIMIZ));
+			hsotg->hw_params.power_optimized);
 	} else {
 		if (hsotg->op_state == OTG_STATE_A_PERIPHERAL) {
 			dev_dbg(hsotg->dev, "a_peripheral->a_host\n");
@@ -467,7 +469,7 @@ irqreturn_t dwc2_handle_common_intr(void *dev)
 		goto out;
 	}
 
-	spin_lock(&hsotg->lock);
+	KASSERT(mutex_owned(&hsotg->lock));
 
 	gintsts = dwc2_read_common_intr(hsotg);
 	if (gintsts & ~GINTSTS_PRTINT)
@@ -498,11 +500,10 @@ irqreturn_t dwc2_handle_common_intr(void *dev)
 				" --Port interrupt received in Device mode--\n");
 			gintsts = GINTSTS_PRTINT;
 			DWC2_WRITE_4(hsotg, GINTSTS, gintsts);
-			retval = 1;
+			retval = IRQ_HANDLED;
 		}
 	}
 
-	spin_unlock(&hsotg->lock);
 out:
 	return retval;
 }

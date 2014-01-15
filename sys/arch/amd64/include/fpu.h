@@ -1,4 +1,4 @@
-/*	$NetBSD: fpu.h,v 1.7 2012/12/31 16:20:17 dsl Exp $	*/
+/*	$NetBSD: fpu.h,v 1.11 2013/12/11 22:06:51 dsl Exp $	*/
 
 #ifndef	_AMD64_FPU_H_
 #define	_AMD64_FPU_H_
@@ -34,11 +34,6 @@ struct savefpu {
 	struct fxsave64 fp_fxsave;	/* see above */
 };
 
-struct savefpu_i387 {
-	uint16_t fp_ex_sw;		/* saved status from last exception */
-	uint16_t fp_ex_tw;		/* saved tag from last exception */
-};
-
 /*
  * The i387 defaults to Intel extended precision mode and round to nearest,
  * with all exceptions masked.
@@ -47,8 +42,10 @@ struct savefpu_i387 {
 #define __INITIAL_MXCSR__ 	0x1f80
 #define __INITIAL_MXCSR_MASK__	0xffbf
 
-/* NetBSD uses IEEE double precision. */
-#define	__NetBSD_NPXCW__	0x127f
+/* Modern NetBSD uses the default control word.. */
+#define	__NetBSD_NPXCW__	0x037f
+/* NetBSD before 6.99.26 forced IEEE double precision. */
+#define	__NetBSD_COMPAT_NPXCW__	0x127f
 /* Linux just uses the default control word. */
 #define	__Linux_NPXCW__		0x037f
 

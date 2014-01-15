@@ -1,3 +1,5 @@
+/*	$NetBSD: dwc2_hcdqueue.c,v 1.7 2014/01/02 15:54:10 skrll Exp $	*/
+
 /*
  * hcd_queue.c - DesignWare HS OTG Controller host queuing routines
  *
@@ -40,7 +42,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: dwc2_hcdqueue.c,v 1.2 2013/09/05 20:25:27 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: dwc2_hcdqueue.c,v 1.7 2014/01/02 15:54:10 skrll Exp $");
 
 #include <sys/types.h>
 #include <sys/kmem.h>
@@ -93,7 +95,6 @@ static void dwc2_qh_init(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh,
 	dev_speed = dwc2_host_get_speed(hsotg, urb->priv);
 
 	dwc2_host_hub_info(hsotg, urb->priv, &hub_addr, &hub_port);
-	qh->nak_frame = 0xffff;
 
 	if ((dev_speed == USB_SPEED_LOW || dev_speed == USB_SPEED_FULL) &&
 	    hub_addr != 0 && hub_addr != 1) {
@@ -127,7 +128,7 @@ static void dwc2_qh_init(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh,
 			qh->interval = 8;
 #endif
 		hprt = DWC2_READ_4(hsotg, HPRT0);
-		prtspd = hprt & HPRT0_SPD_MASK;
+		prtspd = (hprt & HPRT0_SPD_MASK) >> HPRT0_SPD_SHIFT;
 		if (prtspd == HPRT0_SPD_HIGH_SPEED &&
 		    (dev_speed == USB_SPEED_LOW ||
 		     dev_speed == USB_SPEED_FULL)) {
@@ -195,10 +196,10 @@ static void dwc2_qh_init(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh,
 /**
  * dwc2_hcd_qh_create() - Allocates and initializes a QH
  *
- * @hsotg:        The HCD state structure for the DWC OTG controller
- * @urb:          Holds the information about the device/endpoint needed
- *                to initialize the QH
- * @atomic_alloc: Flag to do atomic allocation if needed
+ * @hsotg:     The HCD state structure for the DWC OTG controller
+ * @urb:       Holds the information about the device/endpoint needed
+ *             to initialize the QH
+ * @mem_flags: Flag to do atomic allocation if needed
  *
  * Return: Pointer to the newly allocated QH, or NULL on error
  */
@@ -243,15 +244,10 @@ static struct dwc2_qh *dwc2_hcd_qh_create(struct dwc2_hsotg *hsotg,
 void dwc2_hcd_qh_free(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 {
 	struct dwc2_softc *sc = hsotg->hsotg_sc;
-	u32 buf_size;
 
 	if (hsotg->core_params->dma_desc_enable > 0) {
 		dwc2_hcd_qh_free_ddma(hsotg, qh);
 	} else if (qh->dw_align_buf) {
-		if (qh->ep_type == USB_ENDPOINT_XFER_ISOC)
-			buf_size = 4096;
-		else
-			buf_size = hsotg->core_params->max_transfer_size;
 		/* XXXNH */
 		usb_freemem(&hsotg->hsotg_sc->sc_bus, &qh->dw_align_buf_usbdma);
 	}
@@ -265,12 +261,12 @@ void dwc2_hcd_qh_free(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
  *
  * @hsotg: The HCD state structure for the DWC OTG controller
  *
- * Return: 0 if successful, negative error code otherise
+ * Return: 0 if successful, negative error code otherwise
  */
 static int dwc2_periodic_channel_available(struct dwc2_hsotg *hsotg)
 {
 	/*
-	 * Currently assuming that there is a dedicated host channnel for
+	 * Currently assuming that there is a dedicated host channel for
 	 * each periodic transaction plus at least one host channel for
 	 * non-periodic transactions
 	 */
@@ -358,25 +354,17 @@ void dwc2_hcd_init_usecs(struct dwc2_hsotg *hsotg)
 static int dwc2_find_single_uframe(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 {
 	unsigned short utime = qh->usecs;
-	int done = 0;
-	int i = 0;
-	int ret = -1;
+	int i;
 
-	while (!done) {
+	for (i = 0; i < 8; i++) {
 		/* At the start hsotg->frame_usecs[i] = max_uframe_usecs[i] */
 		if (utime <= hsotg->frame_usecs[i]) {
 			hsotg->frame_usecs[i] -= utime;
 			qh->frame_usecs[i] += utime;
-			ret = i;
-			done = 1;
-		} else {
-			i++;
-			if (i == 8)
-				done = 1;
+			return i;
 		}
 	}
-
-	return ret;
+	return -1;
 }
 
 /*
@@ -386,21 +374,14 @@ static int dwc2_find_multi_uframe(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 {
 	unsigned short utime = qh->usecs;
 	unsigned short xtime;
-	int t_left = utime;
-	int done = 0;
-	int i = 0;
+	int t_left;
+	int i;
 	int j;
-	int ret = -1;
+	int k;
 
-	while (!done) {
-		if (hsotg->frame_usecs[i] <= 0) {
-			i++;
-			if (i == 8) {
-				ret = -1;
-				done = 1;
-			}
+	for (i = 0; i < 8; i++) {
+		if (hsotg->frame_usecs[i] <= 0)
 			continue;
-		}
 
 		/*
 		 * we need n consecutive slots so use j as a start slot
@@ -414,50 +395,35 @@ static int dwc2_find_multi_uframe(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 			 */
 			if (xtime + hsotg->frame_usecs[j] < utime) {
 				if (hsotg->frame_usecs[j] <
-							max_uframe_usecs[j]) {
-					ret = -1;
-					break;
-				}
+							max_uframe_usecs[j])
+					continue;
 			}
 			if (xtime >= utime) {
-				ret = i;
-				break;
+				t_left = utime;
+				for (k = i; k < 8; k++) {
+					t_left -= hsotg->frame_usecs[k];
+					if (t_left <= 0) {
+						qh->frame_usecs[k] +=
+							hsotg->frame_usecs[k]
+								+ t_left;
+						hsotg->frame_usecs[k] = -t_left;
+						return i;
+					} else {
+						qh->frame_usecs[k] +=
+							hsotg->frame_usecs[k];
+						hsotg->frame_usecs[k] = 0;
+					}
+				}
 			}
 			/* add the frame time to x time */
 			xtime += hsotg->frame_usecs[j];
 			/* we must have a fully available next frame or break */
 			if (xtime < utime &&
-			   hsotg->frame_usecs[j] == max_uframe_usecs[j]) {
-				ret = -1;
-				break;
-			}
-		}
-		if (ret >= 0) {
-			t_left = utime;
-			for (j = i; t_left > 0 && j < 8; j++) {
-				t_left -= hsotg->frame_usecs[j];
-				if (t_left <= 0) {
-					qh->frame_usecs[j] +=
-						hsotg->frame_usecs[j] + t_left;
-					hsotg->frame_usecs[j] = -t_left;
-					ret = i;
-					done = 1;
-				} else {
-					qh->frame_usecs[j] +=
-						hsotg->frame_usecs[j];
-					hsotg->frame_usecs[j] = 0;
-				}
-			}
-		} else {
-			i++;
-			if (i == 8) {
-				ret = -1;
-				done = 1;
-			}
+			   hsotg->frame_usecs[j] == max_uframe_usecs[j])
+				continue;
 		}
 	}
-
-	return ret;
+	return -1;
 }
 
 static int dwc2_find_uframe(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
@@ -565,19 +531,13 @@ static int dwc2_schedule_periodic(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 		return status;
 	}
 
-	if (hsotg->core_params->dma_desc_enable > 0) {
+	if (hsotg->core_params->dma_desc_enable > 0)
 		/* Don't rely on SOF and start in ready schedule */
 		list_add_tail(&qh->qh_list_entry, &hsotg->periodic_sched_ready);
-		dev_dbg(hsotg->dev, "periodic_sched_ready\n");
-	} else {
-		if (list_empty(&hsotg->periodic_sched_inactive) ||
-		    dwc2_frame_num_le(qh->sched_frame, hsotg->next_sched_frame))
-			hsotg->next_sched_frame = qh->sched_frame;
-
+	else
 		/* Always start in inactive schedule */
 		list_add_tail(&qh->qh_list_entry,
 			      &hsotg->periodic_sched_inactive);
-	}
 
 	if (hsotg->core_params->uframe_sched <= 0)
 		/* Reserve periodic channel */
@@ -774,17 +734,12 @@ void dwc2_hcd_qh_deactivate(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh,
 			if ((hsotg->core_params->uframe_sched > 0 &&
 			     dwc2_frame_num_le(qh->sched_frame, frame_number))
 			 || (hsotg->core_params->uframe_sched <= 0 &&
-			     qh->sched_frame == frame_number)) {
+			     qh->sched_frame == frame_number))
 				list_move(&qh->qh_list_entry,
 					  &hsotg->periodic_sched_ready);
-			} else {
-				if (!dwc2_frame_num_le(hsotg->next_sched_frame,
-						       qh->sched_frame))
-					hsotg->next_sched_frame =
-							qh->sched_frame;
+			else
 				list_move(&qh->qh_list_entry,
 					  &hsotg->periodic_sched_inactive);
-			}
 		}
 	}
 }
@@ -822,22 +777,23 @@ void dwc2_hcd_qtd_init(struct dwc2_qtd *qtd, struct dwc2_hcd_urb *urb)
 /**
  * dwc2_hcd_qtd_add() - Adds a QTD to the QTD-list of a QH
  *
- * @hsotg:        The DWC HCD structure
- * @qtd:          The QTD to add
- * @qh:           Out parameter to return queue head
- * @atomic_alloc: Flag to do atomic alloc if needed
+ * @hsotg:     The DWC HCD structure
+ * @qtd:       The QTD to add
+ * @qh:        Out parameter to return queue head
+ * @mem_flags: Flag to do atomic alloc if needed
  *
  * Return: 0 if successful, negative error code otherwise
  *
  * Finds the correct QH to place the QTD into. If it does not find a QH, it
  * will create a new QH. If the QH to which the QTD is added is not currently
  * scheduled, it is placed into the proper schedule based on its EP type.
+ *
+ * HCD lock must be held and interrupts must be disabled on entry
  */
 int dwc2_hcd_qtd_add(struct dwc2_hsotg *hsotg, struct dwc2_qtd *qtd,
 		     struct dwc2_qh **qh, gfp_t mem_flags)
 {
 	struct dwc2_hcd_urb *urb = qtd->urb;
-	unsigned long flags;
 	int allocated = 0;
 	int retval;
 
@@ -852,15 +808,12 @@ int dwc2_hcd_qtd_add(struct dwc2_hsotg *hsotg, struct dwc2_qtd *qtd,
 		allocated = 1;
 	}
 
-	spin_lock_irqsave(&hsotg->lock, flags);
-
 	retval = dwc2_hcd_qh_add(hsotg, *qh);
 	if (retval)
 		goto fail;
 
 	qtd->qh = *qh;
 	list_add_tail(&qtd->qtd_list_entry, &(*qh)->qtd_list);
-	spin_unlock_irqrestore(&hsotg->lock, flags);
 
 	return 0;
 
@@ -877,10 +830,7 @@ fail:
 					 qtd_list_entry)
 			dwc2_hcd_qtd_unlink_and_free(hsotg, qtd2, qh_tmp);
 
-		spin_unlock_irqrestore(&hsotg->lock, flags);
 		dwc2_hcd_qh_free(hsotg, qh_tmp);
-	} else {
-		spin_unlock_irqrestore(&hsotg->lock, flags);
 	}
 
 	return retval;

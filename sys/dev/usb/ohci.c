@@ -1,4 +1,4 @@
-/*	$NetBSD: ohci.c,v 1.243 2013/09/15 09:16:21 martin Exp $	*/
+/*	$NetBSD: ohci.c,v 1.248 2013/12/16 10:04:20 skrll Exp $	*/
 
 /*
  * Copyright (c) 1998, 2004, 2005, 2012 The NetBSD Foundation, Inc.
@@ -41,7 +41,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ohci.c,v 1.243 2013/09/15 09:16:21 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ohci.c,v 1.248 2013/12/16 10:04:20 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -259,6 +259,7 @@ Static const struct usbd_bus_methods ohci_bus_methods = {
 	.allocx =	ohci_allocx,
 	.freex =	ohci_freex,
 	.get_lock =	ohci_get_lock,
+	.new_device =	NULL,
 };
 
 Static const struct usbd_pipe_methods ohci_root_ctrl_methods = {
@@ -1468,7 +1469,7 @@ ohci_device_ctrl_done(usbd_xfer_handle xfer)
 
 	DPRINTFN(10,("ohci_device_ctrl_done: xfer=%p\n", xfer));
 
-	KASSERT(mutex_owned(&sc->sc_lock));
+	KASSERT(sc->sc_bus.use_polling || mutex_owned(&sc->sc_lock));
 
 #ifdef DIAGNOSTIC
 	if (!(xfer->rqflags & URQ_REQUEST)) {

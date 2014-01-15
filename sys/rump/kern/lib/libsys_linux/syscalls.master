@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.4 2013/04/08 20:54:47 pooka Exp $
+	$NetBSD: syscalls.master,v 1.10 2013/12/14 17:34:47 njoly Exp $
 
 ;	@(#)syscalls.master	8.2 (Berkeley) 1/13/94
 
@@ -249,9 +249,9 @@
 170	UNIMPL		1.0 msgsys
 171	UNIMPL		1.0 shmsys
 172	UNIMPL
-173	NODEF 	 	{ ssize_t|linux_sys||pread(int fd, char *buf, \
+173	NOARGS 	 	{ ssize_t|sys||pread(int fd, char *buf, \
 			    size_t nbyte, int PAD, linux_off_t offset); }
-174	NODEF 	 	{ ssize_t|linux_sys||pwrite(int fd, char *buf, \
+174	NOARGS 	 	{ ssize_t|sys||pwrite(int fd, char *buf, \
 			    size_t nbyte, int PAD, linux_off_t offset); }
 175	UNIMPL		ntp_gettime
 176	UNIMPL		ntp_adjtime
@@ -543,8 +543,7 @@
 421	UNIMPL		adjtime
 422	UNIMPL		lfs_segwait
 423	UNIMPL		futimes
-424	NODEF		{ int|linux_sys||lutimes(const char *path, \
-			    struct linux_timeval *tv); }
+424	UNIMPL		lutimes
 425	UNIMPL		setitimer
 426	UNIMPL		getitimer
 427	UNIMPL		clock_gettime
@@ -582,24 +581,37 @@
 ; 452 only ever appeared in 5.99.x and can be reused after netbsd-7
 452	UNIMPL		5.99 quotactl
 453	UNIMPL		pipe2
-454	UNIMPL		dup3
+454	NODEF		{ int|linux_sys||dup3(int from, int to, int flags); }
 455	UNIMPL		kqueue1
 456	UNIMPL		paccept
-457	UNIMPL		linkat
-458	UNIMPL		renameat
+457	NODEF		{ int|linux_sys||linkat(int fd1, const char *name1, \
+			    int fd2, const char *name2, int flags); }
+458	NOARGS		{ int|sys||renameat(int fromfd, const char *from, \
+			    int tofd, const char *to); }
 459	UNIMPL		mkfifoat
-460	UNIMPL		mknodat
-461	UNIMPL		mkdirat
-462	UNIMPL		faccessat
-463	UNIMPL		fchmodat
-464	UNIMPL		fchownat
+460	STD		{ int|rump_linux_sys||mknodat(int fd, const char *path, \
+			    mode_t mode, int PAD, unsigned dev); }
+461	NOARGS		{ int|sys||mkdirat(int fd, const char *path, \
+			    mode_t mode); }
+462	NODEF		{ int|linux_sys||faccessat(int fd, const char *path, \
+			    int amode); }
+463	NODEF		{ int|linux_sys||fchmodat(int fd, const char *path, \
+			    mode_t mode); }
+464	NODEF		{ int|linux_sys||fchownat(int fd, const char *path, \
+			    uid_t owner, gid_t group, int flag); }
 465	UNIMPL		fexecve
-466	UNIMPL		fstatat
-467	UNIMPL		utimensat
-468	UNIMPL		openat
-469	UNIMPL		readlinkat
-470	UNIMPL		symlinkat
-471	UNIMPL		unlinkat
+466	NODEF		{ int|linux_sys||fstatat64(int fd, const char *path, \
+			   struct linux_stat *sp, int flag); }
+467	NODEF		{ int|linux_sys||utimensat(int fd, const char *path, \
+			    struct linux_timespec *times, int flag); }
+468	NODEF		{ int|linux_sys||openat(int fd, const char *path, \
+			    int flags, ... mode_t mode); }
+469	NOARGS		{ int|sys||readlinkat(int fd, const char *path, \
+			    char *buf, size_t bufsize); }
+470	NOARGS		{ int|sys||symlinkat(const char *path1, int fd, \
+			    const char *path2); }
+471	NODEF		{ int|linux_sys||unlinkat(int fd, const char *path, \
+			    int flag); }
 472	UNIMPL		futimens
 473	UNIMPL		__quotactl
 474	UNIMPL		posix_spawn

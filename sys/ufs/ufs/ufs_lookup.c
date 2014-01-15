@@ -1,4 +1,4 @@
-/*	$NetBSD: ufs_lookup.c,v 1.125 2013/09/15 15:08:09 martin Exp $	*/
+/*	$NetBSD: ufs_lookup.c,v 1.128 2013/11/04 19:58:02 christos Exp $	*/
 
 /*
  * Copyright (c) 1989, 1993
@@ -37,7 +37,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ufs_lookup.c,v 1.125 2013/09/15 15:08:09 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ufs_lookup.c,v 1.128 2013/11/04 19:58:02 christos Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_ffs.h"
@@ -1068,9 +1068,7 @@ ufs_dirremove(struct vnode *dvp, const struct ufs_lookup_results *ulr,
 	struct direct *ep;
 	struct buf *bp;
 	int error;
-#ifdef FFS_EI
 	const int needswap = UFS_MPNEEDSWAP(dp->i_ump);
-#endif
 
 	UFS_WAPBL_JLOCK_ASSERT(dvp->v_mount);
 
@@ -1405,7 +1403,7 @@ ufs_parentcheck(struct vnode *upper, struct vnode *lower, kauth_cred_t cred,
 		int *found_ret, struct vnode **upperchild_ret)
 {
 	const int needswap = UFS_MPNEEDSWAP(VTOI(lower)->i_ump);
-	ino_t upper_ino, found_ino;
+	ino_t upper_ino, found_ino = 0;	/* XXX: gcc */
 	struct vnode *current, *next;
 	int error;
 
@@ -1482,7 +1480,7 @@ int
 ufs_blkatoff(struct vnode *vp, off_t offset, char **res, struct buf **bpp,
     bool modify)
 {
-	struct inode *ip;
+	struct inode *ip __diagused;
 	struct buf *bp;
 	daddr_t lbn;
 	const int dirrablks = ufs_dirrablks;

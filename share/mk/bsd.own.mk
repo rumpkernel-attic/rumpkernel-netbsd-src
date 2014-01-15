@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.750 2013/09/02 14:34:55 joerg Exp $
+#	$NetBSD: bsd.own.mk,v 1.760 2013/12/31 18:46:09 christos Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -63,6 +63,12 @@ HAVE_GCC?=    45
 USE_COMPILERCRTSTUFF?=	yes
 .else
 USE_COMPILERCRTSTUFF?=	no
+.endif
+
+.if ${MKLLVM:Uno} == "yes" && (${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "x86_64")
+HAVE_LIBGCC?=	no
+.else
+HAVE_LIBGCC?=	yes
 .endif
 
 HAVE_GDB?=	7
@@ -256,6 +262,7 @@ LDFLAGS+=	--sysroot=/
 .endif	# EXTERNAL_TOOLCHAIN						# }
 
 HOST_MKDEP=	${TOOLDIR}/bin/${_TOOL_PREFIX}host-mkdep
+HOST_MKDEPCXX=	${TOOLDIR}/bin/${_TOOL_PREFIX}host-mkdep
 
 DBSYM=		${TOOLDIR}/bin/${MACHINE_GNU_PLATFORM}-dbsym
 ELF2AOUT=	${TOOLDIR}/bin/${_TOOL_PREFIX}m68k-elf2aout
@@ -265,6 +272,7 @@ LEX=		${TOOLDIR}/bin/${_TOOL_PREFIX}lex
 LINT=		CC=${CC:Q} ${TOOLDIR}/bin/${MACHINE_GNU_PLATFORM}-lint
 LORDER=		NM=${NM:Q} MKTEMP=${TOOL_MKTEMP:Q} ${TOOLDIR}/bin/${_TOOL_PREFIX}lorder
 MKDEP=		CC=${CC:Q} ${TOOLDIR}/bin/${_TOOL_PREFIX}mkdep
+MKDEPCXX=	CC=${CXX:Q} ${TOOLDIR}/bin/${_TOOL_PREFIX}mkdep
 PAXCTL=		${TOOLDIR}/bin/${_TOOL_PREFIX}paxctl
 TSORT=		${TOOLDIR}/bin/${_TOOL_PREFIX}tsort -q
 YACC=		${TOOLDIR}/bin/${_TOOL_PREFIX}yacc
@@ -473,10 +481,32 @@ CXX=		${TOOL_CXX.${ACTIVE_CXX}}
 FC=		${TOOL_FC.${ACTIVE_FC}}
 OBJC=		${TOOL_OBJC.${ACTIVE_OBJC}}
 
-.if exists(/usr/bin/${TOOL_CTFCONVERT}) || exists(${TOOL_CTFCONVERT})
+# Override with tools versions if needed
+.if exists(${TOOL_CTFCONVERT}) && exists(${TOOL_CTFMERGE})
 CTFCONVERT=	${TOOL_CTFCONVERT}
 CTFMERGE=	${TOOL_CTFMERGE}
 .endif
+
+# For each ${MACHINE_CPU}, list the ports that use it.
+MACHINES.alpha=		alpha
+MACHINES.arm=		acorn26 acorn32 cats epoc32 evbarm hpcarm \
+			iyonix netwinder shark zaurus
+MACHINES.coldfire=	evbcf
+MACHINES.i386=		i386
+MACHINES.ia64=		ia64
+MACHINES.hppa=		hp700
+MACHINES.m68000=	sun2
+MACHINES.m68k=		amiga atari cesfic hp300 luna68k mac68k \
+			news68k next68k sun3 x68k
+MACHINES.mips=		arc cobalt algor cobalt emips evbmips ews4800mips \
+			hpcmips mipsco newsmips pmax sbmips sgimips
+MACHINES.powerpc=	amigappc bebox evbppc ibmnws macppc mvmeppc \
+			ofppc prep rs6000 sandpoint
+MACHINES.sh3=		dreamcast evbsh3 hpcsh landisk mmeye
+MACHINES.sparc=		sparc sparc64
+MACHINES.sparc64=	sparc64
+MACHINES.vax=		vax
+MACHINES.x86_64=	amd64
 
 # OBJCOPY flags to create a.out binaries for old firmware
 # shared among src/distrib and ${MACHINE}/conf/Makefile.${MACHINE}.inc
@@ -727,6 +757,12 @@ MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsdelf
 MACHINE_GNU_PLATFORM?=${MACHINE_GNU_ARCH}--netbsd
 .endif
 
+.if !empty(MACHINE_ARCH:M*arm*)
+# Flags to pass to CC for using the old APCS ABI on ARM for compat or stand.
+ARM_APCS_FLAGS=	-mabi=apcs-gnu -mfloat-abi=soft
+ARM_APCS_FLAGS+=${${ACTIVE_CC} == "clang":? -target ${MACHINE_GNU_ARCH}--netbsdelf -B ${TOOLDIR}/${MACHINE_GNU_PLATFORM}/bin :}
+.endif
+
 #
 # Determine if arch uses native kernel modules with rump
 #
@@ -904,7 +940,7 @@ _MKVARS.no= \
 	MKBSDGREP MKBSDTAR \
 	MKCATPAGES MKCRYPTO_RC5 MKDEBUG \
 	MKDEBUGLIB MKDTRACE MKEXTSRC \
-	MKKYUA MKLLD MKLINT \
+	MKKYUA MKLLD MKLLDB MKLINT \
 	MKMANZ MKMCLINKER MKOBJDIRS \
 	MKLIBCXX MKLLVM MKPCC \
 	MKPIGZGZIP \

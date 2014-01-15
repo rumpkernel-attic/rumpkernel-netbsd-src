@@ -7,6 +7,7 @@ A D/compat////
 A D/compat-13////
 A D/compat-43////
 A D/compiler_rt////
+A D/db////
 A D/dl////
 A D/dlfcn////
 A D/gdtoa////
@@ -53,3 +54,4 @@ R D/i386////
 R D/hp300////
 R D/dl////
 R D/compat-13////
+R D/DB////

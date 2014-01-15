@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.sys.mk,v 1.227 2013/09/12 15:36:16 joerg Exp $
+#	$NetBSD: bsd.sys.mk,v 1.231 2013/12/16 21:34:16 matt Exp $
 #
 # Build definitions used for NetBSD source tree builds.
 
@@ -74,7 +74,7 @@ CFLAGS+=	${${ACTIVE_CC} == "gcc":? -Wno-format-zero-length :}
 .if ${WARNS} > 3 && defined(HAVE_LLVM)
 CFLAGS+=	${${ACTIVE_CC} == "clang":? -Wpointer-sign -Wmissing-noreturn :}
 .endif
-.if (defined(HAVE_GCC) && ${HAVE_GCC} == 45 \
+.if (defined(HAVE_GCC) && ${HAVE_GCC} >= 45 \
      && (${MACHINE_ARCH} == "coldfire" || \
 	 ${MACHINE_ARCH} == "sh3eb" || \
 	 ${MACHINE_ARCH} == "sh3el" || \
@@ -83,6 +83,9 @@ CFLAGS+=	${${ACTIVE_CC} == "clang":? -Wpointer-sign -Wmissing-noreturn :}
 # XXX GCC 4.5 for sh3 and m68k (which we compile with -Os) is extra noisy for
 # cases it should be better with
 CFLAGS+=	-Wno-uninitialized
+.if ${HAVE_GCC} >= 48
+CFLAGS+=	-Wno-maybe-uninitialized
+.endif
 .endif
 .endif
 
@@ -150,8 +153,9 @@ HOST_CC?=	cc
 HOST_CFLAGS?=	-O
 HOST_COMPILE.c?=${HOST_CC} ${HOST_CFLAGS} ${HOST_CPPFLAGS} -c
 HOST_COMPILE.cc?=      ${HOST_CXX} ${HOST_CXXFLAGS} ${HOST_CPPFLAGS} -c
-.if defined(HOSTPROG_CXX) 
-HOST_LINK.c?=	${HOST_CXX} ${HOST_CXXFLAGS} ${HOST_CPPFLAGS} ${HOST_LDFLAGS}
+HOST_LINK.cc?=  ${HOST_CXX} ${HOST_CXXFLAGS} ${HOST_CPPFLAGS} ${HOST_LDFLAGS}
+.if defined(HOSTPROG_CXX)
+HOST_LINK.c?=   ${HOST_LINK.cc}
 .else
 HOST_LINK.c?=	${HOST_CC} ${HOST_CFLAGS} ${HOST_CPPFLAGS} ${HOST_LDFLAGS}
 .endif
@@ -175,6 +179,7 @@ HOST_SH?=	/bin/sh
 
 ELF2ECOFF?=	elf2ecoff
 MKDEP?=		mkdep
+MKDEPCXX?=	mkdep
 OBJCOPY?=	objcopy
 OBJDUMP?=	objdump
 PAXCTL?=	paxctl
@@ -266,6 +271,8 @@ YFLAGS+=	${YPREFIX:D-p${YPREFIX}} ${YHEADER:D-d}
 .endif
 
 # Objcopy
-OBJCOPYLIBFLAGS?=${"${.TARGET:M*.po}" != "":?-X:-x}
+# ARM big endian needs to preserve $a/$d/$t symbols for the linker.
+OBJCOPYLIBFLAGS?=${"${.TARGET:M*.po}" != "":?-X:-x} \
+	${"${MACHINE_ARCH:M*arm*eb}" != "":?-K '\$a' -K '\$d' -K '\$t':}
 
 .endif	# !defined(_BSD_SYS_MK_)

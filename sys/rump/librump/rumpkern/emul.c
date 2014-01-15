@@ -1,4 +1,4 @@
-/*	$NetBSD: emul.c,v 1.158 2013/04/30 16:03:44 pooka Exp $	*/
+/*	$NetBSD: emul.c,v 1.160 2013/12/16 15:36:29 pooka Exp $	*/
 
 /*
  * Copyright (c) 2007-2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: emul.c,v 1.158 2013/04/30 16:03:44 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: emul.c,v 1.160 2013/12/16 15:36:29 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/null.h>
@@ -277,23 +277,9 @@ void
 syscall_intern(struct proc *p)
 {
 
-	/* no you don't */
+	p->p_emuldata = NULL;
 }
 #endif
-
-int
-trace_enter(register_t code, const register_t *args, int narg)
-{
-
-	return 0;
-}
-
-void
-trace_exit(register_t code, register_t rval[], int error)
-{
-
-	/* nada */
-}
 
 #ifdef LOCKDEBUG
 void

@@ -1,4 +1,4 @@
-/*	$NetBSD: udp_usrreq.c,v 1.190 2013/06/05 19:01:26 christos Exp $	*/
+/*	$NetBSD: udp_usrreq.c,v 1.193 2014/01/04 14:18:12 pooka Exp $	*/
 
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
@@ -61,7 +61,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: udp_usrreq.c,v 1.190 2013/06/05 19:01:26 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: udp_usrreq.c,v 1.193 2014/01/04 14:18:12 pooka Exp $");
 
 #include "opt_inet.h"
 #include "opt_compat_netbsd.h"
@@ -73,6 +73,7 @@ __KERNEL_RCSID(0, "$NetBSD: udp_usrreq.c,v 1.190 2013/06/05 19:01:26 christos Ex
 #include <sys/param.h>
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
+#include <sys/once.h>
 #include <sys/protosw.h>
 #include <sys/socket.h>
 #include <sys/socketvar.h>
@@ -225,24 +226,35 @@ EVCNT_ATTACH_STATIC(udp6_swcsum);
 
 static void sysctl_net_inet_udp_setup(struct sysctllog **);
 
+static int
+do_udpinit(void)
+{
+
+	in_pcbinit(&udbtable, udbhashsize, udbhashsize);
+	udpstat_percpu = percpu_alloc(sizeof(uint64_t) * UDP_NSTATS);
+
+	MOWNER_ATTACH(&udp_tx_mowner);
+	MOWNER_ATTACH(&udp_rx_mowner);
+	MOWNER_ATTACH(&udp_mowner);
+
+	return 0;
+}
+
+void
+udp_init_common(void)
+{
+	static ONCE_DECL(doudpinit);
+
+	RUN_ONCE(&doudpinit, do_udpinit);
+}
+
 void
 udp_init(void)
 {
 
 	sysctl_net_inet_udp_setup(NULL);
 
-	in_pcbinit(&udbtable, udbhashsize, udbhashsize);
-
-	MOWNER_ATTACH(&udp_tx_mowner);
-	MOWNER_ATTACH(&udp_rx_mowner);
-	MOWNER_ATTACH(&udp_mowner);
-
-#ifdef INET
-	udpstat_percpu = percpu_alloc(sizeof(uint64_t) * UDP_NSTATS);
-#endif
-#ifdef INET6
-	udp6stat_percpu = percpu_alloc(sizeof(uint64_t) * UDP6_NSTATS);
-#endif
+	udp_init_common();
 }
 
 /*
@@ -766,7 +778,7 @@ udp4_realinput(struct sockaddr_in *src, struct sockaddr_in *dst,
 		/*
 		 * Locate pcb(s) for datagram.
 		 */
-		CIRCLEQ_FOREACH(inph, &udbtable.inpt_queue, inph_queue) {
+		TAILQ_FOREACH(inph, &udbtable.inpt_queue, inph_queue) {
 			inp = (struct inpcb *)inph;
 			if (inp->inp_af != AF_INET)
 				continue;
@@ -911,7 +923,7 @@ udp6_realinput(int af, struct sockaddr_in6 *src, struct sockaddr_in6 *dst,
 		/*
 		 * Locate pcb(s) for datagram.
 		 */
-		CIRCLEQ_FOREACH(inph, &udbtable.inpt_queue, inph_queue) {
+		TAILQ_FOREACH(inph, &udbtable.inpt_queue, inph_queue) {
 			in6p = (struct in6pcb *)inph;
 			if (in6p->in6p_af != AF_INET6)
 				continue;

@@ -1,4 +1,4 @@
-/*	$NetBSD: exec_elf.h,v 1.129 2013/09/10 16:24:02 matt Exp $	*/
+/*	$NetBSD: exec_elf.h,v 1.134 2014/01/02 19:15:07 christos Exp $	*/
 
 /*-
  * Copyright (c) 1994 The NetBSD Foundation, Inc.
@@ -301,6 +301,7 @@ typedef struct {
 #define EM_SEP		108	/* Sharp embedded microprocessor */
 #define EM_ARCA		109	/* Arca RISC microprocessor */
 #define EM_UNICORE	110	/* UNICORE from PKU-Unity Ltd. and MPRC Peking University */
+#define EM_AARCH64	183	/* AArch64 64-bit ARM microprocessor */
 
 /* Unofficial machine types follow */
 #define EM_AVR32	6317	/* used by NetBSD/avr32 */
@@ -417,7 +418,10 @@ typedef struct {
 #define SHT_NUM		     19
 
 #define SHT_LOOS	     0x60000000 /* Operating system specific range */
+#define SHT_GNU_INCREMENTAL_INPUTS 0x6fff4700   /* GNU incremental build data */
+#define	SHT_GNU_ATTRIBUTES   0x6ffffff5	/* GNU object attributes */
 #define SHT_GNU_HASH	     0x6ffffff6 /* GNU style symbol hash table */
+#define SHT_GNU_LIBLIST	     0x6ffffff7 /* GNU list of prelink dependencies */
 #define SHT_SUNW_move	     0x6ffffffa
 #define SHT_SUNW_syminfo     0x6ffffffc
 #define SHT_SUNW_verdef	     0x6ffffffd /* Versions defined by file */
@@ -692,6 +696,13 @@ typedef struct {
 #define DT_HIOS		0x6fffffff
 #define DT_LOPROC	0x70000000	/* Processor-specific range */
 #define DT_HIPROC	0x7fffffff
+
+/* Flag values for DT_FLAGS */
+#define DF_ORIGIN	0x00000001	/* uses $ORIGIN */
+#define DF_SYMBOLIC	0x00000002	/* */
+#define DF_TEXTREL	0x00000004	/* */
+#define DF_BIND_NOW	0x00000008	/* */
+#define DF_STATICT_LS	0x00000010	/* */
 
 /* Flag values for DT_FLAGS_1 (incomplete) */
 #define DF_1_BIND_NOW	0x00000001	/* Same as DF_BIND_NOW */
@@ -975,6 +986,21 @@ struct netbsd_elfcore_procinfo {
 /* NetBSD-specific note name */
 #define ELF_NOTE_MARCH_NAME		ELF_NOTE_NETBSD_NAME
 
+/*
+ * NetBSD-specific note type: MCMODEL
+ * There should be 1 NOTE per executable.
+ * name:	NetBSD\0
+ * namesz:	7
+ * code model:	string
+ */
+
+#define ELF_NOTE_TYPE_MCMODEL_TAG	6
+/* NetBSD-specific note name and description sizes */
+#define ELF_NOTE_MCMODEL_NAMESZ		ELF_NOTE_NETBSD_NAMESZ
+/* NetBSD-specific note name */
+#define ELF_NOTE_MCMODEL_NAME		ELF_NOTE_NETBSD_NAME
+
+
 #if !defined(ELFSIZE) && defined(ARCH_ELFSIZE)
 #define ELFSIZE ARCH_ELFSIZE
 #endif
@@ -1225,15 +1251,16 @@ struct elf_args {
 #endif
 
 struct ps_strings;
+struct coredump_iostate;
 
 #ifdef EXEC_ELF32
 int	exec_elf32_makecmds(struct lwp *, struct exec_package *);
 int	elf32_copyargs(struct lwp *, struct exec_package *,
     struct ps_strings *, char **, void *);
 
-int	coredump_elf32(struct lwp *, void *);
-int	coredump_writenote_elf32(struct proc *, void *, Elf32_Nhdr *,
-    const char *, void *);
+int	coredump_elf32(struct lwp *, struct coredump_iostate *);
+int	coredump_writenote_elf32(struct proc *, struct coredump_iostate *,
+    Elf32_Nhdr *, const char *, void *);
 
 int	elf32_check_header(Elf32_Ehdr *, int);
 #endif
@@ -1243,9 +1270,9 @@ int	exec_elf64_makecmds(struct lwp *, struct exec_package *);
 int	elf64_copyargs(struct lwp *, struct exec_package *,
     struct ps_strings *, char **, void *);
 
-int	coredump_elf64(struct lwp *, void *);
-int	coredump_writenote_elf64(struct proc *, void *, Elf64_Nhdr *,
-    const char *, void *);
+int	coredump_elf64(struct lwp *, struct coredump_iostate *);
+int	coredump_writenote_elf64(struct proc *, struct coredump_iostate *,
+    Elf64_Nhdr *, const char *, void *);
 
 int	elf64_check_header(Elf64_Ehdr *, int);
 #endif

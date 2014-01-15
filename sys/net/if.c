@@ -1,4 +1,4 @@
-/*	$NetBSD: if.c,v 1.265 2013/06/29 21:06:58 rmind Exp $	*/
+/*	$NetBSD: if.c,v 1.271 2014/01/03 12:49:59 pooka Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2008 The NetBSD Foundation, Inc.
@@ -90,7 +90,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: if.c,v 1.265 2013/06/29 21:06:58 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: if.c,v 1.271 2014/01/03 12:49:59 pooka Exp $");
 
 #include "opt_inet.h"
 
@@ -1323,7 +1323,10 @@ link_rtrequest(int cmd, struct rtentry *rt, const struct rt_addrinfo *info)
 void
 if_link_state_change(struct ifnet *ifp, int link_state)
 {
-	int old_link_state, s;
+	int s;
+#if defined(DEBUG) || defined(INET6)
+	int old_link_state;
+#endif
 
 	s = splnet();
 	if (ifp->if_link_state == link_state) {
@@ -1331,7 +1334,9 @@ if_link_state_change(struct ifnet *ifp, int link_state)
 		return;
 	}
 
+#if defined(DEBUG) || defined(INET6)
 	old_link_state = ifp->if_link_state;
+#endif
 	ifp->if_link_state = link_state;
 #ifdef DEBUG
 	log(LOG_DEBUG, "%s: link state %s (was %s)\n", ifp->if_xname,
@@ -1353,7 +1358,7 @@ if_link_state_change(struct ifnet *ifp, int link_state)
 	 * listeners would have an address and expect it to work right
 	 * away.
 	 */
-	if (link_state == LINK_STATE_UP &&
+	if (in6_present && link_state == LINK_STATE_UP &&
 	    old_link_state == LINK_STATE_UNKNOWN)
 		in6_if_link_down(ifp);
 #endif
@@ -1367,10 +1372,12 @@ if_link_state_change(struct ifnet *ifp, int link_state)
 #endif
 
 #ifdef INET6
-	if (link_state == LINK_STATE_DOWN)
-		in6_if_link_down(ifp);
-	else if (link_state == LINK_STATE_UP)
-		in6_if_link_up(ifp);
+	if (in6_present) {
+		if (link_state == LINK_STATE_DOWN)
+			in6_if_link_down(ifp);
+		else if (link_state == LINK_STATE_UP)
+			in6_if_link_up(ifp);
+	}
 #endif
 
 	splx(s);
@@ -1397,7 +1404,8 @@ if_down(struct ifnet *ifp)
 #endif
 	rt_ifmsg(ifp);
 #ifdef INET6
-	in6_if_down(ifp);
+	if (in6_present)
+		in6_if_down(ifp);
 #endif
 }
 
@@ -1426,7 +1434,8 @@ if_up(struct ifnet *ifp)
 #endif
 	rt_ifmsg(ifp);
 #ifdef INET6
-	in6_if_up(ifp);
+	if (in6_present)
+		in6_if_up(ifp);
 #endif
 }
 
@@ -1644,6 +1653,11 @@ ifioctl_common(struct ifnet *ifp, u_long cmd, void *data)
 		ifdr->ifdr_data = ifp->if_data;
 		break;
 
+	case SIOCGIFINDEX:
+		ifr = data;
+		ifr->ifr_index = ifp->if_index;
+		break;
+
 	case SIOCZIFDATA:
 		ifdr = data;
 		ifdr->ifdr_data = ifp->if_data;
@@ -1671,7 +1685,8 @@ ifioctl_common(struct ifnet *ifp, u_long cmd, void *data)
 		 * If the link MTU changed, do network layer specific procedure.
 		 */
 #ifdef INET6
-		nd6_setmtu(ifp);
+		if (in6_present)
+			nd6_setmtu(ifp);
 #endif
 		return ENETRESET;
 	default:
@@ -1896,7 +1911,7 @@ ifioctl(struct socket *so, u_long cmd, void *data, struct lwp *l)
 
 	if (((oif_flags ^ ifp->if_flags) & IFF_UP) != 0) {
 #ifdef INET6
-		if ((ifp->if_flags & IFF_UP) != 0) {
+		if (in6_present && (ifp->if_flags & IFF_UP) != 0) {
 			int s = splnet();
 			in6_if_up(ifp);
 			splx(s);
