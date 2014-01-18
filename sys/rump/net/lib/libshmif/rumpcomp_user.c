@@ -31,11 +31,15 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <semaphore.h>
-#include <assert.h>
+// TODO re-establish:
+//#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+// TODO remove:
+#include <stdio.h>
 
 #include <errno.h>
 
@@ -110,7 +114,8 @@ rumpcomp_shmif_watchwait(int kq)
 #include <sys/inotify.h>
 
 #include <limits.h>
-#include <stdio.h>
+//TODO uncomment
+//#include <stdio.h>
 #include <unistd.h>
 
 int
@@ -179,7 +184,8 @@ rumpcomp_shmif_watchwait(int kq)
 }
 
 #else
-#include <stdio.h>
+//TODO uncomment
+//#include <stdio.h>
 #include <unistd.h>
 
 /* a polling default implementation */
@@ -251,14 +257,24 @@ void rumpcomp_shmif_initsem(char const *lockid) {
 	 * 2000 characters should be enough for everyone
 	 * (simply adjust if not sufficient):
 	 */
-	assert(sem_name_len < 2022);
+	if (sem_name_len >= 2022) {
+        fprintf(stderr, "semaphore name too long\n");
+        abort();
+    }
 	shmif_sem_name = malloc(sem_name_len);
-	assert(shmif_sem_name);
-	sprintf(shmif_sem_name, "%s%s", PREAMBLE, lockid);
+	if (shmif_sem_name == NULL) {
+        fprintf(stderr, "malloc failed\n");
+        abort();
+    }
+	strcpy(shmif_sem_name, PREAMBLE);
+    strcat(shmif_sem_name, lockid);
 
 	shmif_sem = sem_open(shmif_sem_name, O_CREAT, 0644, 1);
 	free(shmif_sem_name);
-	assert(shmif_sem != SEM_FAILED);
+    if (shmif_sem == SEM_FAILED) {
+        perror("sem_open");
+        abort();
+    }
 }
 
 void rumpcomp_shmif_lock() {
@@ -267,11 +283,17 @@ void rumpcomp_shmif_lock() {
 	do {
 		result = sem_wait(shmif_sem);
 	} while (result == EINTR);
-	assert(result == 0);
+	if (result != 0) {
+        perror("sem_wait");
+        abort();
+    }
 }
 
 void rumpcomp_shmif_unlock() {
-	assert(sem_post(shmif_sem) == 0);
+	if (sem_post(shmif_sem) != 0) {
+        perror("sem_post");
+        abort();
+    }
 }
 
 void rumpcomp_shmif_destroysem() {
