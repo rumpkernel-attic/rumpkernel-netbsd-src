@@ -8,6 +8,7 @@ A D/libfss////
 A D/libmd////
 A D/libnetsmb////
 A D/libnpf////
+A D/libopencrypto////
 A D/libpad////
 A D/libpud////
 A D/libputter////
@@ -25,4 +26,5 @@ A D/libusb////
 A D/libwscons////
 A D/opt////
 R D/opt////
+R D/libopencrypto////
 R D/libnpf////
