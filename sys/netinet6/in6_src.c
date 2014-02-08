@@ -172,8 +172,8 @@ static struct in6_addrpolicy *match_addrsel_policy(struct sockaddr_in6 *);
 #endif
 
 struct in6_addr *
-in6_selectsrc(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts, 
-	struct ip6_moptions *mopts, struct route *ro, struct in6_addr *laddr, 
+in6_selectsrc(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
+	struct ip6_moptions *mopts, struct route *ro, struct in6_addr *laddr,
 	struct ifnet **ifpp, int *errorp)
 {
 	struct in6_addr dst;
@@ -426,7 +426,7 @@ in6_selectsrc(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
 				/* XXX breaks stat */
 				REPLACE(0);
 			}
-		}			
+		}
 	skip_rule4:
 #endif /* MIP6 && NMIP > 0 */
 
@@ -562,8 +562,8 @@ in6_selectsrc(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
 #undef NEXT
 
 static int
-selectroute(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts, 
-	struct ip6_moptions *mopts, struct route *ro, struct ifnet **retifp, 
+selectroute(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
+	struct ip6_moptions *mopts, struct route *ro, struct ifnet **retifp,
 	struct rtentry **retrt, int clone, int norouteok)
 {
 	int error = 0;
@@ -718,7 +718,7 @@ selectroute(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
 }
 
 static int
-in6_selectif(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts, 
+in6_selectif(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
 	struct ip6_moptions *mopts, struct route *ro, struct ifnet **retifp)
 {
 	int error, clone;
@@ -768,8 +768,8 @@ in6_selectif(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
  */
 
 int
-in6_selectroute(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts, 
-	struct ip6_moptions *mopts, struct route *ro, struct ifnet **retifp, 
+in6_selectroute(struct sockaddr_in6 *dstsock, struct ip6_pktopts *opts,
+	struct ip6_moptions *mopts, struct route *ro, struct ifnet **retifp,
 	struct rtentry **retrt, int clone)
 {
 	return selectroute(dstsock, opts, mopts, ro, retifp,
@@ -805,7 +805,7 @@ in6_pcbsetport(struct sockaddr_in6 *sin6, struct in6pcb *in6p, struct lwp *l)
 	u_int16_t lport, *lastport;
 	enum kauth_network_req req;
 	int error = 0;
-	
+
 	if (in6p->in6p_flags & IN6P_LOWPORT) {
 #ifndef IPNOPRIVPORTS
 		req = KAUTH_REQ_NETWORK_BIND_PRIVPORT;
@@ -828,10 +828,10 @@ in6_pcbsetport(struct sockaddr_in6 *sin6, struct in6pcb *in6p, struct lwp *l)
        /*
         * Use RFC6056 randomized port selection
         */
-	error = portalgo_randport(&lport, &in6p->in6p_head, l->l_cred);
+	error = portalgo_randport(&lport, &in6p->in6p_head, table, l->l_cred);
 	if (error)
 		return error;
-	
+
 	in6p->in6p_flags |= IN6P_ANONPORT;
 	*lastport = lport;
 	in6p->in6p_lport = htons(lport);

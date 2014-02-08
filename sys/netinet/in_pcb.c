@@ -259,7 +259,7 @@ in_pcbsetport(struct sockaddr_in *sin, struct inpcb *inp, kauth_cred_t cred)
        /*
         * Use RFC6056 randomized port selection
         */
-	error = portalgo_randport(&lport, &inp->inp_head, cred);
+	error = portalgo_randport(&lport, &inp->inp_head, table, cred);
 	if (error)
 		return error;
 
@@ -314,7 +314,7 @@ in_pcbbind_port(struct inpcb *inp, struct sockaddr_in *sin, kauth_cred_t cred)
 		 */
 		if (so->so_options & SO_REUSEADDR)
 			reuseport = SO_REUSEADDR|SO_REUSEPORT;
-	} 
+	}
 
 	if (sin->sin_port == 0) {
 		error = in_pcbsetport(sin, inp, cred);

@@ -315,7 +315,7 @@ const struct protosw inetsw[] = {
 	.pr_domain = &inetdomain,
 	.pr_protocol = IPPROTO_IGMP,
 	.pr_flags = PR_ATOMIC|PR_ADDR|PR_LASTHDR,
-	.pr_input = igmp_input, 
+	.pr_input = igmp_input,
 	.pr_output = rip_output,
 	.pr_ctloutput = rip_ctloutput,
 	.pr_ctlinput = rip_ctlinput,
@@ -329,7 +329,7 @@ const struct protosw inetsw[] = {
 	.pr_domain = &inetdomain,
 	.pr_protocol = IPPROTO_PIM,
 	.pr_flags = PR_ATOMIC|PR_ADDR|PR_LASTHDR,
-	.pr_input = pim_input, 
+	.pr_input = pim_input,
 	.pr_output = rip_output,
 	.pr_ctloutput = rip_ctloutput,
 	.pr_ctlinput = rip_ctlinput,
@@ -340,7 +340,7 @@ const struct protosw inetsw[] = {
 {	.pr_type = SOCK_RAW,
 	.pr_domain = &inetdomain,
 	.pr_flags = PR_ATOMIC|PR_ADDR|PR_LASTHDR,
-	.pr_input = rip_input, 
+	.pr_input = rip_input,
 	.pr_output = rip_output,
 	.pr_ctloutput = rip_ctloutput,
 	.pr_ctlinput = rip_ctlinput,
@@ -387,6 +387,8 @@ struct domain inetdomain = {
 u_char	ip_protox[IPPROTO_MAX];
 
 int icmperrppslim = 100;			/* 100pps */
+
+int netbsd_kernel_protocol = -1;
 
 static void
 sockaddr_in_addrlen(const struct sockaddr *sa, socklen_t *slenp)
