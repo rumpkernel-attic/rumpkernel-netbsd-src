@@ -10,7 +10,8 @@ int rumpcomp_librumpnet_hive_request_port(
         uint16_t port, int32_t *p_bind_result,
         int netbsd_kernel_protocol) {
 	int err;
-    DPRINTF(("NetBSD kernel protocol is %d\n", netbsd_kernel_protocol));
+    DPRINTF(("NetBSD kernel protocol is %d, Port is %u\n",
+                netbsd_kernel_protocol, port));
 	if ((err = request_hive_bind(netbsd_kernel_protocol, port))) {
 		DPRINTF(("Failed to send bind request: %d\n", err));
 		return EINVAL;
