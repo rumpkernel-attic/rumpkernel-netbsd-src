@@ -155,6 +155,7 @@ A D/npf_ext_log////
 A D/npf_ext_normalise////
 A D/npf_ext_normalize////
 A D/npf_ext_rndblock////
+A D/npf_ext_route////
 A D/nsclpcsio////
 A D/nsmb////
 A D/ntfs////
@@ -242,6 +243,7 @@ R D/umapfs////
 R D/securechroot////
 R D/portal////
 R D/nullfs////
+R D/npf_ext_route////
 R D/npf_ext_normalise////
 R D/msdosfs////
 R D/luadata////
