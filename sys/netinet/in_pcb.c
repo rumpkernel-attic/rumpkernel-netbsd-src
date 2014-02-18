@@ -350,7 +350,7 @@ in_pcbbind_port(struct inpcb *inp, struct sockaddr_in *sin, kauth_cred_t cred)
         // first check if Hive has the port, then do the local checks
         int32_t bind_result = -1;
         error = rumpcomp_librumpnet_hive_request_port(
-                sin->sin_port, &bind_result, netbsd_kernel_protocol);
+                ntohs(sin->sin_port), &bind_result, netbsd_kernel_protocol);
         if (error) {
             return error;
         }
