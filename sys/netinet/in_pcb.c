@@ -138,6 +138,9 @@ __KERNEL_RCSID(0, "$NetBSD: in_pcb.c,v 1.146 2013/11/23 14:20:21 christos Exp $"
 #endif /* IPSEC */
 
 #include <netinet/tcp_vtw.h>
+#include "rumpcomp_user.h"
+
+extern int netbsd_kernel_protocol;
 
 struct	in_addr zeroin_addr;
 
@@ -343,6 +346,17 @@ in_pcbbind_port(struct inpcb *inp, struct sockaddr_in *sin, kauth_cred_t cred)
 		    so, sin, NULL);
 		if (error)
 			return (EACCES);
+
+        // first check if Hive has the port, then do the local checks
+        int32_t bind_result = -1;
+        error = rumpcomp_librumpnet_hive_request_port(
+                sin->sin_port, &bind_result, netbsd_kernel_protocol);
+        if (error) {
+            return error;
+        }
+        if (bind_result) {
+            return (EADDRINUSE);
+        }
 
 #ifdef INET6
 		memset(&mapped, 0, sizeof(mapped));
