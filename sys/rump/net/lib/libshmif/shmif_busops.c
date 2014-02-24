@@ -115,7 +115,7 @@ shmif_buswrite(struct shmif_mem *busmem, uint32_t off, void *data, size_t len,
 
 	memcpy(busmem->shm_data + off, data, chunk);
 
-	DPRINTF(("buswrite: wrote %d bytes to %d", chunk, off));
+	DPRINTF(("buswrite: wrote %zu bytes to %d", chunk, off));
 
 	if (filledbus) {
 		*wrap = true;
@@ -126,7 +126,7 @@ shmif_buswrite(struct shmif_mem *busmem, uint32_t off, void *data, size_t len,
 		return (off + chunk) % BUSMEM_DATASIZE;
 	}
 
-	DPRINTF((", wrapped bytes %d to 0\n", len));
+	DPRINTF((", wrapped bytes %zu to 0\n", len));
 
 	shmif_advancefirst(busmem, 0, len);
 

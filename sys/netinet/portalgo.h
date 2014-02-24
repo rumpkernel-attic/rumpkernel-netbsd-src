@@ -32,9 +32,11 @@
 
 #ifdef _KERNEL
 #include <sys/sysctl.h>
+#include <netinet/in_pcb_hdr.h>
 
 struct inpcb_hdr;
-int portalgo_randport(uint16_t *, struct inpcb_hdr *, kauth_cred_t);
+int portalgo_randport(uint16_t *, struct inpcb_hdr *,
+          struct	  inpcbtable *table, kauth_cred_t);
 int sysctl_portalgo_selected4(SYSCTLFN_ARGS);
 int sysctl_portalgo_selected6(SYSCTLFN_ARGS);
 int sysctl_portalgo_reserve4(SYSCTLFN_ARGS);

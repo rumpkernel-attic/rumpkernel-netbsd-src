@@ -175,7 +175,8 @@ allocif(int unit, struct shmif_sc **scp)
 	uint32_t randnum;
 	int error;
 
-	randnum = cprng_fast32();
+	//randnum = cprng_fast32();
+    randnum = 0x3dd9e7eb;
 	memcpy(&enaddr[2], &randnum, sizeof(randnum));
 
 	sc = kmem_zalloc(sizeof(*sc), KM_SLEEP);
