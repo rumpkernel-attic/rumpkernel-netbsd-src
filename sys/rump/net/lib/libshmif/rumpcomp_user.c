@@ -251,11 +251,11 @@ void rumpcomp_shmif_initsem(char const *lockid) {
 	 * (simply adjust if not sufficient):
 	 */
 	if (sem_name_len >= 2022) {
-        errx(1, "Semaphore name too long.");
+        errx("Semaphore name too long.");
     }
 	shmif_sem_name = malloc(sem_name_len);
 	if (shmif_sem_name == NULL) {
-        err(errno, "malloc failed");
+        err("malloc failed");
     }
 	strcpy(shmif_sem_name, PREAMBLE);
     strcat(shmif_sem_name, lockid);
@@ -263,7 +263,7 @@ void rumpcomp_shmif_initsem(char const *lockid) {
 	shmif_sem = sem_open(shmif_sem_name, O_CREAT, 0644, 1);
 	free(shmif_sem_name);
     if (shmif_sem == SEM_FAILED) {
-        err(errno, "sem_open failed");
+        err("sem_open failed");
     }
 }
 
@@ -274,19 +274,19 @@ void rumpcomp_shmif_lock() {
 		result = sem_wait(shmif_sem);
 	} while (result == EINTR);
 	if (result != 0) {
-        err(errno, "sem_wait failed");
+        err("sem_wait failed");
     }
 }
 
 void rumpcomp_shmif_unlock() {
 	if (sem_post(shmif_sem) != 0) {
-        err(errno, "sem_post failed");
+        err("sem_post failed");
     }
 }
 
 void rumpcomp_shmif_destroysem() {
 	if (sem_close(shmif_sem) != 0) {
-        err(errno, "sem_close failed");
+        err("sem_close failed");
     }
 }
 #endif
