@@ -31,7 +31,7 @@
 #define _RUMP_NET_SHMIFVAR_H_
 
 #define SHMIF_MAGIC 0xca11d054
-#define SHMIF_VERSION 2
+#define SHMIF_VERSION 3
 
 struct shmif_mem {
 	uint32_t shm_magic;
