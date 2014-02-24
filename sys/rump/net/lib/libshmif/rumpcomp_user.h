@@ -28,10 +28,3 @@
 int	rumpcomp_shmif_watchsetup(int *, int);
 int	rumpcomp_shmif_watchwait(int);
 int	rumpcomp_shmif_mmap(int, size_t, void **);
-int rumpcomp_shmif_getpid(void);
-void rumpcomp_shmif_lockall(void);
-void rumpcomp_shmif_unlockall(void);
-void rumpcomp_shmif_initsem(int);
-void rumpcomp_shmif_lock(void);
-void rumpcomp_shmif_unlock(void);
-void rumpcomp_shmif_destroysem(void);

@@ -27,13 +27,6 @@
 #ifndef _KERNEL
 #include <sys/types.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
-#include <semaphore.h>
-#include <assert.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
 
 #include <errno.h>
 
@@ -170,7 +163,7 @@ rumpcomp_shmif_watchwait(int kq)
 	} else {
 		rv = 0;
 	}
-
+		
 	rumpuser_component_schedule(cookie);
 
 	return rumpuser_component_errtrans(rv);
@@ -222,7 +215,7 @@ rumpcomp_shmif_mmap(int fd, size_t len, void **memp)
 #if defined(__sun__) && !defined(MAP_FILE)
 #define MAP_FILE 0
 #endif
-
+	
 	mem = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, fd, 0);
 	if (mem == MAP_FAILED) {
 		rv = errno;
@@ -233,55 +226,5 @@ rumpcomp_shmif_mmap(int fd, size_t len, void **memp)
 
  out:
 	return rumpuser_component_errtrans(rv);
-}
-
-pid_t rumpcomp_shmif_getpid() {
-	return getpid();
-}
-
-static sem_t *shmif_lockall_sem;
-static sem_t *shmif_sem;
-#define SEM_NAME_LEN 30
-static char shmif_sem_name[SEM_NAME_LEN];
-
-void rumpcomp_shmif_lockall() {
-	int result;
-
-	shmif_lockall_sem = sem_open("rumpuser_shmif_lockall",
-			O_CREAT, 0644, 1);
-	assert(shmif_lockall_sem != SEM_FAILED);
-	do {
-		result = sem_wait(shmif_lockall_sem);
-	} while (result == EINTR);
-	assert(result == 0);
-}
-
-void rumpcomp_shmif_unlockall() {
-	assert(sem_post(shmif_lockall_sem) == 0);
-	sem_close(shmif_lockall_sem);
-}
-
-void rumpcomp_shmif_initsem(int32_t lockid) {
-	snprintf(shmif_sem_name, SEM_NAME_LEN,
-			"rumpuser_shmif_lock_%i", lockid);
-	shmif_sem = sem_open(shmif_sem_name, O_CREAT, 0644, 1);
-	assert(shmif_sem != SEM_FAILED);
-}
-
-void rumpcomp_shmif_lock() {
-	int result;
-
-	do {
-		result = sem_wait(shmif_sem);
-	} while (result == EINTR);
-	assert(result == 0);
-}
-
-void rumpcomp_shmif_unlock() {
-	assert(sem_post(shmif_sem) == 0);
-}
-
-void rumpcomp_shmif_destroysem() {
-	sem_close(shmif_sem);
 }
 #endif
