@@ -42,7 +42,7 @@ struct shmif_mem {
 	uint32_t shm_first;
 	uint32_t shm_last;
 
-	uint32_t shm_lock;
+	int32_t shm_lock;
 	uint32_t shm_spare[1];
 
 	uint8_t shm_data[0];
