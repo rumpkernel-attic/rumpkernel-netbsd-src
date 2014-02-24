@@ -7,4 +7,6 @@ LIBDPLIBS+=     rump	${.CURDIR}/../librump
 
 WARNS=		3	# XXX: kernel isn't ready for -Wsign-compare
 
+RUMPCOMP_USER=
+
 .include "${RUMPTOP}/librump/rumpnet/Makefile.rumpnet"

@@ -144,6 +144,8 @@ __KERNEL_RCSID(0, "$NetBSD: udp_usrreq.c,v 1.193 2014/01/04 14:18:12 pooka Exp $
 int	udpcksum = 1;
 int	udp_do_loopback_cksum = 0;
 
+extern int netbsd_kernel_protocol;
+
 struct	inpcbtable udbtable;
 
 percpu_t *udpstat_percpu;
@@ -842,8 +844,8 @@ udp4_realinput(struct sockaddr_in *src, struct sockaddr_in *dst,
 
 			case 0: 	/* plain UDP */
 			default: 	/* Unexpected */
-				/* 
-				 * Normal UDP processing will take place 
+				/*
+				 * Normal UDP processing will take place
 				 * m may have changed.
 				 */
 				m = *mp;
@@ -1096,7 +1098,7 @@ udp_ctloutput(int op, struct socket *so, struct sockopt *sopt)
 				break;
 			}
 			break;
-		
+
 		default:
 			error = ENOPROTOOPT;
 			break;
@@ -1203,6 +1205,8 @@ udp_usrreq(struct socket *so, int req, struct mbuf *m, struct mbuf *nam,
 	struct inpcb *inp;
 	int s;
 	int error = 0;
+
+	netbsd_kernel_protocol = 1;
 
 	if (req == PRU_CONTROL)
 		return (in_control(so, (long)m, (void *)nam,
@@ -1530,7 +1534,7 @@ udp4_espinudp(struct mbuf **mp, int off, struct sockaddr *src,
 	}
 
 	/*
-	 * Get the UDP ports. They are handled in network 
+	 * Get the UDP ports. They are handled in network
 	 * order everywhere in IPSEC_NAT_T code.
 	 */
 	udphdr = (struct udphdr *)((char *)data - skip);
@@ -1562,12 +1566,12 @@ udp4_espinudp(struct mbuf **mp, int off, struct sockaddr *src,
 
 	/*
 	 * We have modified the packet - it is now ESP, so we should not
-	 * return to UDP processing ... 
+	 * return to UDP processing ...
 	 *
 	 * Add a PACKET_TAG_IPSEC_NAT_T_PORT tag to remember
 	 * the source UDP port. This is required if we want
-	 * to select the right SPD for multiple hosts behind 
-	 * same NAT 
+	 * to select the right SPD for multiple hosts behind
+	 * same NAT
 	 */
 	if ((tag = m_tag_get(PACKET_TAG_IPSEC_NAT_T_PORTS,
 	    sizeof(sport) + sizeof(dport), M_DONTWAIT)) == NULL) {

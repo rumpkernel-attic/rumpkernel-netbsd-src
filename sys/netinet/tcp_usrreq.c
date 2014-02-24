@@ -157,6 +157,8 @@ __KERNEL_RCSID(0, "$NetBSD: tcp_usrreq.c,v 1.170 2013/12/02 09:39:54 kefren Exp 
  * TCP protocol interface to socket abstraction.
  */
 
+extern int netbsd_kernel_protocol;
+
 /*
  * Process a TCP user request for TCP tb.  If this is a send request
  * then m is the mbuf chain of send data.  If this is a timer expiration
@@ -178,6 +180,7 @@ tcp_usrreq(struct socket *so, int req,
 	int ostate = 0;
 #endif
 	int family;	/* family of the socket */
+	netbsd_kernel_protocol = 0;
 
 	family = so->so_proto->pr_domain->dom_family;
 
@@ -622,7 +625,7 @@ change_keepalive(struct socket *so, struct tcpcb *tp)
 	if (tp->t_state == TCPS_SYN_RECEIVED ||
 	    tp->t_state == TCPS_SYN_SENT) {
 		TCP_TIMER_ARM(tp, TCPT_KEEP, tp->t_keepinit);
-	} else if (so->so_options & SO_KEEPALIVE && 
+	} else if (so->so_options & SO_KEEPALIVE &&
 	    tp->t_state <= TCPS_CLOSE_WAIT) {
 		TCP_TIMER_ARM(tp, TCPT_KEEP, tp->t_keepintvl);
 	} else {
@@ -1224,14 +1227,14 @@ inet4_ident_core(struct in_addr raddr, u_int rport,
 	struct socket *sockp;
 
 	inp = in_pcblookup_connect(&tcbtable, raddr, rport, laddr, lport, 0);
-	
+
 	if (inp == NULL || (sockp = inp->inp_socket) == NULL)
 		return ESRCH;
 
 	if (dodrop) {
 		struct tcpcb *tp;
 		int error;
-		
+
 		if (inp == NULL || (tp = intotcpcb(inp)) == NULL ||
 		    (inp->inp_socket->so_options & SO_ACCEPTCONN) != 0)
 			return ESRCH;
@@ -1240,7 +1243,7 @@ inet4_ident_core(struct in_addr raddr, u_int rport,
 		    KAUTH_REQ_NETWORK_SOCKET_DROP, inp->inp_socket, tp, NULL);
 		if (error)
 			return (error);
-		
+
 		(void)tcp_drop(tp, ECONNABORTED);
 		return 0;
 	}
@@ -1262,11 +1265,11 @@ inet6_ident_core(struct in6_addr *raddr, u_int rport,
 
 	if (in6p == NULL || (sockp = in6p->in6p_socket) == NULL)
 		return ESRCH;
-	
+
 	if (dodrop) {
 		struct tcpcb *tp;
 		int error;
-		
+
 		if (in6p == NULL || (tp = in6totcpcb(in6p)) == NULL ||
 		    (in6p->in6p_socket->so_options & SO_ACCEPTCONN) != 0)
 			return ESRCH;
@@ -1335,7 +1338,7 @@ sysctl_net_inet_tcp_ident(SYSCTLFN_ARGS)
 		rport = (u_int)name[1];
 		laddr.s_addr = (uint32_t)name[2];
 		lport = (u_int)name[3];
-		
+
 		mutex_enter(softnet_lock);
 		error = inet4_ident_core(raddr, rport, laddr, lport,
 		    oldp, oldlenp, l, dodrop);
@@ -1399,7 +1402,7 @@ sysctl_net_inet_tcp_ident(SYSCTLFN_ARGS)
 		if (si4[0]->sin_len != sizeof(*si4[0]) ||
 		    si4[0]->sin_len != sizeof(*si4[1]))
 			return EINVAL;
-	
+
 		mutex_enter(softnet_lock);
 		error = inet4_ident_core(si4[0]->sin_addr, si4[0]->sin_port,
 		    si4[1]->sin_addr, si4[1]->sin_port,
@@ -1608,14 +1611,14 @@ sysctl_tcp_congctl(SYSCTLFN_ARGS)
 	char newname[TCPCC_MAXLEN];
 
 	strlcpy(newname, tcp_congctl_global_name, sizeof(newname) - 1);
-	
+
 	node = *rnode;
 	node.sysctl_data = newname;
 	node.sysctl_size = sizeof(newname);
 
 	error = sysctl_lookup(SYSCTLFN_CALL(&node));
-	
-	if (error || 
+
+	if (error ||
 	    newp == NULL ||
 	    strncmp(newname, tcp_congctl_global_name, sizeof(newname)) == 0)
 		return error;
@@ -1650,7 +1653,7 @@ sysctl_tcp_init_win(SYSCTLFN_ARGS)
 
 static int
 sysctl_tcp_keep(SYSCTLFN_ARGS)
-{  
+{
 	int error;
 	u_int tmp;
 	struct sysctlnode node;
@@ -2002,7 +2005,7 @@ sysctl_net_inet_tcp_setup2(struct sysctllog **clog, int pf, const char *pfname,
 		       SYSCTL_DESCR("Number of times to retry ECN setup "
 			       "before disabling ECN on the connection"),
 	    	       NULL, 0, &tcp_ecn_maxretries, 0, CTL_CREATE, CTL_EOL);
-	
+
 	/* SACK gets it's own little subtree. */
 	sysctl_createv(clog, 0, NULL, &sack_node,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
@@ -2122,7 +2125,7 @@ sysctl_net_inet_tcp_setup2(struct sysctllog **clog, int pf, const char *pfname,
 	sysctl_createv(clog, 0, &mslt_node, NULL,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
 		       CTLTYPE_INT, "remote_threshold",
-		       SYSCTL_DESCR("RTT estimate value to promote local to remote"), 
+		       SYSCTL_DESCR("RTT estimate value to promote local to remote"),
 		       NULL, 0, &tcp_msl_remote_threshold, 0, CTL_CREATE, CTL_EOL);
 
 	/* vestigial TIME_WAIT tuning subtree */

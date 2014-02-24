@@ -66,6 +66,7 @@ __KERNEL_RCSID(0, "$NetBSD: portalgo.c,v 1.5 2013/06/01 11:01:48 pooka Exp $");
 #include <netinet/tcp_vtw.h>
 
 #include "portalgo.h"
+#include "rumpcomp_user.h"
 
 #define NPROTO 2
 #define PORTALGO_TCP 0
@@ -145,6 +146,7 @@ static const portalgo_algorithm_t algos[] = {
 #define NALGOS __arraycount(algos)
 
 static uint16_t portalgo_next_ephemeral[NPROTO][NAF][NRANGES][NALGOS];
+extern int netbsd_kernel_protocol;
 
 /*
  * Access the pcb and copy the values of the last port and the ends of
@@ -756,9 +758,13 @@ algo_randinc(int algo, uint16_t *port, struct inpcb_hdr *inp_hdr,
 	return EINVAL;
 }
 
+#define	INPCBHASH_PORT(table, lport) \
+	&(table)->inpt_porthashtbl[ntohs(lport) & (table)->inpt_porthash]
+
 /* The generic function called in order to pick a port. */
 int
-portalgo_randport(uint16_t *port, struct inpcb_hdr *inp_hdr, kauth_cred_t cred)
+portalgo_randport(uint16_t *port, struct inpcb_hdr *inp_hdr,
+		struct	  inpcbtable *table, kauth_cred_t cred)
 {
 	int algo, error;
 	uint16_t lport;
@@ -821,17 +827,35 @@ portalgo_randport(uint16_t *port, struct inpcb_hdr *inp_hdr, kauth_cred_t cred)
 
 	DPRINTF("%s portalgo = %d\n", __func__, algo);
 
-	error = (*algos[algo].func)(algo, &lport, inp_hdr, cred);
-	if (error == 0) {
-		*port = lport;
-	} else if (error != EAGAIN) {
-		uint16_t lastport, mymin, mymax, *pnext_ephemeral;
+	int32_t hive_result = -1;
+	error = 0;
+	while (!error && hive_result) {
+		error = (*algos[algo].func)(algo, &lport, inp_hdr, cred);
+		if (error == 0) {
+			error = rumpcomp_librumpnet_hive_request_port(
+                        lport, &hive_result, netbsd_kernel_protocol);
+			if (error)
+				return error;
+			if (hive_result) {
+				// insert dummy entry for future lookups
+				LIST_REMOVE(inp_hdr, inph_lhash);
+				LIST_INSERT_HEAD(
+						INPCBHASH_PORT(table, lport),
+						inp_hdr,
+						inph_lhash);
+				continue;
+			}
+			*port = lport;
+		} else if (error != EAGAIN) {
+			uint16_t lastport, mymin, mymax, *pnext_ephemeral;
 
-		error = pcb_getports(inp_hdr, &lastport, &mymin,
-		    &mymax, &pnext_ephemeral, algo);
-		if (error)
-			return error;
-		*port = lastport - 1;
+			error = pcb_getports(inp_hdr, &lastport, &mymin,
+					&mymax, &pnext_ephemeral, algo);
+			if (error)
+				return error;
+			*port = lastport - 1;
+			break;
+		}
 	}
 	return error;
 }
