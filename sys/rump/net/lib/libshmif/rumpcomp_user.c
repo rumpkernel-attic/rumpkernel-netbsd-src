@@ -25,17 +25,15 @@
  * SUCH DAMAGE.
  */
 #ifndef _KERNEL
-#include <inttypes.h>
-#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <semaphore.h>
 #include <assert.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <errno.h>
 
@@ -237,27 +235,36 @@ rumpcomp_shmif_mmap(int fd, size_t len, void **memp)
 	return rumpuser_component_errtrans(rv);
 }
 
+pid_t rumpcomp_shmif_getpid() {
+	return getpid();
+}
+
+static sem_t *shmif_lockall_sem;
 static sem_t *shmif_sem;
-#define PREAMBLE "rumpuser_shmif_lock_"
-/* includes terminating 0: */
-#define PREAMBLE_LEN 21
+#define SEM_NAME_LEN 30
+static char shmif_sem_name[SEM_NAME_LEN];
 
-void rumpcomp_shmif_initsem(char const *lockid) {
-	size_t sem_name_len;
-	char *shmif_sem_name;
+void rumpcomp_shmif_lockall() {
+	int result;
 
-	sem_name_len = strlen(lockid) + PREAMBLE_LEN;
-	/*
-	 * 2000 characters should be enough for everyone
-	 * (simply adjust if not sufficient):
-	 */
-	assert(sem_name_len < 2022);
-	shmif_sem_name = malloc(sem_name_len);
-	assert(shmif_sem_name);
-	sprintf(shmif_sem_name, "%s%s", PREAMBLE, lockid);
+	shmif_lockall_sem = sem_open("rumpuser_shmif_lockall",
+			O_CREAT, 0644, 1);
+	assert(shmif_lockall_sem != SEM_FAILED);
+	do {
+		result = sem_wait(shmif_lockall_sem);
+	} while (result == EINTR);
+	assert(result == 0);
+}
 
+void rumpcomp_shmif_unlockall() {
+	assert(sem_post(shmif_lockall_sem) == 0);
+	sem_close(shmif_lockall_sem);
+}
+
+void rumpcomp_shmif_initsem(int32_t lockid) {
+	snprintf(shmif_sem_name, SEM_NAME_LEN,
+			"rumpuser_shmif_lock_%i", lockid);
 	shmif_sem = sem_open(shmif_sem_name, O_CREAT, 0644, 1);
-	free(shmif_sem_name);
 	assert(shmif_sem != SEM_FAILED);
 }
 
