@@ -1,4 +1,4 @@
-/*	$NetBSD: lfs_vnops.c,v 1.259 2013/10/18 15:15:22 christos Exp $	*/
+/*	$NetBSD: lfs_vnops.c,v 1.261 2014/01/23 10:13:57 hannken Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2002, 2003 The NetBSD Foundation, Inc.
@@ -60,7 +60,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: lfs_vnops.c,v 1.259 2013/10/18 15:15:22 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: lfs_vnops.c,v 1.261 2014/01/23 10:13:57 hannken Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_compat_netbsd.h"
@@ -553,7 +553,7 @@ lfs_unmark_vnode(struct vnode *vp)
 int
 lfs_symlink(void *v)
 {
-	struct vop_symlink_args /* {
+	struct vop_symlink_v3_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -563,7 +563,6 @@ lfs_symlink(void *v)
 	int error;
 
 	if ((error = SET_DIROP_CREATE(ap->a_dvp, ap->a_vpp)) != 0) {
-		vput(ap->a_dvp);
 		return error;
 	}
 	error = ulfs_symlink(ap);
@@ -574,7 +573,7 @@ lfs_symlink(void *v)
 int
 lfs_mknod(void *v)
 {
-	struct vop_mknod_args	/* {
+	struct vop_mknod_v3_args	/* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -596,7 +595,6 @@ lfs_mknod(void *v)
 	ULFS_CHECK_CRAPCOUNTER(VTOI(ap->a_dvp));
 
 	if ((error = SET_DIROP_CREATE(ap->a_dvp, ap->a_vpp)) != 0) {
-		vput(ap->a_dvp);
 		return error;
 	}
 
@@ -663,13 +661,14 @@ lfs_mknod(void *v)
 		*vpp = NULL;
 		return (error);
 	}
+	VOP_UNLOCK(*vpp);
 	return (0);
 }
 
 int
 lfs_create(void *v)
 {
-	struct vop_create_args	/* {
+	struct vop_create_v3_args	/* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -678,7 +677,6 @@ lfs_create(void *v)
 	int error;
 
 	if ((error = SET_DIROP_CREATE(ap->a_dvp, ap->a_vpp)) != 0) {
-		vput(ap->a_dvp);
 		return error;
 	}
 	error = ulfs_create(ap);
@@ -689,7 +687,7 @@ lfs_create(void *v)
 int
 lfs_mkdir(void *v)
 {
-	struct vop_mkdir_args	/* {
+	struct vop_mkdir_v3_args	/* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -698,7 +696,6 @@ lfs_mkdir(void *v)
 	int error;
 
 	if ((error = SET_DIROP_CREATE(ap->a_dvp, ap->a_vpp)) != 0) {
-		vput(ap->a_dvp);
 		return error;
 	}
 	error = ulfs_mkdir(ap);

@@ -1,4 +1,4 @@
-/*	$NetBSD: nfs_serv.c,v 1.168 2013/12/14 22:04:03 christos Exp $	*/
+/*	$NetBSD: nfs_serv.c,v 1.170 2014/01/23 10:13:57 hannken Exp $	*/
 
 /*
  * Copyright (c) 1989, 1993
@@ -55,7 +55,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: nfs_serv.c,v 1.168 2013/12/14 22:04:03 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: nfs_serv.c,v 1.170 2014/01/23 10:13:57 hannken Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -1506,6 +1506,7 @@ nfsrv_create(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *l
 			nqsrv_getl(nd.ni_dvp, ND_WRITE);
 			error = VOP_CREATE(nd.ni_dvp, &nd.ni_vp, &nd.ni_cnd, &va);
 			if (!error) {
+				vn_lock(nd.ni_vp, LK_EXCLUSIVE | LK_RETRY);
 				if (exclusive_flag) {
 					exclusive_flag = 0;
 					vattr_null(&va);
@@ -1540,7 +1541,9 @@ nfsrv_create(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *l
 			nqsrv_getl(nd.ni_dvp, ND_WRITE);
 			error = VOP_MKNOD(nd.ni_dvp, &nd.ni_vp, &nd.ni_cnd,
 			    &va);
-			if (error) {
+			if (!error) {
+				vn_lock(nd.ni_vp, LK_EXCLUSIVE | LK_RETRY);
+			} else {
 				nfsm_reply(0);
 			}
 		} else {
@@ -1549,7 +1552,6 @@ nfsrv_create(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *l
 				pathbuf_destroy(nd.ni_pathbuf);
 				nd.ni_pathbuf = NULL;
 			}
-			vput(nd.ni_dvp);
 			error = ENXIO;
 			abort = 0;
 		}
@@ -1561,10 +1563,6 @@ nfsrv_create(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *l
 			nd.ni_pathbuf = NULL;
 		}
 		vp = nd.ni_vp;
-		if (nd.ni_dvp == vp)
-			vrele(nd.ni_dvp);
-		else
-			vput(nd.ni_dvp);
 		abort = 0;
 		if (!error && va.va_size != -1) {
 			error = nfsrv_access(vp, VWRITE, cred,
@@ -1586,6 +1584,10 @@ nfsrv_create(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *l
 			error = VOP_GETATTR(vp, &va, cred);
 		vput(vp);
 	}
+	if (nd.ni_dvp == vp)
+		vrele(nd.ni_dvp);
+	else
+		vput(nd.ni_dvp);
 	if (v3) {
 		if (exclusive_flag && !error) {
 			/*
@@ -1721,10 +1723,6 @@ nfsrv_mknod(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *lw
 		error = EEXIST;
 abort:
 		VOP_ABORTOP(nd.ni_dvp, &nd.ni_cnd);
-		if (nd.ni_dvp == nd.ni_vp)
-			vrele(nd.ni_dvp);
-		else
-			vput(nd.ni_dvp);
 		if (nd.ni_vp)
 			vput(nd.ni_vp);
 		if (nd.ni_pathbuf != NULL) {
@@ -1750,6 +1748,9 @@ abort:
 		if (error)
 			goto out;
 	}
+	if (!error) {
+		vn_lock(nd.ni_vp, LK_EXCLUSIVE | LK_RETRY);
+	}
 out:
 	vp = nd.ni_vp;
 	if (!error) {
@@ -1758,6 +1759,10 @@ out:
 			error = VOP_GETATTR(vp, &va, cred);
 		vput(vp);
 	}
+	if (nd.ni_dvp == nd.ni_vp)
+		vrele(nd.ni_dvp);
+	else
+		vput(nd.ni_dvp);
 	if (dirp) {
 		vn_lock(dirp, LK_SHARED | LK_RETRY);
 		diraft_ret = VOP_GETATTR(dirp, &diraft, cred);
@@ -2342,14 +2347,16 @@ abortop:
 	error = VOP_SYMLINK(nd.ni_dvp, &nd.ni_vp, &nd.ni_cnd, &va, pathcp);
 	if (!error) {
 	    if (v3) {
+		vn_lock(nd.ni_vp, LK_SHARED | LK_RETRY);
 		error = nfsrv_composefh(nd.ni_vp, &nsfh, v3);
 		if (!error)
 		    error = VOP_GETATTR(nd.ni_vp, &va, cred);
 		vput(nd.ni_vp);
 	    } else {
-		vput(nd.ni_vp);
+		vrele(nd.ni_vp);
 	    }
 	}
+	vput(nd.ni_dvp);
 out:
 	if (pathcp)
 		free(pathcp, M_TEMP);
@@ -2470,11 +2477,13 @@ nfsrv_mkdir(struct nfsrv_descript *nfsd, struct nfssvc_sock *slp, struct lwp *lw
 	error = VOP_MKDIR(nd.ni_dvp, &nd.ni_vp, &nd.ni_cnd, &va);
 	if (!error) {
 		vp = nd.ni_vp;
+		vn_lock(vp, LK_SHARED | LK_RETRY);
 		error = nfsrv_composefh(vp, &nsfh, v3);
 		if (!error)
 			error = VOP_GETATTR(vp, &va, cred);
 		vput(vp);
 	}
+	vput(nd.ni_dvp);
 out:
 	if (dirp) {
 		if (v3) {

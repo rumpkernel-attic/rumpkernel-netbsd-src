@@ -1,4 +1,4 @@
-/*	$NetBSD: v7fs_vnops.c,v 1.13 2013/11/20 23:44:23 rmind Exp $	*/
+/*	$NetBSD: v7fs_vnops.c,v 1.16 2014/02/07 15:29:22 hannken Exp $	*/
 
 /*-
  * Copyright (c) 2004, 2011 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: v7fs_vnops.c,v 1.13 2013/11/20 23:44:23 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: v7fs_vnops.c,v 1.16 2014/02/07 15:29:22 hannken Exp $");
 #if defined _KERNEL_OPT
 #include "opt_v7fs.h"
 #endif
@@ -90,7 +90,7 @@ v7fs_mode_to_d_type(v7fs_mode_t mode)
 int
 v7fs_lookup(void *v)
 {
-	struct vop_lookup_args /* {
+	struct vop_lookup_v2_args /* {
 				  struct vnode *a_dvp;
 				  struct vnode **a_vpp;
 				  struct componentname *a_cnp;
@@ -180,6 +180,8 @@ v7fs_lookup(void *v)
 	if (isdotdot) {
 		vn_lock(dvp, LK_EXCLUSIVE | LK_RETRY);
 	}
+	if (vpp != dvp)
+		VOP_UNLOCK(vpp);
 	*a->a_vpp = vpp;
 	DPRINTF("done.(%s)\n", name);
 
@@ -189,7 +191,7 @@ v7fs_lookup(void *v)
 int
 v7fs_create(void *v)
 {
-	struct vop_create_args /* {
+	struct vop_create_v3_args /* {
 				  struct vnode *a_dvp;
 				  struct vnode **a_vpp;
 				  struct componentname *a_cnp;
@@ -219,7 +221,7 @@ v7fs_create(void *v)
 	if ((error = v7fs_file_allocate(fs, &parent_node->inode,
 		    a->a_cnp->cn_nameptr, &attr, &ino))) {
 		DPRINTF("v7fs_file_allocate failed.\n");
-		goto unlock_exit;
+		return error;
 	}
 	/* Sync dirent size change. */
 	uvm_vnp_setsize(a->a_dvp, v7fs_inode_filesize(&parent_node->inode));
@@ -228,7 +230,7 @@ v7fs_create(void *v)
 	*a->a_vpp = 0;
 	if ((error = v7fs_vget(mp, ino, a->a_vpp))) {
 		DPRINTF("v7fs_vget failed.\n");
-		goto unlock_exit;
+		return error;
 	}
 
 	/* Scheduling update time. real update by v7fs_update */
@@ -238,9 +240,8 @@ v7fs_create(void *v)
 	newnode->update_atime = true;
 	DPRINTF("allocated %s->#%d\n", a->a_cnp->cn_nameptr, ino);
 
-unlock_exit:
-	/* unlock parent directory */
-	vput(a->a_dvp);	/* locked at v7fs_lookup(); */
+	if (error == 0)
+		VOP_UNLOCK(*a->a_vpp);
 
 	return error;
 }
@@ -248,7 +249,7 @@ unlock_exit:
 int
 v7fs_mknod(void *v)
 {
-	struct vop_mknod_args /* {
+	struct vop_mknod_v3_args /* {
 				 struct vnode		*a_dvp;
 				 struct vnode		**a_vpp;
 				 struct componentname	*a_cnp;
@@ -277,21 +278,21 @@ v7fs_mknod(void *v)
 
 	if ((error = v7fs_file_allocate(fs, &parent_node->inode,
 	    cnp->cn_nameptr, &attr, &ino)))
-		goto unlock_exit;
+		return error;
 	/* Sync dirent size change. */
 	uvm_vnp_setsize(dvp, v7fs_inode_filesize(&parent_node->inode));
 
 	if ((error = v7fs_vget(mp, ino, a->a_vpp))) {
 		DPRINTF("can't get vnode.\n");
-		goto unlock_exit;
+		return error;
 	}
 	struct v7fs_node *newnode = (*a->a_vpp)->v_data;
 	newnode->update_ctime = true;
 	newnode->update_mtime = true;
 	newnode->update_atime = true;
 
-unlock_exit:
-	vput(dvp);
+	if (error == 0)
+		VOP_UNLOCK(*a->a_vpp);
 
 	return error;
 }
@@ -810,7 +811,7 @@ out:
 int
 v7fs_mkdir(void *v)
 {
-	struct vop_mkdir_args /* {
+	struct vop_mkdir_v3_args /* {
 				 struct vnode		*a_dvp;
 				 struct vnode		**a_vpp;
 				 struct componentname	*a_cnp;
@@ -836,7 +837,7 @@ v7fs_mkdir(void *v)
 
 	if ((error = v7fs_file_allocate(fs, &parent_node->inode,
 	    cnp->cn_nameptr, &attr, &ino)))
-		goto unlock_exit;
+		return error;
 	/* Sync dirent size change. */
 	uvm_vnp_setsize(dvp, v7fs_inode_filesize(&parent_node->inode));
 
@@ -848,8 +849,8 @@ v7fs_mkdir(void *v)
 	newnode->update_mtime = true;
 	newnode->update_atime = true;
 
-unlock_exit:
-	vput(dvp);
+	if (error == 0)
+		VOP_UNLOCK(*a->a_vpp);
 
 	return error;
 }
@@ -1235,7 +1236,7 @@ v7fs_update(struct vnode *vp, const struct timespec *acc,
 int
 v7fs_symlink(void *v)
 {
-	struct vop_symlink_args /* {
+	struct vop_symlink_v3_args /* {
 				   struct vnode		*a_dvp;
 				   struct vnode		**a_vpp;
 				   struct componentname	*a_cnp;
@@ -1267,7 +1268,7 @@ v7fs_symlink(void *v)
 
 	if ((error = v7fs_file_allocate
 		(fs, &parent_node->inode, to, &attr, &ino))) {
-		goto unlock_exit;
+		return error;
 	}
 	/* Sync dirent size change. */
 	uvm_vnp_setsize(a->a_dvp, v7fs_inode_filesize(&parent_node->inode));
@@ -1285,9 +1286,9 @@ v7fs_symlink(void *v)
 	newnode->update_ctime = true;
 	newnode->update_mtime = true;
 	newnode->update_atime = true;
-unlock_exit:
-	/* unlock parent directory */
-	vput(a->a_dvp);
+
+	if (error == 0)
+		VOP_UNLOCK(*a->a_vpp);
 
 	return error;
 }

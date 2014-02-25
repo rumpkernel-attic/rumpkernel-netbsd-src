@@ -1,4 +1,4 @@
-/*	$NetBSD: cpufunc.c,v 1.132 2013/12/20 06:48:09 matt Exp $	*/
+/*	$NetBSD: cpufunc.c,v 1.140 2014/02/21 06:28:25 matt Exp $	*/
 
 /*
  * arm7tdmi support code Copyright (c) 2001 John Fremlin
@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: cpufunc.c,v 1.132 2013/12/20 06:48:09 matt Exp $");
+__KERNEL_RCSID(0, "$NetBSD: cpufunc.c,v 1.140 2014/02/21 06:28:25 matt Exp $");
 
 #include "opt_compat_netbsd.h"
 #include "opt_cpuoptions.h"
@@ -1292,12 +1292,12 @@ struct cpu_functions cortex_cpufuncs = {
 
 	/* TLB functions */
 
-	.cf_tlb_flushID		= arm11_tlb_flushID,
+	.cf_tlb_flushID		= armv7_tlb_flushID,
 	.cf_tlb_flushID_SE	= armv7_tlb_flushID_SE,
-	.cf_tlb_flushI		= arm11_tlb_flushI,
-	.cf_tlb_flushI_SE	= arm11_tlb_flushI_SE,
-	.cf_tlb_flushD		= arm11_tlb_flushD,
-	.cf_tlb_flushD_SE	= arm11_tlb_flushD_SE,
+	.cf_tlb_flushI		= armv7_tlb_flushI,
+	.cf_tlb_flushI_SE	= armv7_tlb_flushI_SE,
+	.cf_tlb_flushD		= armv7_tlb_flushD,
+	.cf_tlb_flushD_SE	= armv7_tlb_flushD_SE,
 
 	/* Cache operations */
 
@@ -1509,7 +1509,7 @@ get_cacheinfo_clidr(struct arm_cache_info *info, u_int level, u_int clidr)
 	u_int nsets;
 
 	if (clidr & 6) {
-		csid = get_cachesize_cp15(level << 1); /* select L1 dcache values */
+		csid = get_cachesize_cp15(level << 1); /* select dcache values */
 		nsets = CPU_CSID_NUMSETS(csid) + 1;
 		info->dcache_ways = CPU_CSID_ASSOC(csid) + 1;
 		info->dcache_line_size = 1U << (CPU_CSID_LEN(csid) + 4);
@@ -1518,22 +1518,32 @@ get_cacheinfo_clidr(struct arm_cache_info *info, u_int level, u_int clidr)
 		if (level == 0) {
 			arm_dcache_log2_assoc = CPU_CSID_ASSOC(csid) + 1;
 			arm_dcache_log2_linesize = CPU_CSID_LEN(csid) + 4;
-			arm_dcache_log2_nsets = 31 - __builtin_clz(nsets);
+			arm_dcache_log2_nsets = 31 - __builtin_clz(nsets*2-1);
 		}
 	}
 
 	info->cache_unified = (clidr == 4);
 
-	if (clidr & 1) {
-		csid = get_cachesize_cp15((level << 1)|CPU_CSSR_InD); /* select L1 icache values */
+	if (level > 0) {
+		info->dcache_type = CACHE_TYPE_PIPT;
+		info->icache_type = CACHE_TYPE_PIPT;
+	}
+
+	if (info->cache_unified) {
+		info->icache_ways = info->dcache_ways;
+		info->icache_line_size = info->dcache_line_size;
+		info->icache_size = info->dcache_size;
+	} else {
+		csid = get_cachesize_cp15((level << 1)|CPU_CSSR_InD); /* select icache values */
 		nsets = CPU_CSID_NUMSETS(csid) + 1;
 		info->icache_ways = CPU_CSID_ASSOC(csid) + 1;
 		info->icache_line_size = 1U << (CPU_CSID_LEN(csid) + 4);
 		info->icache_size = info->icache_line_size * info->icache_ways * nsets;
-	} else {
-		info->icache_ways = info->dcache_ways;
-		info->icache_line_size = info->dcache_line_size;
-		info->icache_size = info->dcache_size;
+	}
+	if (level == 0
+	    && info->dcache_size / info->dcache_ways <= PAGE_SIZE
+	    && info->icache_size / info->icache_ways <= PAGE_SIZE) {
+		arm_cache_prefer_mask = 0;
 	}
 }
 #endif /* (ARM_MMU_V6 + ARM_MMU_V7) > 0 */
@@ -1561,8 +1571,19 @@ get_cachetype_cp15(void)
 	if (CPU_CT_FORMAT(ctype) == 4) {
 		u_int clidr = armreg_clidr_read();
 
-		if (CPU_CT4_L1IPOLICY(ctype) != CPU_CT4_L1_PIPT) {
+		if (CPU_CT4_L1IPOLICY(ctype) == CPU_CT4_L1_PIPT) {
+			arm_pcache.icache_type = CACHE_TYPE_PIPT;
+		} else {
+			arm_pcache.icache_type = CACHE_TYPE_VIPT;
 			arm_cache_prefer_mask = PAGE_SIZE;
+		}
+#ifdef CPU_CORTEX
+		if (CPU_ID_CORTEX_P(cpu_id())) {
+			arm_pcache.dcache_type = CACHE_TYPE_PIPT;
+		} else
+#endif
+		{
+			arm_pcache.dcache_type = CACHE_TYPE_VIPT;
 		}
 		arm_pcache.cache_type = CPU_CT_CTYPE_WB14;
 
@@ -1573,6 +1594,10 @@ get_cachetype_cp15(void)
 			get_cacheinfo_clidr(&arm_scache, 1, clidr & 7);
 			if (arm_scache.dcache_line_size < arm_dcache_align)
 				arm_dcache_align = arm_scache.dcache_line_size;
+		}
+		if (arm_pcache.dcache_type == CACHE_TYPE_PIPT
+		    && arm_pcache.icache_type == CACHE_TYPE_PIPT) {
+			arm_cache_prefer_mask = 0;
 		}
 		goto out;
 	}
@@ -1600,6 +1625,7 @@ get_cachetype_cp15(void)
 			arm_pcache.icache_ways = multiplier <<
 			    (CPU_CT_xSIZE_ASSOC(isize) - 1);
 #if (ARM_MMU_V6 + ARM_MMU_V7) > 0
+			arm_pcache.icache_type = CACHE_TYPE_VIPT;
 			if (CPU_CT_xSIZE_P & isize)
 				arm_cache_prefer_mask |=
 				    __BIT(9 + CPU_CT_xSIZE_SIZE(isize)
@@ -1621,11 +1647,14 @@ get_cachetype_cp15(void)
 	} else {
 		arm_pcache.dcache_ways = multiplier <<
 		    (CPU_CT_xSIZE_ASSOC(dsize) - 1);
-#if (ARM_MMU_V6 + ARM_MMU_V7) > 0
-		if (CPU_CT_xSIZE_P & dsize)
+#if (ARM_MMU_V6) > 0
+		arm_pcache.dcache_type = CACHE_TYPE_VIPT;
+		if ((CPU_CT_xSIZE_P & dsize)
+		    && CPU_ID_ARM11_P(curcpu()->ci_arm_cpuid)) {
 			arm_cache_prefer_mask |=
 			    __BIT(9 + CPU_CT_xSIZE_SIZE(dsize)
 				  - CPU_CT_xSIZE_ASSOC(dsize)) - PAGE_SIZE;
+		}
 #endif
 	}
 	arm_pcache.dcache_size = multiplier << (CPU_CT_xSIZE_SIZE(dsize) + 8);
@@ -1638,6 +1667,9 @@ get_cachetype_cp15(void)
 	    CPU_CT_xSIZE_ASSOC(dsize) - CPU_CT_xSIZE_LEN(dsize);
 
  out:
+	KASSERTMSG(arm_dcache_align <= CACHE_LINE_SIZE,
+	    "arm_dcache_align=%u CACHE_LINE_SIZE=%u",
+	    arm_dcache_align, CACHE_LINE_SIZE);
 	arm_dcache_align_mask = arm_dcache_align - 1;
 }
 #endif /* ARM7TDMI || ARM8 || ARM9 || XSCALE */
@@ -2568,17 +2600,18 @@ struct cpu_option arm6_options[] = {
 void
 arm6_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
 	/* Set up default control registers bits */
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IDC_ENABLE | CPU_CONTROL_WBUF_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+#if 0
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IDC_ENABLE | CPU_CONTROL_WBUF_ENABLE
 		 | CPU_CONTROL_ROM_ENABLE | CPU_CONTROL_BEND_ENABLE
 		 | CPU_CONTROL_AFLT_ENABLE;
+#endif
 
 #ifdef ARM6_LATE_ABORT
 	cpuctrl |= CPU_CONTROL_LABT_ENABLE;
@@ -2620,17 +2653,18 @@ struct cpu_option arm7_options[] = {
 void
 arm7_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IDC_ENABLE | CPU_CONTROL_WBUF_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+#if 0
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IDC_ENABLE | CPU_CONTROL_WBUF_ENABLE
 		 | CPU_CONTROL_CPCLK | CPU_CONTROL_LABT_ENABLE
 		 | CPU_CONTROL_ROM_ENABLE | CPU_CONTROL_BEND_ENABLE
 		 | CPU_CONTROL_AFLT_ENABLE;
+#endif
 
 #ifndef ARM32_DISABLE_ALIGNMENT_FAULTS
 	cpuctrl |= CPU_CONTROL_AFLT_ENABLE;
@@ -2708,18 +2742,19 @@ void
 arm8_setup(char *args)
 {
 	int integer;
-	int cpuctrl, cpuctrlmask;
 	int clocktest;
 	int setclock = 0;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IDC_ENABLE | CPU_CONTROL_WBUF_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+#if 0
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IDC_ENABLE | CPU_CONTROL_WBUF_ENABLE
 		 | CPU_CONTROL_BPRD_ENABLE | CPU_CONTROL_ROM_ENABLE
 		 | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE;
+#endif
 
 #ifndef ARM32_DISABLE_ALIGNMENT_FAULTS
 	cpuctrl |= CPU_CONTROL_AFLT_ENABLE;
@@ -2792,13 +2827,12 @@ struct cpu_option arm9_options[] = {
 void
 arm9_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 	    | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_WBUF_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_ROM_ENABLE
@@ -2847,13 +2881,12 @@ struct cpu_option arm10_options[] = {
 void
 arm10_setup(char *args)
 {
-	int cpuctrl;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_BPRD_ENABLE;
 #if 0
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_ROM_ENABLE
 	    | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE
@@ -2906,12 +2939,11 @@ struct cpu_option arm11_options[] = {
 void
 arm11_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    /* | CPU_CONTROL_BPRD_ENABLE */;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_ROM_ENABLE | CPU_CONTROL_BPRD_ENABLE
 	    | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE
@@ -2955,12 +2987,11 @@ arm11_setup(char *args)
 void
 arm11mpcore_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-	cpuctrl = CPU_CONTROL_IC_ENABLE
+	int cpuctrl = CPU_CONTROL_IC_ENABLE
 	    | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_BPRD_ENABLE ;
-	cpuctrlmask = CPU_CONTROL_IC_ENABLE
+	int cpuctrlmask = CPU_CONTROL_IC_ENABLE
 	    | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_BPRD_ENABLE
 	    | CPU_CONTROL_AFLT_ENABLE
@@ -3050,23 +3081,19 @@ struct cpu_option armv7_options[] = {
 void
 armv7_setup(char *args)
 {
-	int cpuctrl;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_IC_ENABLE
-	    | CPU_CONTROL_DC_ENABLE | CPU_CONTROL_BPRD_ENABLE ;
-#if 0
-	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
-	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
-	    | CPU_CONTROL_ROM_ENABLE | CPU_CONTROL_BPRD_ENABLE
-	    | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE
-	    | CPU_CONTROL_ROUNDROBIN | CPU_CONTROL_CPCLK;
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_IC_ENABLE
+	    | CPU_CONTROL_DC_ENABLE | CPU_CONTROL_BPRD_ENABLE
+#ifdef __ARMEB__
+	    | CPU_CONTROL_EX_BEND
 #endif
+#ifndef ARM32_DISABLE_ALIGNMENT_FAULTS
+	    | CPU_CONTROL_AFLT_ENABLE;
+#endif
+	    | CPU_CONTROL_UNAL_ENABLE;
 
-#ifdef ARM32_DISABLE_ALIGNMENT_FAULTS
-	cpuctrl |= CPU_CONTROL_UNAL_ENABLE;
-#else
-	cpuctrl |= CPU_CONTROL_AFLT_ENABLE;
-#endif
+	int cpuctrlmask = cpuctrl | CPU_CONTROL_AFLT_ENABLE;
+
 
 	cpuctrl = parse_cpu_options(args, armv7_options, cpuctrl);
 
@@ -3080,7 +3107,7 @@ armv7_setup(char *args)
 
 	/* Set the control register */
 	curcpu()->ci_ctrl = cpuctrl;
-	cpu_control(0xffffffff, cpuctrl);
+	cpu_control(cpuctrlmask, cpuctrl);
 }
 #endif /* CPU_CORTEX */
 
@@ -3210,7 +3237,7 @@ sa110_setup(char *args)
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE;
-#ifdef notyet
+#if 0
 	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
@@ -3240,7 +3267,7 @@ sa110_setup(char *args)
 
 	/* Set the control register */
 	curcpu()->ci_ctrl = cpuctrl;
-#ifdef notyet
+#if 0
 	cpu_control(cpuctrlmask, cpuctrl);
 #endif
 	cpu_control(0xffffffff, cpuctrl);
@@ -3249,7 +3276,7 @@ sa110_setup(char *args)
 	 * enable clockswitching, note that this doesn't read or write to r0,
 	 * r0 is just to make it valid asm
 	 */
-	__asm ("mcr 15, 0, r0, c15, c1, 2");
+	__asm volatile ("mcr p15, 0, r0, c15, c1, 2");
 }
 #endif	/* CPU_SA110 */
 
@@ -3273,19 +3300,20 @@ struct cpu_option sa11x0_options[] = {
 void
 sa11x0_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_LABT_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+#if 0
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_ROM_ENABLE
 		 | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE
 		 | CPU_CONTROL_LABT_ENABLE | CPU_CONTROL_BPRD_ENABLE
 		 | CPU_CONTROL_CPCLK | CPU_CONTROL_VECRELOC;
+#endif
 
 #ifndef ARM32_DISABLE_ALIGNMENT_FAULTS
 	cpuctrl |= CPU_CONTROL_AFLT_ENABLE;
@@ -3327,19 +3355,20 @@ struct cpu_option fa526_options[] = {
 void
 fa526_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_LABT_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+#if 0
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_ROM_ENABLE
 		 | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE
 		 | CPU_CONTROL_LABT_ENABLE | CPU_CONTROL_BPRD_ENABLE
 		 | CPU_CONTROL_CPCLK | CPU_CONTROL_VECRELOC;
+#endif
 
 #ifndef ARM32_DISABLE_ALIGNMENT_FAULTS
 	cpuctrl |= CPU_CONTROL_AFLT_ENABLE;
@@ -3381,14 +3410,12 @@ struct cpu_option ixp12x0_options[] = {
 void
 ixp12x0_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 
-
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_DC_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE;
 
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_AFLT_ENABLE
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_AFLT_ENABLE
 		 | CPU_CONTROL_DC_ENABLE | CPU_CONTROL_WBUF_ENABLE
 		 | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_ROM_ENABLE | CPU_CONTROL_IC_ENABLE
@@ -3440,7 +3467,6 @@ void
 xscale_setup(char *args)
 {
 	uint32_t auxctl;
-	int cpuctrl;
 
 	/*
 	 * The XScale Write Buffer is always enabled.  Our option
@@ -3448,7 +3474,7 @@ xscale_setup(char *args)
 	 * must always be enabled.
 	 */
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_32BP_ENABLE
 		 | CPU_CONTROL_32BD_ENABLE | CPU_CONTROL_SYST_ENABLE
 		 | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 		 | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_LABT_ENABLE
@@ -3486,7 +3512,9 @@ xscale_setup(char *args)
 	 * be set to 1.
 	 */
 	curcpu()->ci_ctrl = cpuctrl;
-/*	cpu_control(cpuctrlmask, cpuctrl);*/
+#if 0
+	cpu_control(cpuctrlmask, cpuctrl);
+#endif
 	cpu_control(0xffffffff, cpuctrl);
 
 	/* Make sure write coalescing is turned on */
@@ -3518,18 +3546,19 @@ struct cpu_option sheeva_options[] = {
 void
 sheeva_setup(char *args)
 {
-	int cpuctrl, cpuctrlmask;
 	uint32_t sheeva_ext;
 
-	cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
+	int cpuctrl = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_BPRD_ENABLE;
-	cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
+#if 0
+	int cpuctrlmask = CPU_CONTROL_MMU_ENABLE | CPU_CONTROL_SYST_ENABLE
 	    | CPU_CONTROL_IC_ENABLE | CPU_CONTROL_DC_ENABLE
 	    | CPU_CONTROL_WBUF_ENABLE | CPU_CONTROL_ROM_ENABLE
 	    | CPU_CONTROL_BEND_ENABLE | CPU_CONTROL_AFLT_ENABLE
 	    | CPU_CONTROL_BPRD_ENABLE
 	    | CPU_CONTROL_ROUNDROBIN | CPU_CONTROL_CPCLK;
+#endif
 
 #ifndef ARM32_DISABLE_ALIGNMENT_FAULTS
 	cpuctrl |= CPU_CONTROL_AFLT_ENABLE;

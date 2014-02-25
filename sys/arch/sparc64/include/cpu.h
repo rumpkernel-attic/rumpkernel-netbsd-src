@@ -1,4 +1,4 @@
-/*	$NetBSD: cpu.h,v 1.106 2013/12/16 20:17:35 palle Exp $ */
+/*	$NetBSD: cpu.h,v 1.110 2014/02/21 18:00:09 palle Exp $ */
 
 /*
  * Copyright (c) 1992, 1993
@@ -173,6 +173,12 @@ struct cpu_info {
 	 */
 	pte_t			*ci_tsb_dmmu;
 	pte_t			*ci_tsb_immu;
+
+	/* MMU Fault Status Area (sun4v).
+	 * Will be initialized to the physical address of the bottom of
+	 * the interrupt stack.
+	 */
+	paddr_t			ci_mmfsa;
 
 	/* probe fault in PCI config space reads */
 	bool			ci_pci_probe;
@@ -375,6 +381,7 @@ void	loadfpstate(struct fpstate64 *);
 void	clearfpstate(void);
 uint64_t	probeget(paddr_t, int, int);
 int	probeset(paddr_t, int, int, uint64_t);
+void	setcputyp(int);
 
 #define	 write_all_windows() __asm volatile("flushw" : : )
 #define	 write_user_windows() __asm volatile("flushw" : : )

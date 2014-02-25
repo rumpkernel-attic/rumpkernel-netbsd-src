@@ -1,4 +1,4 @@
-/*	$NetBSD: emul.c,v 1.160 2013/12/16 15:36:29 pooka Exp $	*/
+/*	$NetBSD: emul.c,v 1.163 2014/02/20 01:01:10 pooka Exp $	*/
 
 /*
  * Copyright (c) 2007-2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: emul.c,v 1.160 2013/12/16 15:36:29 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: emul.c,v 1.163 2014/02/20 01:01:10 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/null.h>
@@ -40,6 +40,7 @@ __KERNEL_RCSID(0, "$NetBSD: emul.c,v 1.160 2013/12/16 15:36:29 pooka Exp $");
 #include <sys/device.h>
 #include <sys/queue.h>
 #include <sys/file.h>
+#include <sys/filedesc.h>
 #include <sys/cpu.h>
 #include <sys/kmem.h>
 #include <sys/poll.h>
@@ -52,6 +53,7 @@ __KERNEL_RCSID(0, "$NetBSD: emul.c,v 1.160 2013/12/16 15:36:29 pooka Exp $");
 #include <sys/syscallvar.h>
 #include <sys/xcall.h>
 #include <sys/sleepq.h>
+#include <sys/cprng.h>
 
 #include <dev/cons.h>
 
@@ -72,7 +74,11 @@ int physmem = PHYSMEM;
 int nkmempages = PHYSMEM/2; /* from le chapeau */
 #undef PHYSMEM
 
-struct lwp lwp0;
+struct lwp lwp0 = {
+	.l_lid = 1,
+	.l_proc = &proc0,
+	.l_fd = &filedesc0,
+};
 struct vnode *rootvp;
 dev_t rootdev = NODEV;
 
@@ -139,6 +145,8 @@ struct emul emul_netbsd = {
 };
 
 u_int nprocs = 1;
+
+cprng_strong_t *kern_cprng;
 
 int
 kpause(const char *wmesg, bool intr, int timeo, kmutex_t *mtx)
@@ -270,6 +278,13 @@ cnflush(void)
 {
 
 	/* done */
+}
+
+void
+resettodr(void)
+{
+
+	/* setting clocks is not in the jurisdiction of rump kernels */
 }
 
 #ifdef __HAVE_SYSCALL_INTERN

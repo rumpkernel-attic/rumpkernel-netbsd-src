@@ -1,4 +1,4 @@
-/*	$NetBSD: umap_vfsops.c,v 1.88 2012/04/30 22:51:28 rmind Exp $	*/
+/*	$NetBSD: umap_vfsops.c,v 1.90 2014/02/25 18:30:12 pooka Exp $	*/
 
 /*
  * Copyright (c) 1992, 1993
@@ -41,7 +41,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: umap_vfsops.c,v 1.88 2012/04/30 22:51:28 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: umap_vfsops.c,v 1.90 2014/02/25 18:30:12 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -205,28 +205,27 @@ umapfs_mount(struct mount *mp, const char *path, void *data, size_t *data_len)
 	/*
 	 * fix up umap node for root vnode.
 	 */
+	VOP_UNLOCK(lowerrootvp);
 	error = layer_node_create(mp, lowerrootvp, &vp);
 	/*
 	 * Make sure the node alias worked
 	 */
 	if (error) {
-		vput(lowerrootvp);
+		vrele(lowerrootvp);
 		hashdone(amp->umapm_node_hashtbl, HASH_LIST,
 		    amp->umapm_node_hash);
 		kmem_free(amp, sizeof(struct umap_mount));
 		return error;
 	}
-	/*
-	 * Unlock the node (either the lower or the alias)
-	 */
-	vp->v_vflag |= VV_ROOT;
-	VOP_UNLOCK(vp);
 
 	/*
 	 * Keep a held reference to the root vnode.
 	 * It is vrele'd in umapfs_unmount.
 	 */
+	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
+	vp->v_vflag |= VV_ROOT;
 	amp->umapm_rootvp = vp;
+	VOP_UNLOCK(vp);
 
 	error = set_statvfs_info(path, UIO_USERSPACE, args->umap_target,
 	    UIO_USERSPACE, mp->mnt_op->vfs_name, mp, l);
@@ -322,11 +321,6 @@ umap_modcmd(modcmd_t cmd, void *arg)
 		error = vfs_attach(&umapfs_vfsops);
 		if (error != 0)
 			break;
-		sysctl_createv(&umapfs_sysctl_log, 0, NULL, NULL,
-			       CTLFLAG_PERMANENT,
-			       CTLTYPE_NODE, "vfs", NULL,
-			       NULL, 0, NULL, 0,
-			       CTL_VFS, CTL_EOL);
 		sysctl_createv(&umapfs_sysctl_log, 0, NULL, NULL,
 			       CTLFLAG_PERMANENT,
 			       CTLTYPE_NODE, "umap",

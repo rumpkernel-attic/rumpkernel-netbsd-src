@@ -1,4 +1,4 @@
-/*	$NetBSD: rump.c,v 1.281 2013/12/16 15:36:30 pooka Exp $	*/
+/*	$NetBSD: rump.c,v 1.286 2014/02/25 18:30:13 pooka Exp $	*/
 
 /*
  * Copyright (c) 2007-2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rump.c,v 1.281 2013/12/16 15:36:30 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rump.c,v 1.286 2014/02/25 18:30:13 pooka Exp $");
 
 #include <sys/systm.h>
 #define ELFSIZE ARCH_ELFSIZE
@@ -168,22 +168,7 @@ static void
 mksysctls(void)
 {
 
-	/* kern.hostname */
-	sysctl_createv(NULL, 0, NULL, NULL,
-	    CTLFLAG_PERMANENT, CTLTYPE_NODE, "kern", NULL,
-	    NULL, 0, NULL, 0, CTL_KERN, CTL_EOL);
-	/* XXX: setting hostnamelen is missing */
-	sysctl_createv(NULL, 0, NULL, NULL,
-	    CTLFLAG_PERMANENT|CTLFLAG_READWRITE, CTLTYPE_STRING, "hostname",
-	    SYSCTL_DESCR("System hostname"), NULL, 0,
-	    hostname, MAXHOSTNAMELEN, CTL_KERN, KERN_HOSTNAME, CTL_EOL);
-
 	/* hw.pagesize */
-	sysctl_createv(NULL, 0, NULL, NULL,
-	    CTLFLAG_PERMANENT,
-	    CTLTYPE_NODE, "hw", NULL,
-	    NULL, 0, NULL, 0,
-	    CTL_HW, CTL_EOL);
 	sysctl_createv(NULL, 0, NULL, NULL,
 	    CTLFLAG_PERMANENT|CTLFLAG_IMMEDIATE,
 	    CTLTYPE_INT, "pagesize",
@@ -271,9 +256,7 @@ rump_init(void)
 
 	/* init minimal lwp/cpu context */
 	l = &lwp0;
-	l->l_lid = 1;
 	l->l_cpu = l->l_target_cpu = rump_cpu;
-	l->l_fd = &filedesc0;
 
 	/* lwp0 isn't created like other threads, so notify hypervisor here */
 	rumpuser_curlwpop(RUMPUSER_LWP_CREATE, l);
@@ -336,19 +319,16 @@ rump_init(void)
 	kauth_init();
 
 	secmodel_init();
+	sysctl_init();
 
 	rnd_init();
-
-	/*
-	 * Create the kernel cprng.  Yes, it's currently stubbed out
-	 * to arc4random() for RUMP, but this won't always be so.
-	 */
+	cprng_init();
 	kern_cprng = cprng_strong_create("kernel", IPL_VM,
-					 CPRNG_INIT_ANY|CPRNG_REKEY_ANY);
+	    CPRNG_INIT_ANY|CPRNG_REKEY_ANY);
+	rump_hyperentropy_init();
 
 	procinit();
 	proc0_init();
-	sysctl_init();
 	uid_init();
 	chgproccnt(0, 1);
 
@@ -403,6 +383,8 @@ rump_init(void)
 
 	/* CPUs are up.  allow kernel threads to run */
 	rump_thread_allow();
+
+	rnd_init_softint();
 
 	mksysctls();
 	kqueue_init();

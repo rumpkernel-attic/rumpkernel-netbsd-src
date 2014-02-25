@@ -1,4 +1,4 @@
-/*	$NetBSD: procfs_machdep.c,v 1.1 2010/07/08 11:25:00 rmind Exp $ */
+/*	$NetBSD: procfs_machdep.c,v 1.3 2014/02/12 23:24:09 dsl Exp $ */
 
 /*
  * Copyright (c) 2001 Wasabi Systems, Inc.
@@ -42,7 +42,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: procfs_machdep.c,v 1.1 2010/07/08 11:25:00 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: procfs_machdep.c,v 1.3 2014/02/12 23:24:09 dsl Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -56,7 +56,6 @@ __KERNEL_RCSID(0, "$NetBSD: procfs_machdep.c,v 1.1 2010/07/08 11:25:00 rmind Exp
 #include <machine/reg.h>
 #include <machine/specialreg.h>
 
-extern int	i386_fpu_present, i386_fpu_exception, i386_fpu_fdivbug;
 extern char	cpu_model[];
 
 static const char * const x86_features[] = {
@@ -210,19 +209,12 @@ procfs_getonecpu(int xcpu, struct cpu_info *ci, char *bf, int *len)
 	l = snprintf(p, left,
 	    "fdiv_bug\t: %s\n"
 	    "fpu\t\t: %s\n"
-	    "fpu_exception\t: %s\n"
+	    "fpu_exception\t: yes\n"
 	    "cpuid level\t: %d\n"
 	    "wp\t\t: %s\n"
 	    "flags\t\t: %s\n",
-#ifdef __x86_64__
-	    "no",	/* XXX */
-	    "yes",	/* XXX */
-	    "yes",	/* XXX */
-#else
-	    i386_fpu_fdivbug ? "yes" : "no",
-	    i386_fpu_present ? "yes" : "no",
-	    i386_fpu_exception ? "yes" : "no",
-#endif
+	    i386_fpu_fdivbug ? "yes" : "no",	/* an old pentium */
+	    i386_fpu_present ? "yes" : "no",	/* not a 486SX */
 	    cpuid_level,
 	    (rcr0() & CR0_WP) ? "yes" : "no",
 	    featurebuf

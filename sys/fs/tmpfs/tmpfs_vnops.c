@@ -1,4 +1,4 @@
-/*	$NetBSD: tmpfs_vnops.c,v 1.111 2014/01/03 09:53:12 hannken Exp $	*/
+/*	$NetBSD: tmpfs_vnops.c,v 1.117 2014/02/17 20:16:52 maxv Exp $	*/
 
 /*
  * Copyright (c) 2005, 2006, 2007 The NetBSD Foundation, Inc.
@@ -35,7 +35,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: tmpfs_vnops.c,v 1.111 2014/01/03 09:53:12 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: tmpfs_vnops.c,v 1.117 2014/02/17 20:16:52 maxv Exp $");
 
 #include <sys/param.h>
 #include <sys/dirent.h>
@@ -124,7 +124,7 @@ const struct vnodeopv_desc tmpfs_vnodeop_opv_desc = {
 int
 tmpfs_lookup(void *v)
 {
-	struct vop_lookup_args /* {
+	struct vop_lookup_v2_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -171,10 +171,10 @@ tmpfs_lookup(void *v)
 	if (cachefound && *vpp == NULLVP) {
 		/* Negative cache hit. */
 		error = ENOENT;
-		goto out;
+		goto out_unlocked;
 	} else if (cachefound) {
 		error = 0;
-		goto out;
+		goto out_unlocked;
 	}
 
 	/*
@@ -302,7 +302,9 @@ done:
 			    cnp->cn_flags);
 	}
 out:
-	KASSERT((*vpp && VOP_ISLOCKED(*vpp)) || error);
+	if (error == 0 && *vpp != dvp)
+		VOP_UNLOCK(*vpp);
+out_unlocked:
 	KASSERT(VOP_ISLOCKED(dvp));
 
 	return error;
@@ -311,7 +313,7 @@ out:
 int
 tmpfs_create(void *v)
 {
-	struct vop_create_args /* {
+	struct vop_create_v3_args /* {
 		struct vnode		*a_dvp;
 		struct vnode		**a_vpp;
 		struct componentname	*a_cnp;
@@ -329,7 +331,7 @@ tmpfs_create(void *v)
 int
 tmpfs_mknod(void *v)
 {
-	struct vop_mknod_args /* {
+	struct vop_mknod_v3_args /* {
 		struct vnode		*a_dvp;
 		struct vnode		**a_vpp;
 		struct componentname	*a_cnp;
@@ -532,10 +534,10 @@ tmpfs_read(void *v)
 
 	KASSERT(VOP_ISLOCKED(vp));
 
-	if (vp->v_type != VREG) {
+	if (vp->v_type == VDIR) {
 		return EISDIR;
 	}
-	if (uio->uio_offset < 0) {
+	if (uio->uio_offset < 0 || vp->v_type != VREG) {
 		return EINVAL;
 	}
 
@@ -804,7 +806,7 @@ out:
 int
 tmpfs_mkdir(void *v)
 {
-	struct vop_mkdir_args /* {
+	struct vop_mkdir_v3_args /* {
 		struct vnode		*a_dvp;
 		struct vnode		**a_vpp;
 		struct componentname	*a_cnp;
@@ -837,7 +839,6 @@ tmpfs_rmdir(void *v)
 
 	KASSERT(VOP_ISLOCKED(dvp));
 	KASSERT(VOP_ISLOCKED(vp));
-	KASSERT(node->tn_spec.tn_dir.tn_parent == dnode);
 
 	/*
 	 * Directories with more than two entries ('.' and '..') cannot be
@@ -860,6 +861,8 @@ tmpfs_rmdir(void *v)
 		}
 		KASSERT(error == 0);
 	}
+
+	KASSERT(node->tn_spec.tn_dir.tn_parent == dnode);
 
 	/* Lookup the directory entry (check the cached hint first). */
 	de = tmpfs_dir_cached(node);
@@ -915,7 +918,7 @@ out:
 int
 tmpfs_symlink(void *v)
 {
-	struct vop_symlink_args /* {
+	struct vop_symlink_v3_args /* {
 		struct vnode		*a_dvp;
 		struct vnode		**a_vpp;
 		struct componentname	*a_cnp;

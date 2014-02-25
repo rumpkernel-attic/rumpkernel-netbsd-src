@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile,v 1.70 2013/12/11 01:24:08 joerg Exp $
+#	$NetBSD: Makefile,v 1.72 2014/01/16 17:24:56 christos Exp $
 
 HOSTLIB=	nbcompat
 
@@ -17,10 +17,12 @@ SRCS=		atoll.c basename.c cdbr.c cdbw.c dirname.c \
 		setenv.c setgroupent.c \
 		setpassent.c setprogname.c sha1.c sha1hl.c sha2.c \
 		sha256hl.c sha384hl.c sha512hl.c snprintb.c snprintf.c \
-		stat_flags.c strlcat.c strlcpy.c strmode.c strndup.c \
+		stat_flags.c strlcat.c strlcpy.c strmode.c \
+		strndup.c strnlen.c \
 		strsep.c strsuftoll.c strtoll.c \
-		unvis.c vis.c err.c errx.c verr.c verrx.c \
-		vwarn.c vwarnx.c warn.c warnx.c fts.c glob.c efun.c
+		unvis.c vis.c err.c errx.c errc.c verr.c verrx.c verrc.c \
+		vwarn.c vwarnx.c vwarnc.c warn.c warnx.c warnc.c \
+		fts.c glob.c efun.c
 
 BUILD_OSTYPE!=  uname -s
 

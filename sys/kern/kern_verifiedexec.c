@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_verifiedexec.c,v 1.131 2013/11/27 17:24:44 christos Exp $	*/
+/*	$NetBSD: kern_verifiedexec.c,v 1.133 2014/02/25 18:30:11 pooka Exp $	*/
 
 /*-
  * Copyright (c) 2005, 2006 Elad Efrat <elad@NetBSD.org>
@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_verifiedexec.c,v 1.131 2013/11/27 17:24:44 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_verifiedexec.c,v 1.133 2014/02/25 18:30:11 pooka Exp $");
 
 #include "opt_veriexec.h"
 
@@ -199,16 +199,10 @@ SYSCTL_SETUP(sysctl_kern_veriexec_setup, "sysctl kern.veriexec setup")
 
 	sysctl_createv(clog, 0, NULL, &rnode,
 		       CTLFLAG_PERMANENT,
-		       CTLTYPE_NODE, "kern", NULL,
-		       NULL, 0, NULL, 0,
-		       CTL_KERN, CTL_EOL);
-
-	sysctl_createv(clog, 0, &rnode, &rnode,
-		       CTLFLAG_PERMANENT,
 		       CTLTYPE_NODE, "veriexec",
 		       SYSCTL_DESCR("Veriexec"),
 		       NULL, 0, NULL, 0,
-		       CTL_CREATE, CTL_EOL);
+		       CTL_KERN, CTL_CREATE, CTL_EOL);
 
 	sysctl_createv(clog, 0, &rnode, NULL,
 		       CTLFLAG_PERMANENT|CTLFLAG_READWRITE,
@@ -1309,18 +1303,6 @@ veriexec_file_add(struct lwp *l, prop_dictionary_t dict)
 	vfe->npages = 0;
 	vfe->last_page_size = 0;
 
-	vte = veriexec_table_lookup(vp->v_mount);
-	if (vte == NULL)
-		vte = veriexec_table_add(l, vp->v_mount);
-
-	/* XXX if we bail below this, we might want to gc newly created vtes. */
-
-	error = fileassoc_add(vp, veriexec_hook, vfe);
-	if (error)
-		goto unlock_out;
-
-	vte->vte_count++;
-
 	if (prop_bool_true(prop_dictionary_get(dict, "eval-on-load")) ||
 	    (vfe->type & VERIEXEC_UNTRUSTED)) {
 		u_char *digest;
@@ -1341,6 +1323,18 @@ veriexec_file_add(struct lwp *l, prop_dictionary_t dict)
 
 		kmem_free(digest, vfe->ops->hash_len);
 	}
+
+	vte = veriexec_table_lookup(vp->v_mount);
+	if (vte == NULL)
+		vte = veriexec_table_add(l, vp->v_mount);
+
+	/* XXX if we bail below this, we might want to gc newly created vtes. */
+
+	error = fileassoc_add(vp, veriexec_hook, vfe);
+	if (error)
+		goto unlock_out;
+
+	vte->vte_count++;
 
 	veriexec_file_report(NULL, "New entry.", file, NULL, REPORT_DEBUG);
 	veriexec_bypass = 0;

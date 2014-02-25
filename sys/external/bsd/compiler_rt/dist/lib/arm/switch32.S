@@ -34,12 +34,13 @@ DEFINE_COMPILERRT_PRIVATE_FUNCTION(__switch32)
 	ldr     ip, [lr, #-1]            // get first 32-bit word in table
 	cmp     r0, ip                   // compare with index
 	add     r0, lr, r0, lsl #2       // compute address of element in table
-	ldrcc   r0, [r0, #3]             // load 32-bit element if r0 is in range
 	add     ip, lr, ip, lsl #2       // compute address of last element in table
-	ldrcs   r0, [ip, #3]             // load 32-bit element if r0 out of range
+	ite lo
+	ldrlo   r0, [r0, #3]             // load 32-bit element if r0 is in range
+	ldrhs   r0, [ip, #3]             // load 32-bit element if r0 out of range
 	add     ip, lr, r0               // compute label = lr + element
 	bx      ip                       // jump to computed label
-
+END_COMPILERRT_FUNCTION(__switch32)
 
 	// tell linker it can break up file at label boundaries
 	.subsections_via_symbols

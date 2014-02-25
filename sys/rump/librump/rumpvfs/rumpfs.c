@@ -1,4 +1,4 @@
-/*	$NetBSD: rumpfs.c,v 1.121 2013/11/23 13:35:36 christos Exp $	*/
+/*	$NetBSD: rumpfs.c,v 1.125 2014/02/24 11:43:33 pooka Exp $	*/
 
 /*
  * Copyright (c) 2009, 2010, 2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rumpfs.c,v 1.121 2013/11/23 13:35:36 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rumpfs.c,v 1.125 2014/02/24 11:43:33 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/atomic.h>
@@ -593,7 +593,6 @@ makevnode(struct mount *mp, struct rumpfs_node *rn, struct vnode **vpp)
 	vp->v_data = rn;
 
 	genfs_node_init(vp, &rumpfs_genfsops);
-	vn_lock(vp, LK_RETRY | LK_EXCLUSIVE);
 	mutex_enter(&reclock);
 	rn->rn_vp = vp;
 	mutex_exit(&reclock);
@@ -654,7 +653,7 @@ freedir(struct rumpfs_node *rnd, struct componentname *cnp)
 static int
 rump_vop_lookup(void *v)
 {
-	struct vop_lookup_args /* {
+	struct vop_lookup_v2_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -798,14 +797,11 @@ rump_vop_lookup(void *v)
 
  getvnode:
 	KASSERT(rn);
-	if (dotdot)
-		VOP_UNLOCK(dvp);
 	mutex_enter(&reclock);
 	if ((vp = rn->rn_vp)) {
 		mutex_enter(vp->v_interlock);
 		mutex_exit(&reclock);
-		if (vget(vp, LK_EXCLUSIVE)) {
-			vn_lock(dvp, LK_EXCLUSIVE | LK_RETRY);
+		if (vget(vp, 0)) {
 			goto getvnode;
 		}
 		*vpp = vp;
@@ -813,8 +809,6 @@ rump_vop_lookup(void *v)
 		mutex_exit(&reclock);
 		rv = makevnode(dvp->v_mount, rn, vpp);
 	}
-	if (dotdot)
-		vn_lock(dvp, LK_EXCLUSIVE | LK_RETRY);
 
 	return rv;
 }
@@ -971,7 +965,8 @@ rump_vop_setattr(void *v)
 
 	if (vp->v_type == VREG &&
 	    vap->va_size != VSIZENOTSET &&
-	    vap->va_size != rn->rn_dlen) {
+	    vap->va_size != rn->rn_dlen &&
+	    (rn->rn_flags & RUMPNODE_ET_PHONE_HOST) == 0) {
 		void *newdata;
 		size_t copylen, newlen;
 
@@ -993,7 +988,7 @@ rump_vop_setattr(void *v)
 static int
 rump_vop_mkdir(void *v)
 {
-	struct vop_mkdir_args /* {
+	struct vop_mkdir_v3_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -1012,12 +1007,10 @@ rump_vop_mkdir(void *v)
 	rn->rn_parent = rnd;
 	rv = makevnode(dvp->v_mount, rn, vpp);
 	if (rv)
-		goto out;
+		return rv;
 
 	makedir(rnd, cnp, rn);
 
- out:
-	vput(dvp);
 	return rv;
 }
 
@@ -1091,7 +1084,7 @@ rump_vop_remove(void *v)
 static int
 rump_vop_mknod(void *v)
 {
-	struct vop_mknod_args /* {
+	struct vop_mknod_v3_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -1110,19 +1103,17 @@ rump_vop_mknod(void *v)
 		rn->rn_va.va_flags |= UF_OPAQUE;
 	rv = makevnode(dvp->v_mount, rn, vpp);
 	if (rv)
-		goto out;
+		return rv;
 
 	makedir(rnd, cnp, rn);
 
- out:
-	vput(dvp);
 	return rv;
 }
 
 static int
 rump_vop_create(void *v)
 {
-	struct vop_create_args /* {
+	struct vop_create_v3_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -1143,19 +1134,17 @@ rump_vop_create(void *v)
 		rn->rn_va.va_flags |= UF_OPAQUE;
 	rv = makevnode(dvp->v_mount, rn, vpp);
 	if (rv)
-		goto out;
+		return rv;
 
 	makedir(rnd, cnp, rn);
 
- out:
-	vput(dvp);
 	return rv;
 }
 
 static int
 rump_vop_symlink(void *v)
 {
-	struct vop_symlink_args /* {
+	struct vop_symlink_v3_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -1178,7 +1167,7 @@ rump_vop_symlink(void *v)
 		rn->rn_va.va_flags |= UF_OPAQUE;
 	rv = makevnode(dvp->v_mount, rn, vpp);
 	if (rv)
-		goto out;
+		return rv;
 
 	makedir(rnd, cnp, rn);
 
@@ -1187,8 +1176,6 @@ rump_vop_symlink(void *v)
 	rn->rn_linklen = linklen;
 	strcpy(rn->rn_linktarg, target);
 
- out:
-	vput(dvp);
 	return rv;
 }
 
@@ -1769,7 +1756,6 @@ rumpfs_mountfs(struct mount *mp)
 		return error;
 
 	rfsmp->rfsmp_rvp->v_vflag |= VV_ROOT;
-	VOP_UNLOCK(rfsmp->rfsmp_rvp);
 
 	mp->mnt_data = rfsmp;
 	mp->mnt_stat.f_namemax = RUMPFS_MAXNAMLEN;

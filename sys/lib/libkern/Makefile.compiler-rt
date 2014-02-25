@@ -1,4 +1,4 @@
-# $NetBSD: Makefile.compiler-rt,v 1.1 2013/12/03 16:15:22 joerg Exp $
+# $NetBSD: Makefile.compiler-rt,v 1.3 2014/01/29 22:30:24 joerg Exp $
 
 COMPILER_RT_SRCDIR=	${NETBSDSRCDIR}/sys/external/bsd/compiler_rt/dist
 
@@ -81,12 +81,14 @@ GENERIC_SRCS+= \
 	umodti3.c
 
 .if ${MACHINE_CPU} == "arm"
-.  if !empty(LIBC_MACHINE_ARCH:Mearm*)
+.  if !empty(MACHINE_ARCH:Mearm*)
 GENERIC_SRCS+= \
 	aeabi_idivmod.S \
 	aeabi_ldivmod.S \
 	aeabi_uidivmod.S \
-	aeabi_uldivmod.S
+	aeabi_uldivmod.S \
+	__aeabi_idiv0.c \
+	__aeabi_ldiv0.c
 .  endif
 .endif
 

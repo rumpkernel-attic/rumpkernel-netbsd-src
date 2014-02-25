@@ -1,4 +1,4 @@
-/*	cpu.h,v 1.45.4.7 2008/01/28 18:20:39 matt Exp	*/
+/*	$NetBSD: locore.h,v 1.12 2014/02/01 01:19:50 joerg Exp $	*/
 
 /*
  * Copyright (c) 1994-1996 Mark Brinicombe.
@@ -148,6 +148,7 @@ void	cpu_attach(device_t, cpuid_t);
 #endif
 
 /* 1 == use cpu_sleep(), 0 == don't */
+extern int cpu_printfataltraps;
 extern int cpu_do_powersave;
 extern int cpu_fpu_present;
 extern int cpu_hwdiv_present;
@@ -169,6 +170,51 @@ extern bool cpu_armv6_p;
 #define	CPU_IS_ARMV6_P()		true
 #endif
 
+/*
+ * Used by the fault code to read the current instruction.
+ */
+static inline uint32_t
+read_insn(vaddr_t va, bool user_p)
+{
+	uint32_t insn;
+	if (user_p) {
+		__asm __volatile("ldrt %0, [%1]" : "=&r"(insn) : "r"(va));
+	} else {
+		insn = *(const uint32_t *)va;
+	}
+#if defined(__ARMEB__) && defined(_ARM_ARCH_7)
+	insn = bswap32(insn);
+#endif
+	return insn;
+}
+
+/*
+ * Used by the fault code to read the current thumb instruction.
+ */
+static inline uint32_t
+read_thumb_insn(vaddr_t va, bool user_p)
+{
+	va &= ~1;
+	uint32_t insn;
+	if (user_p) {
+#ifdef _ARM_ARCH_T2
+		__asm __volatile("ldrht %0, [%1], #0" : "=&r"(insn) : "r"(va));
+#else
+		__asm __volatile("ldrt %0, [%1]" : "=&r"(insn) : "r"(va & ~3));
+#ifdef __ARMEB__
+		insn = (uint16_t) (insn >> (((va ^ 2) & 2) << 3));
+#else
+		insn = (uint16_t) (insn >> ((va & 2) << 3));
+#endif
+#endif
+	} else {
+		insn = *(const uint16_t *)va;
+	}
+#if defined(__ARMEB__) && defined(_ARM_ARCH_7)
+	insn = bswap16(insn);
+#endif
+	return insn;
+}
 
 /*
  * Random cruft

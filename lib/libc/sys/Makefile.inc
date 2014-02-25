@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.inc,v 1.221 2013/11/09 13:05:59 njoly Exp $
+#	$NetBSD: Makefile.inc,v 1.223 2014/01/31 20:45:49 christos Exp $
 #	@(#)Makefile.inc	8.3 (Berkeley) 10/24/94
 
 # sys sources
@@ -69,9 +69,6 @@ ASM_GLUE+= tmp___${glue:.c=}50.S
 . endif
 .endfor
 
-# namespace purity wrappers
-SRCS+=	_brk.c _fork.c _getcontext.c _pipe.c _sbrk.c
-
 # modules with default implementations on all architectures:
 ASM=	access.S acct.S \
 	bind.S \
@@ -103,7 +100,7 @@ ASM=	access.S acct.S \
 	lchflags.S lchmod.S lchown.S lfs_bmapv.S lfs_markv.S lfs_segclean.S \
 		__lfs_segwait50.S link.S linkat.S listen.S __lstat50.S \
 		__lutimes50.S _lwp_create.S _lwp_exit.S _lwp_kill.S \
-		_lwp_self.S _lwp_wait.S _lwp_unpark.S \
+		___lwp_park60.S _lwp_self.S _lwp_wait.S _lwp_unpark.S \
 		_lwp_unpark_all.S _lwp_suspend.S _lwp_continue.S \
 		_lwp_wakeup.S _lwp_detach.S _lwp_setprivate.S \
 		_lwp_setname.S _lwp_getname.S _lwp_ctl.S \

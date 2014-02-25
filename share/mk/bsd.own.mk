@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.760 2013/12/31 18:46:09 christos Exp $
+#	$NetBSD: bsd.own.mk,v 1.767 2014/02/24 07:23:41 skrll Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -69,6 +69,12 @@ USE_COMPILERCRTSTUFF?=	no
 HAVE_LIBGCC?=	no
 .else
 HAVE_LIBGCC?=	yes
+.endif
+
+.if ${MKLLVM:Uno} == "yes" && (${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "x86_64")
+HAVE_LIBGCC_EH?=	no
+.else
+HAVE_LIBGCC_EH?=	yes
 .endif
 
 HAVE_GDB?=	7
@@ -159,19 +165,7 @@ USETOOLS?=	no
 #
 # Host platform information; may be overridden
 #
-.if !defined(HOST_OSTYPE)
-_HOST_OSNAME!=	uname -s
-_HOST_OSREL!=	uname -r
-# For _HOST_ARCH, if uname -p fails, or prints "unknown", or prints
-# something that does not look like an identifier, then use uname -m.
-_HOST_ARCH!=	uname -p 2>/dev/null
-_HOST_ARCH:=	${HOST_ARCH:tW:C/.*[^-_A-Za-z0-9].*//:S/unknown//}
-.if empty(_HOST_ARCH)
-_HOST_ARCH!=	uname -m
-.endif
-HOST_OSTYPE:=	${_HOST_OSNAME}-${_HOST_OSREL:C/\([^\)]*\)//g:[*]:C/ /_/g}-${_HOST_ARCH:C/\([^\)]*\)//g:[*]:C/ /_/g}
-.MAKEOVERRIDES+= HOST_OSTYPE
-.endif # !defined(HOST_OSTYPE)
+.include <bsd.host.mk>
 
 .if ${USETOOLS} == "yes"						# {
 
@@ -261,9 +255,6 @@ LDFLAGS+=	--sysroot=/
 .endif
 .endif	# EXTERNAL_TOOLCHAIN						# }
 
-HOST_MKDEP=	${TOOLDIR}/bin/${_TOOL_PREFIX}host-mkdep
-HOST_MKDEPCXX=	${TOOLDIR}/bin/${_TOOL_PREFIX}host-mkdep
-
 DBSYM=		${TOOLDIR}/bin/${MACHINE_GNU_PLATFORM}-dbsym
 ELF2AOUT=	${TOOLDIR}/bin/${_TOOL_PREFIX}m68k-elf2aout
 ELF2ECOFF=	${TOOLDIR}/bin/${_TOOL_PREFIX}mips-elf2ecoff
@@ -304,7 +295,7 @@ TOOL_GREP=		${TOOLDIR}/bin/${_TOOL_PREFIX}grep
 TOOL_GROFF=		PATH=${TOOLDIR}/lib/groff:$${PATH} ${TOOLDIR}/bin/${_TOOL_PREFIX}groff
 TOOL_HEXDUMP=		${TOOLDIR}/bin/${_TOOL_PREFIX}hexdump
 TOOL_HP300MKBOOT=	${TOOLDIR}/bin/${_TOOL_PREFIX}hp300-mkboot
-TOOL_HP700MKBOOT=	${TOOLDIR}/bin/${_TOOL_PREFIX}hp700-mkboot
+TOOL_HPPAMKBOOT=	${TOOLDIR}/bin/${_TOOL_PREFIX}hppa-mkboot
 TOOL_INDXBIB=		${TOOLDIR}/bin/${_TOOL_PREFIX}indxbib
 TOOL_INSTALLBOOT=	${TOOLDIR}/bin/${_TOOL_PREFIX}installboot
 TOOL_INSTALL_INFO=	${TOOLDIR}/bin/${_TOOL_PREFIX}install-info
@@ -405,7 +396,7 @@ TOOL_GREP=		grep
 TOOL_GROFF=		groff
 TOOL_HEXDUMP=		hexdump
 TOOL_HP300MKBOOT=	hp300-mkboot
-TOOL_HP700MKBOOT=	hp700-mkboot
+TOOL_HPPAMKBOOT=	hppa-mkboot
 TOOL_INDXBIB=		indxbib
 TOOL_INSTALLBOOT=	installboot
 TOOL_INSTALL_INFO=	install-info
@@ -494,7 +485,7 @@ MACHINES.arm=		acorn26 acorn32 cats epoc32 evbarm hpcarm \
 MACHINES.coldfire=	evbcf
 MACHINES.i386=		i386
 MACHINES.ia64=		ia64
-MACHINES.hppa=		hp700
+MACHINES.hppa=		hppa
 MACHINES.m68000=	sun2
 MACHINES.m68k=		amiga atari cesfic hp300 luna68k mac68k \
 			news68k next68k sun3 x68k
@@ -903,7 +894,7 @@ _MKVARS.yes= \
 	MKBINUTILS \
 	MKCRYPTO MKCOMPLEX MKCVS MKCXX \
 	MKDOC \
-	MKGCC MKGCCCMDS MKGDB MKGROFF \
+	MKGCC MKGDB MKGROFF \
 	MKHESIOD MKHTML \
 	MKIEEEFP MKINET6 MKINFO MKIPFILTER MKISCSI \
 	MKKERBEROS \
@@ -924,6 +915,12 @@ _MKVARS.yes= \
 .for var in ${_MKVARS.yes}
 ${var}?=	yes
 .endfor
+
+#
+# MKGCCCMDS is only valid if we are building GCC so make it dependent on that.
+#
+_MKVARS.yes += MKGCCCMDS
+MKGCCCMDS?=	${MKGCC}
 
 #
 # Exceptions to the above:
@@ -958,9 +955,7 @@ ${var}?=no
     ${MACHINE} == "acorn32"	|| \
     ${MACHINE} == "alpha"	|| \
     ${MACHINE} == "amiga"	|| \
-    ${MACHINE} == "ews4800mips"	|| \
     ${MACHINE} == "mac68k"	|| \
-    ${MACHINE} == "newsmips"	|| \
     ${MACHINE} == "pmax"	|| \
     ${MACHINE} == "sun3"	|| \
     ${MACHINE} == "x68k"
@@ -973,7 +968,7 @@ X11FLAVOUR?=	Xorg
 # Which platforms build the xorg-server drivers (as opposed
 # to just Xnest and Xvfb.)
 #
-.if ${X11FLAVOUR} == "Xorg"	&& \
+.if ${X11FLAVOUR} == "Xorg"	&& ( \
     ${MACHINE} == "alpha"	|| \
     ${MACHINE} == "amd64"	|| \
     ${MACHINE} == "bebox"	|| \
@@ -998,7 +993,7 @@ X11FLAVOUR?=	Xorg
     ${MACHINE} == "sparc"	|| \
     ${MACHINE} == "sparc64"	|| \
     ${MACHINE} == "vax"		|| \
-    ${MACHINE} == "zaurus"
+    ${MACHINE} == "zaurus"	)
 MKXORG_SERVER?=yes
 .else
 MKXORG_SERVER?=no
@@ -1085,9 +1080,6 @@ INSTALL_DIR?=		${INSTALL} ${INSTPRIV} -d
 INSTALL_FILE?=		${INSTALL} ${INSTPRIV} ${COPY} ${PRESERVE} ${RENAME}
 INSTALL_LINK?=		${INSTALL} ${INSTPRIV} ${HRDLINK} ${RENAME}
 INSTALL_SYMLINK?=	${INSTALL} ${INSTPRIV} ${SYMLINK} ${RENAME}
-HOST_INSTALL_FILE?=	${INSTALL} ${COPY} ${PRESERVE} ${RENAME}
-HOST_INSTALL_DIR?=	${INSTALL} -d
-HOST_INSTALL_SYMLINK?=	${INSTALL} ${SYMLINK} ${RENAME}
 .endif
 
 #

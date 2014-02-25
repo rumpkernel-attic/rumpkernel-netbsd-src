@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_sysctl.c,v 1.243 2013/04/27 20:13:16 christos Exp $	*/
+/*	$NetBSD: kern_sysctl.c,v 1.246 2014/02/25 18:30:11 pooka Exp $	*/
 
 /*-
  * Copyright (c) 2003, 2007, 2008 The NetBSD Foundation, Inc.
@@ -68,12 +68,10 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_sysctl.c,v 1.243 2013/04/27 20:13:16 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_sysctl.c,v 1.246 2014/02/25 18:30:11 pooka Exp $");
 
 #include "opt_defcorename.h"
 #include "ksyms.h"
-
-#define SYSCTL_PRIVATE
 
 #include <sys/param.h>
 #define __COMPAT_SYSCTL
@@ -86,7 +84,6 @@ __KERNEL_RCSID(0, "$NetBSD: kern_sysctl.c,v 1.243 2013/04/27 20:13:16 christos E
 #include <sys/syscallargs.h>
 #include <sys/kauth.h>
 #include <sys/ktrace.h>
-#include <sys/cprng.h>
 
 #define	MAXDESCLEN	1024
 MALLOC_DEFINE(M_SYSCTLNODE, "sysctlnode", "sysctl node structures");
@@ -167,8 +164,6 @@ long hostid;
 #endif
 char defcorename[MAXPATHLEN] = DEFCORENAME;
 
-cprng_strong_t *sysctl_prng;
-
 /*
  * ********************************************************************
  * Section 0: Some simple glue
@@ -239,6 +234,7 @@ sysctl_init(void)
 	 * dynamic mib numbers start here
 	 */
 	sysctl_root.sysctl_num = CREATE_BASE;
+	sysctl_basenode_init();
 
         __link_set_foreach(sysctl_setup, sysctl_funcs) {
 		(**sysctl_setup)(NULL);
@@ -260,8 +256,7 @@ sysctl_init(void)
 void
 sysctl_finalize(void)
 {
-        sysctl_prng = cprng_strong_create("sysctl", IPL_NONE,
-					  CPRNG_INIT_ANY|CPRNG_REKEY_ANY);
+
 	sysctl_root.sysctl_flags |= CTLFLAG_PERMANENT;
 }
 
@@ -1555,13 +1550,11 @@ sysctl_lookup(SYSCTLFN_ARGS)
 			return EINVAL;
 		}
 		error = sysctl_copyin(l, newp, &tmp, sz);
+		if (error)
+			break;
 		if (tmp != true && tmp != false) {
 			DPRINTF(("%s: tmp %d\n", __func__, tmp));
 			return EINVAL;
-		}
-		if (error) {
-			DPRINTF(("%s: copyin %d\n", __func__, error));
-			break;
 		}
 		*(bool *)d = tmp;
 		break;

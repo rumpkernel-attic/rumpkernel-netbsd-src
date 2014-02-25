@@ -1,4 +1,4 @@
-/*	$NetBSD: tmpfs_vfsops.c,v 1.55 2013/11/23 16:35:32 rmind Exp $	*/
+/*	$NetBSD: tmpfs_vfsops.c,v 1.57 2014/02/06 16:18:38 hannken Exp $	*/
 
 /*
  * Copyright (c) 2005, 2006, 2007 The NetBSD Foundation, Inc.
@@ -42,7 +42,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: tmpfs_vfsops.c,v 1.55 2013/11/23 16:35:32 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: tmpfs_vfsops.c,v 1.57 2014/02/06 16:18:38 hannken Exp $");
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -272,7 +272,6 @@ static int
 tmpfs_vget(struct mount *mp, ino_t ino, vnode_t **vpp)
 {
 
-	printf("tmpfs_vget called; need for it unknown yet\n");
 	return EOPNOTSUPP;
 }
 
@@ -282,6 +281,7 @@ tmpfs_fhtovp(struct mount *mp, struct fid *fhp, vnode_t **vpp)
 	tmpfs_mount_t *tmp = VFS_TO_TMPFS(mp);
 	tmpfs_node_t *node;
 	tmpfs_fid_t tfh;
+	int error;
 
 	if (fhp->fid_len != sizeof(tmpfs_fid_t)) {
 		return EINVAL;
@@ -290,19 +290,25 @@ tmpfs_fhtovp(struct mount *mp, struct fid *fhp, vnode_t **vpp)
 
 	mutex_enter(&tmp->tm_lock);
 	LIST_FOREACH(node, &tmp->tm_nodes, tn_entries) {
-		if (node->tn_id != tfh.tf_id) {
-			continue;
+		if (node->tn_id == tfh.tf_id) {
+			mutex_enter(&node->tn_vlock);
+			break;
 		}
-		if (TMPFS_NODE_GEN(node) != tfh.tf_gen) {
-			continue;
-		}
-		mutex_enter(&node->tn_vlock);
-		break;
 	}
 	mutex_exit(&tmp->tm_lock);
 
+	if (node == NULL)
+		return ESTALE;
 	/* Will release the tn_vlock. */
-	return node ? tmpfs_vnode_get(mp, node, vpp) : ESTALE;
+	if ((error = tmpfs_vnode_get(mp, node, vpp)) != 0)
+		return error;
+	if (TMPFS_NODE_GEN(node) != tfh.tf_gen) {
+		vput(*vpp);
+		*vpp = NULL;
+		return ESTALE;
+	}
+
+	return 0;
 }
 
 static int
