@@ -1,4 +1,4 @@
-/*	$NetBSD: identcpu.c,v 1.39 2013/12/23 11:40:57 msaitoh Exp $	*/
+/*	$NetBSD: identcpu.c,v 1.43 2014/02/25 17:56:03 dsl Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2006, 2007, 2008 The NetBSD Foundation, Inc.
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: identcpu.c,v 1.39 2013/12/23 11:40:57 msaitoh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: identcpu.c,v 1.43 2014/02/25 17:56:03 dsl Exp $");
 
 #include "opt_xen.h"
 
@@ -59,6 +59,10 @@ static const struct x86_cache_info amd_cpuid_l3cache_assoc_info[] =
 
 int cpu_vendor;
 char cpu_brand_string[49];
+
+int x86_fpu_save = FPU_SAVE_FSAVE;
+unsigned int x86_fpu_save_size = 512;
+uint64_t x86_xsave_features = 0;
 
 /*
  * Info for CTL_HW
@@ -135,7 +139,7 @@ cpu_probe_intel_cache(struct cpu_info *ci)
 		int ways, partitions, linesize, sets;
 		int caitype = -1;
 		int totalsize;
-		
+
 		/* Parse the cache info from `cpuid leaf 4', if we have it. */
 		for (i = 0; ; i++) {
 			x86_cpuid2(4, i, descs);
@@ -359,19 +363,10 @@ cpu_probe_k5(struct cpu_info *ci)
 static void
 cpu_probe_k678(struct cpu_info *ci)
 {
-	uint32_t descs[4];
 
 	if (cpu_vendor != CPUVENDOR_AMD ||
 	    CPUID_TO_FAMILY(ci->ci_signature) < 6)
 		return;
-
-	/* Determine the extended feature flags. */
-	x86_cpuid(0x80000000, descs);
-	if (descs[0] >= 0x80000001) {
-		x86_cpuid(0x80000001, descs);
-		ci->ci_feat_val[3] = descs[2]; /* %ecx */
-		ci->ci_feat_val[2] = descs[3]; /* %edx */
-	}
 
 	cpu_probe_amd_cache(ci);
 }
@@ -515,12 +510,6 @@ cpu_probe_c3(struct cpu_info *ci)
 	x86_cpuid(0x80000000, descs);
 	lfunc = descs[0];
 
-	/* Determine the extended feature flags. */
-	if (lfunc >= 0x80000001) {
-		x86_cpuid(0x80000001, descs);
-		ci->ci_feat_val[2] = descs[3];
-	}
-
 	if (family > 6 || model > 0x9 || (model == 0x9 && stepping >= 3)) {
 		/* Nehemiah or Esther */
 		x86_cpuid(0xc0000000, descs);
@@ -575,7 +564,7 @@ cpu_probe_c3(struct cpu_info *ci)
 			msr = rdmsr(MSR_VIA_ACE);
 			wrmsr(MSR_VIA_ACE, msr | MSR_VIA_ACE_ENABLE);
 		    }
-			
+
 		}
 	}
 
@@ -616,7 +605,7 @@ cpu_probe_c3(struct cpu_info *ci)
 		/* Erratum: stepping 8 reports 4 when it should be 2 */
 		cai->cai_associativity = 2;
 	}
-	
+
 	/*
 	 * Determine L2 cache/TLB info.
 	 */
@@ -692,6 +681,86 @@ cpu_probe_vortex86(struct cpu_info *ci)
 #undef PCI_MODE1_DATA_REG
 }
 
+#if !defined(__i386__) || defined(XEN)
+#define cpu_probe_old_fpu(ci)
+#else
+static void
+cpu_probe_old_fpu(struct cpu_info *ci)
+{
+	uint16_t control;
+
+	/* Check that there really is an fpu (496SX) */
+	clts();
+	fninit();
+	/* Read default control word */
+	fnstcw(&control);
+	if (control != __INITIAL_NPXCW__) {
+		/* Must be a 486SX, trap FP instructions */
+		lcr0((rcr0() & ~CR0_MP) | CR0_EM);
+		i386_fpu_present = 0;
+		return;
+	}
+
+	/* Check for 'FDIV' bug on the original Pentium */
+	if (npx586bug1(4195835, 3145727) != 0)
+		/* NB 120+MHz cpus are not affected */
+		i386_fpu_fdivbug = 1;
+
+	stts();
+}
+#endif
+
+static void
+cpu_probe_fpu(struct cpu_info *ci)
+{
+	u_int descs[4];
+
+#ifdef i386 /* amd64 always has fxsave, sse and sse2 */
+	/* If we have FXSAVE/FXRESTOR, use them. */
+	if ((ci->ci_feat_val[0] & CPUID_FXSR) == 0) {
+		i386_use_fxsave = 0;
+		/* Allow for no fpu even if cpuid is supported */
+		cpu_probe_old_fpu(ci);
+		return;
+	}
+
+	i386_use_fxsave = 1;
+	/*
+	 * If we have SSE/SSE2, enable XMM exceptions, and
+	 * notify userland.
+	 */
+	if (ci->ci_feat_val[0] & CPUID_SSE)
+		i386_has_sse = 1;
+	if (ci->ci_feat_val[0] & CPUID_SSE2)
+		i386_has_sse2 = 1;
+#else
+	/*
+	 * For amd64 i386_use_fxsave, i386_has_sse and i386_has_sse2 are
+	 * #defined to 1.
+	 */
+#endif	/* i386 */
+
+	x86_fpu_save = FPU_SAVE_FXSAVE;
+
+	/* See if xsave (for AVX is supported) */
+	if ((ci->ci_feat_val[1] & CPUID2_XSAVE) == 0)
+		return;
+
+	x86_fpu_save = FPU_SAVE_XSAVE;
+
+	/* xsaveopt ought to be faster than xsave */
+	x86_cpuid2(0xd, 1, descs);
+	if (descs[0] & CPUID_PES1_XSAVEOPT)
+		x86_fpu_save = FPU_SAVE_XSAVEOPT;
+
+	/* Get features and maximum size of the save area */
+	x86_cpuid(0xd, descs);
+	/* XXX these probably ought to be per-cpu */
+	if (descs[2] > 512)
+	    x86_fpu_save_size = descs[2];
+	x86_xsave_features = (uint64_t)descs[3] << 32 | descs[0];
+}
+
 void
 cpu_probe(struct cpu_info *ci)
 {
@@ -703,8 +772,11 @@ cpu_probe(struct cpu_info *ci)
 	cpu_vendor = i386_nocpuid_cpus[cputype << 1];
 	cpu_class = i386_nocpuid_cpus[(cputype << 1) + 1];
 
-	if (cpuid_level < 0)
+	if (cpuid_level < 0) {
+		/* cpuid instruction not supported */
+		cpu_probe_old_fpu(ci);
 		return;
+	}
 
 	for (i = 0; i < __arraycount(ci->ci_feat_val); i++) {
 		ci->ci_feat_val[i] = 0;
@@ -712,6 +784,8 @@ cpu_probe(struct cpu_info *ci)
 
 	x86_cpuid(0, descs);
 	cpuid_level = descs[0];
+	ci->ci_max_cpuid = descs[0];
+
 	ci->ci_vendor[0] = descs[1];
 	ci->ci_vendor[2] = descs[2];
 	ci->ci_vendor[1] = descs[3];
@@ -734,18 +808,6 @@ cpu_probe(struct cpu_info *ci)
 	else
 		cpu_vendor = CPUVENDOR_UNKNOWN;
 
-	x86_cpuid(0x80000000, brand);
-	if (brand[0] >= 0x80000004) {
-		x86_cpuid(0x80000002, brand);
-		x86_cpuid(0x80000003, brand + 4);
-		x86_cpuid(0x80000004, brand + 8);
-		for (i = 0; i < 48; i++) {
-			if (((char *) brand)[i] != ' ')
-				break;
-		}
-		memcpy(cpu_brand_string, ((char *) brand) + i, 48 - i);
-	}
-
 	if (cpuid_level >= 1) {
 		x86_cpuid(1, descs);
 		ci->ci_signature = descs[0];
@@ -765,6 +827,36 @@ cpu_probe(struct cpu_info *ci)
 		ci->ci_initapicid = (miscbytes >> 24) & 0xff;
 	}
 
+	/*
+	 * Get the basic information from the extended cpuid leafs.
+	 * These were first implemented by amd, but most of the values
+	 * match with those generated by modern intel cpus.
+	 */
+	x86_cpuid(0x80000000, descs);
+	if (descs[0] >= 0x80000000)
+		ci->ci_max_ext_cpuid = descs[0];
+	else
+		ci->ci_max_ext_cpuid = 0;
+
+	if (ci->ci_max_ext_cpuid >= 0x80000001) {
+		/* Determine the extended feature flags. */
+		x86_cpuid(0x80000001, descs);
+		ci->ci_feat_val[3] = descs[2]; /* %ecx */
+		ci->ci_feat_val[2] = descs[3]; /* %edx */
+	}
+
+	if (ci->ci_max_ext_cpuid >= 0x80000004) {
+		x86_cpuid(0x80000002, brand);
+		x86_cpuid(0x80000003, brand + 4);
+		x86_cpuid(0x80000004, brand + 8);
+		/* Skip leading spaces on brand */
+		for (i = 0; i < 48; i++) {
+			if (((char *) brand)[i] != ' ')
+				break;
+		}
+		memcpy(cpu_brand_string, ((char *) brand) + i, 48 - i);
+	}
+
 	cpu_probe_intel(ci);
 	cpu_probe_k5(ci);
 	cpu_probe_k678(ci);
@@ -773,6 +865,8 @@ cpu_probe(struct cpu_info *ci)
 	cpu_probe_c3(ci);
 	cpu_probe_geode(ci);
 	cpu_probe_vortex86(ci);
+
+	cpu_probe_fpu(ci);
 
 	x86_cpu_topology(ci);
 
@@ -807,6 +901,7 @@ cpu_probe(struct cpu_info *ci)
 	}
 }
 
+/* Write what we know about the cpu to the console... */
 void
 cpu_identify(struct cpu_info *ci)
 {
@@ -835,45 +930,36 @@ cpu_identify(struct cpu_info *ci)
 		aprint_error("WARNING: BUGGY CYRIX CACHE\n");
 	}
 
-	if ((cpu_vendor == CPUVENDOR_AMD) /* check enablement of an */
-	  && (device_unit(ci->ci_dev) == 0) /* AMD feature only once */
-	  && ((cpu_feature[3] & CPUID_SVM) == CPUID_SVM)
-#if defined(XEN) && !defined(DOM0OPS)
-	  && (false)  /* on Xen rdmsr is for Dom0 only */
-#endif
-	  )
-	{
+#if !defined(XEN) || defined(DOM0OPS)       /* on Xen rdmsr is for Dom0 only */
+	if (cpu_vendor == CPUVENDOR_AMD     /* check enablement of an */
+	    && device_unit(ci->ci_dev) == 0 /* AMD feature only once */
+	    && ((cpu_feature[3] & CPUID_SVM) == CPUID_SVM)) {
 		uint64_t val;
 
 		val = rdmsr(MSR_VMCR);
 		if (((val & VMCR_SVMED) == VMCR_SVMED)
-		  && ((val & VMCR_LOCK) == VMCR_LOCK))
-		{
+		    && ((val & VMCR_LOCK) == VMCR_LOCK)) {
 			aprint_normal_dev(ci->ci_dev,
 				"SVM disabled by the BIOS\n");
 		}
 	}
+#endif
 
-#ifdef i386 /* XXX for now */
+#ifdef i386
+	if (i386_fpu_present == 0)
+		aprint_normal_dev(ci->ci_dev, "no fpu\n");
+
+	if (i386_fpu_fdivbug == 1)
+		aprint_normal_dev(ci->ci_dev,
+		    "WARNING: Pentium FDIV bug detected!\n");
+
 	if (cpu_vendor == CPUVENDOR_TRANSMETA) {
 		u_int descs[4];
 		x86_cpuid(0x80860000, descs);
 		if (descs[0] >= 0x80860007)
+			/* Create longrun sysctls */
 			tmx86_init_longrun();
 	}
-
-	/* If we have FXSAVE/FXRESTOR, use them. */
-	if (cpu_feature[0] & CPUID_FXSR) {
-		i386_use_fxsave = 1;
-		/*
-		 * If we have SSE/SSE2, enable XMM exceptions, and
-		 * notify userland.
-		 */
-		if (cpu_feature[0] & CPUID_SSE)
-			i386_has_sse = 1;
-		if (cpu_feature[0] & CPUID_SSE2)
-			i386_has_sse2 = 1;
-	} else
-		i386_use_fxsave = 0;
 #endif	/* i386 */
+
 }

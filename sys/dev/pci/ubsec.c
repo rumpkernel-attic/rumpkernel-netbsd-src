@@ -1,4 +1,4 @@
-/*	$NetBSD: ubsec.c,v 1.35 2013/12/26 00:51:23 bad Exp $	*/
+/*	$NetBSD: ubsec.c,v 1.37 2014/02/25 18:30:10 pooka Exp $	*/
 /* $FreeBSD: src/sys/dev/ubsec/ubsec.c,v 1.6.2.6 2003/01/23 21:06:43 sam Exp $ */
 /*	$OpenBSD: ubsec.c,v 1.127 2003/06/04 14:04:58 jason Exp $	*/
 
@@ -35,7 +35,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ubsec.c,v 1.35 2013/12/26 00:51:23 bad Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ubsec.c,v 1.37 2014/02/25 18:30:10 pooka Exp $");
 
 #undef UBSEC_DEBUG
 
@@ -592,7 +592,7 @@ ubsec_detach(device_t self, int flags)
 	return 0;
 }
 
-MODULE(MODULE_CLASS_DRIVER, ubsec, "pci");
+MODULE(MODULE_CLASS_DRIVER, ubsec, "pci,opencrypto");
 
 #ifdef _MODULE
 #include "ioconf.c"
@@ -632,11 +632,6 @@ ubsec_sysctl_init(void)
 
 	ubsec_sysctllog = NULL;
 
-	sysctl_createv(&ubsec_sysctllog, 0, NULL, NULL,
-		CTLFLAG_PERMANENT,
-		CTLTYPE_NODE, "hw", NULL,
-		NULL, 0, NULL, 0,
-		CTL_HW, CTL_EOL);
 	sysctl_createv(&ubsec_sysctllog, 0, NULL, &node,
 		CTLFLAG_PERMANENT,
 		CTLTYPE_NODE, "ubsec", 

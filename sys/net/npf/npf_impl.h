@@ -1,7 +1,7 @@
-/*	$NetBSD: npf_impl.h,v 1.45 2013/12/06 01:33:37 rmind Exp $	*/
+/*	$NetBSD: npf_impl.h,v 1.49 2014/02/19 03:51:31 rmind Exp $	*/
 
 /*-
- * Copyright (c) 2009-2013 The NetBSD Foundation, Inc.
+ * Copyright (c) 2009-2014 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This material is based upon work partially supported by The
@@ -96,8 +96,6 @@ typedef struct npf_tableset	npf_tableset_t;
  * DEFINITIONS.
  */
 
-typedef bool (*npf_alg_func_t)(npf_cache_t *, nbuf_t *, npf_nat_t *, int);
-typedef npf_session_t *(*npf_alg_sfunc_t)(npf_cache_t *, nbuf_t *, int);
 typedef void (*npf_workfunc_t)(void);
 
 /*
@@ -129,6 +127,16 @@ typedef struct {
 	u_int		nst_state;
 	npf_tcpstate_t	nst_tcpst[2];
 } npf_state_t;
+
+/*
+ * ALG FUNCTIONS.
+ */
+
+typedef struct {
+	bool		(*match)(npf_cache_t *, nbuf_t *, npf_nat_t *, int);
+	bool		(*translate)(npf_cache_t *, nbuf_t *, npf_nat_t *, bool);
+	npf_session_t * (*inspect)(npf_cache_t *, nbuf_t *, int);
+} npfa_funcs_t;
 
 /*
  * INTERFACES.
@@ -192,6 +200,10 @@ bool		npf_rwrip(const npf_cache_t *, u_int, const npf_addr_t *);
 bool		npf_rwrport(const npf_cache_t *, u_int, const in_port_t);
 bool		npf_rwrcksum(const npf_cache_t *, u_int,
 		    const npf_addr_t *, const in_port_t);
+int		npf_napt_rwr(const npf_cache_t *, u_int, const npf_addr_t *,
+		    const in_addr_t);
+int		npf_npt66_rwr(const npf_cache_t *, u_int, const npf_addr_t *,
+		    npf_netmask_t, uint16_t);
 
 uint16_t	npf_fixup16_cksum(uint16_t, uint16_t, uint16_t);
 uint16_t	npf_fixup32_cksum(uint16_t, uint32_t, uint32_t);
@@ -229,7 +241,7 @@ npf_table_t *	npf_tableset_getbyid(npf_tableset_t *, u_int);
 void		npf_tableset_reload(npf_tableset_t *, npf_tableset_t *);
 void		npf_tableset_syncdict(const npf_tableset_t *, prop_dictionary_t);
 
-npf_table_t *	npf_table_create(const char *, u_int, int, size_t);
+npf_table_t *	npf_table_create(const char *, u_int, int, void *, size_t);
 void		npf_table_destroy(npf_table_t *);
 
 int		npf_table_check(npf_tableset_t *, const char *, u_int, int);
@@ -331,7 +343,6 @@ bool		npf_nat_sharepm(npf_natpolicy_t *, npf_natpolicy_t *);
 void		npf_nat_freealg(npf_natpolicy_t *, npf_alg_t *);
 
 int		npf_do_nat(npf_cache_t *, npf_session_t *, nbuf_t *, const int);
-int		npf_nat_translate(npf_cache_t *, nbuf_t *, npf_nat_t *, bool);
 void		npf_nat_destroy(npf_nat_t *);
 void		npf_nat_getorig(npf_nat_t *, npf_addr_t **, in_port_t *);
 void		npf_nat_gettrans(npf_nat_t *, npf_addr_t **, in_port_t *);
@@ -343,8 +354,7 @@ npf_nat_t *	npf_nat_restore(prop_dictionary_t, npf_session_t *);
 /* ALG interface. */
 void		npf_alg_sysinit(void);
 void		npf_alg_sysfini(void);
-npf_alg_t *	npf_alg_register(const char *, npf_alg_func_t, npf_alg_func_t,
-		    npf_alg_sfunc_t);
+npf_alg_t *	npf_alg_register(const char *, const npfa_funcs_t *);
 int		npf_alg_unregister(npf_alg_t *);
 npf_alg_t *	npf_alg_construct(const char *);
 bool		npf_alg_match(npf_cache_t *, nbuf_t *, npf_nat_t *, int);

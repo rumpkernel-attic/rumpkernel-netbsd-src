@@ -1,7 +1,7 @@
-/*	$NetBSD: npf.h,v 1.34 2013/12/06 01:33:37 rmind Exp $	*/
+/*	$NetBSD: npf.h,v 1.37 2014/02/13 03:34:40 rmind Exp $	*/
 
 /*-
- * Copyright (c) 2009-2013 The NetBSD Foundation, Inc.
+ * Copyright (c) 2009-2014 The NetBSD Foundation, Inc.
  * All rights reserved.
  *
  * This material is based upon work partially supported by The
@@ -45,7 +45,7 @@
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
 
-#define	NPF_VERSION		12
+#define	NPF_VERSION		13
 
 /*
  * Public declarations and definitions.
@@ -87,7 +87,7 @@ typedef uint8_t			npf_netmask_t;
 #include <netinet/ip_icmp.h>
 #include <netinet/icmp6.h>
 
-#define	NPC_IP4		0x01	/* Indicates fetched IPv4 header. */
+#define	NPC_IP4		0x01	/* Indicates IPv4 header. */
 #define	NPC_IP6		0x02	/* Indicates IPv6 header. */
 #define	NPC_IPFRAG	0x04	/* IPv4/IPv6 fragment. */
 #define	NPC_LAYER4	0x08	/* Layer 4 has been fetched. */
@@ -235,10 +235,14 @@ bool		npf_autounload_p(void);
 
 #define	NPF_NAT_PORTS			0x01
 #define	NPF_NAT_PORTMAP			0x02
+#define	NPF_NAT_STATIC			0x04
+
+#define	NPF_ALGO_NPT66			1
 
 /* Table types. */
 #define	NPF_TABLE_HASH			1
 #define	NPF_TABLE_TREE			2
+#define	NPF_TABLE_CDB			3
 
 #define	NPF_TABLE_MAXNAMELEN		32
 

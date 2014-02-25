@@ -1,4 +1,4 @@
-/*	$NetBSD: procfs_vfsops.c,v 1.87 2012/04/30 22:51:28 rmind Exp $	*/
+/*	$NetBSD: procfs_vfsops.c,v 1.89 2014/02/25 18:30:11 pooka Exp $	*/
 
 /*
  * Copyright (c) 1993
@@ -76,7 +76,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: procfs_vfsops.c,v 1.87 2012/04/30 22:51:28 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: procfs_vfsops.c,v 1.89 2014/02/25 18:30:11 pooka Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_compat_netbsd.h"
@@ -199,8 +199,18 @@ procfs_unmount(struct mount *mp, int mntflags)
 int
 procfs_root(struct mount *mp, struct vnode **vpp)
 {
+	int error;
 
-	return (procfs_allocvp(mp, vpp, 0, PFSroot, -1, NULL));
+	error = procfs_allocvp(mp, vpp, 0, PFSroot, -1, NULL);
+	if (error == 0) {
+		error = vn_lock(*vpp, LK_EXCLUSIVE);
+		if (error != 0) {
+			vrele(*vpp);
+			*vpp = NULL;
+		}
+	}
+
+	return error;
 }
 
 /* ARGSUSED */
@@ -352,11 +362,6 @@ procfs_modcmd(modcmd_t cmd, void *arg)
 		error = vfs_attach(&procfs_vfsops);
 		if (error != 0)
 			break;
-		sysctl_createv(&procfs_sysctl_log, 0, NULL, NULL,
-			       CTLFLAG_PERMANENT,
-			       CTLTYPE_NODE, "vfs", NULL,
-			       NULL, 0, NULL, 0,
-			       CTL_VFS, CTL_EOL);
 		sysctl_createv(&procfs_sysctl_log, 0, NULL, NULL,
 			       CTLFLAG_PERMANENT,
 			       CTLTYPE_NODE, "procfs",

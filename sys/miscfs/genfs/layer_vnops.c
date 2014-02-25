@@ -1,4 +1,4 @@
-/*	$NetBSD: layer_vnops.c,v 1.51 2012/10/10 06:55:25 dholland Exp $	*/
+/*	$NetBSD: layer_vnops.c,v 1.54 2014/02/07 15:29:22 hannken Exp $	*/
 
 /*
  * Copyright (c) 1999 National Aeronautics & Space Administration
@@ -170,7 +170,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: layer_vnops.c,v 1.51 2012/10/10 06:55:25 dholland Exp $");
+__KERNEL_RCSID(0, "$NetBSD: layer_vnops.c,v 1.54 2014/02/07 15:29:22 hannken Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -316,16 +316,14 @@ layer_bypass(void *v)
 		vppp = VOPARG_OFFSETTO(struct vnode***,
 				 descp->vdesc_vpp_offset, ap);
 		/*
-		 * Only vop_lookup, vop_create, vop_makedir, vop_bmap,
-		 * vop_mknod, and vop_symlink return vpp's. vop_bmap
-		 * doesn't call bypass as the lower vpp is fine (we're just
-		 * going to do i/o on it). vop_lookup doesn't call bypass
+		 * Only vop_lookup, vop_create, vop_makedir, vop_mknod
+		 * and vop_symlink return vpp's. vop_lookup doesn't call bypass
 		 * as a lookup on "." would generate a locking error.
-		 * So all the calls which get us here have a locked vpp. :-)
+		 * So all the calls which get us here have a unlocked vpp. :-)
 		 */
 		error = layer_node_create(mp, **vppp, *vppp);
 		if (error) {
-			vput(**vppp);
+			vrele(**vppp);
 			**vppp = NULL;
 		}
 	}
@@ -340,7 +338,7 @@ layer_bypass(void *v)
 int
 layer_lookup(void *v)
 {
-	struct vop_lookup_args /* {
+	struct vop_lookup_v2_args /* {
 		struct vnodeop_desc *a_desc;
 		struct vnode * a_dvp;
 		struct vnode ** a_vpp;
@@ -383,10 +381,10 @@ layer_lookup(void *v)
 		*ap->a_vpp = dvp;
 		vrele(lvp);
 	} else if (lvp != NULL) {
-		/* Note: dvp, ldvp and lvp are all locked. */
+		/* Note: dvp and ldvp are both locked. */
 		error = layer_node_create(dvp->v_mount, lvp, ap->a_vpp);
 		if (error) {
-			vput(lvp);
+			vrele(lvp);
 		}
 	}
 	return error;

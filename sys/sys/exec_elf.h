@@ -1,4 +1,4 @@
-/*	$NetBSD: exec_elf.h,v 1.134 2014/01/02 19:15:07 christos Exp $	*/
+/*	$NetBSD: exec_elf.h,v 1.139 2014/02/15 16:17:01 maxv Exp $	*/
 
 /*-
  * Copyright (c) 1994 The NetBSD Foundation, Inc.
@@ -73,8 +73,6 @@ typedef uint64_t	Elf64_Addr;
 typedef uint64_t	Elf64_Off;
 typedef int64_t		Elf64_SOff;
 #define ELF64_FSZ_OFF	8
-typedef int32_t		Elf64_Shalf;
-#define ELF64_FSZ_SHALF 4
 
 typedef int32_t		Elf64_Sword;
 #define ELF64_FSZ_SWORD 4
@@ -702,7 +700,7 @@ typedef struct {
 #define DF_SYMBOLIC	0x00000002	/* */
 #define DF_TEXTREL	0x00000004	/* */
 #define DF_BIND_NOW	0x00000008	/* */
-#define DF_STATICT_LS	0x00000010	/* */
+#define DF_STATIC_TLS	0x00000010	/* */
 
 /* Flag values for DT_FLAGS_1 (incomplete) */
 #define DF_1_BIND_NOW	0x00000001	/* Same as DF_BIND_NOW */
@@ -1252,6 +1250,7 @@ struct elf_args {
 
 struct ps_strings;
 struct coredump_iostate;
+struct note_state;
 
 #ifdef EXEC_ELF32
 int	exec_elf32_makecmds(struct lwp *, struct exec_package *);
@@ -1259,10 +1258,10 @@ int	elf32_copyargs(struct lwp *, struct exec_package *,
     struct ps_strings *, char **, void *);
 
 int	coredump_elf32(struct lwp *, struct coredump_iostate *);
-int	coredump_writenote_elf32(struct proc *, struct coredump_iostate *,
-    Elf32_Nhdr *, const char *, void *);
+void	coredump_savenote_elf32(struct note_state *, unsigned int,
+	    const char *, void *, size_t);
 
-int	elf32_check_header(Elf32_Ehdr *, int);
+int	elf32_check_header(Elf32_Ehdr *);
 #endif
 
 #ifdef EXEC_ELF64
@@ -1271,10 +1270,10 @@ int	elf64_copyargs(struct lwp *, struct exec_package *,
     struct ps_strings *, char **, void *);
 
 int	coredump_elf64(struct lwp *, struct coredump_iostate *);
-int	coredump_writenote_elf64(struct proc *, struct coredump_iostate *,
-    Elf64_Nhdr *, const char *, void *);
+void	coredump_savenote_elf64(struct note_state *, unsigned int,
+	    const char *, void *, size_t);
 
-int	elf64_check_header(Elf64_Ehdr *, int);
+int	elf64_check_header(Elf64_Ehdr *);
 #endif
 
 #endif /* _KERNEL */

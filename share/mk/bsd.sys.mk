@@ -1,9 +1,18 @@
-#	$NetBSD: bsd.sys.mk,v 1.231 2013/12/16 21:34:16 matt Exp $
+#	$NetBSD: bsd.sys.mk,v 1.237 2014/01/28 19:41:52 martin Exp $
 #
 # Build definitions used for NetBSD source tree builds.
 
 .if !defined(_BSD_SYS_MK_)
 _BSD_SYS_MK_=1
+
+.if !empty(.INCLUDEDFROMFILE:MMakefile*)
+error1:
+	@(echo "bsd.sys.mk should not be included from Makefiles" >& 2; exit 1)
+.endif
+.if !defined(_BSD_OWN_MK_)
+error2:
+	@(echo "bsd.own.mk must be included before bsd.sys.mk" >& 2; exit 1)
+.endif
 
 .if ${MKREPRO:Uno} == "yes"
 CPPFLAGS+=	-Wp,-iremap,${NETBSDSRCDIR}:/usr/src
@@ -68,7 +77,6 @@ CFLAGS+=	-Wold-style-definition
 CFLAGS+=	-Wconversion
 .endif
 CFLAGS+=	-Wsign-compare -Wformat=2
-CFLAGS+=	${${ACTIVE_CC} == "clang":? -Wno-error=format-nonliteral :}
 CFLAGS+=	${${ACTIVE_CC} == "gcc":? -Wno-format-zero-length :}
 .endif
 .if ${WARNS} > 3 && defined(HAVE_LLVM)
@@ -101,6 +109,19 @@ LINTFLAGS+=	${DESTDIR:D-d ${DESTDIR}/usr/include}
 CPPFLAGS+=	-D_FORTIFY_SOURCE=2
 .endif
 COPTS+=	-fstack-protector -Wstack-protector 
+
+# gcc 4.8 on m68k erroneously does not protect functions with
+# variables needing special alignement, see
+#	http://gcc.gnu.org/bugzilla/show_bug.cgi?id=59674
+# (the underlying issue for sh and vax may be different, needs more
+# investigation, symptoms are similar but for different sources)
+.if "${ACTIVE_CC}" == "gcc" && "${HAVE_GCC}" == "48" && \
+	( ${MACHINE_CPU} == "sh3" || \
+	  ${MACHINE_ARCH} == "vax" || \
+	  ${MACHINE_CPU} == "m68k" )
+COPTS+=	-Wno-error=stack-protector 
+.endif
+
 COPTS+=	${${ACTIVE_CC} == "clang":? --param ssp-buffer-size=1 :}
 COPTS+=	${${ACTIVE_CC} == "gcc":? --param ssp-buffer-size=1 :}
 .endif
@@ -144,38 +165,9 @@ AFLAGS+=	${CPUFLAGS}
 .if !defined(LDSTATIC) || ${LDSTATIC} != "-static"
 # Position Independent Executable flags
 PIE_CFLAGS?=        -fPIC
-PIE_LDFLAGS?=       -Wl,-pie -shared-libgcc
+PIE_LDFLAGS?=       -Wl,-pie ${${ACTIVE_CC} == "gcc":? -shared-libgcc :}
 PIE_AFLAGS?=	    -fPIC
 .endif
-
-# Helpers for cross-compiling
-HOST_CC?=	cc
-HOST_CFLAGS?=	-O
-HOST_COMPILE.c?=${HOST_CC} ${HOST_CFLAGS} ${HOST_CPPFLAGS} -c
-HOST_COMPILE.cc?=      ${HOST_CXX} ${HOST_CXXFLAGS} ${HOST_CPPFLAGS} -c
-HOST_LINK.cc?=  ${HOST_CXX} ${HOST_CXXFLAGS} ${HOST_CPPFLAGS} ${HOST_LDFLAGS}
-.if defined(HOSTPROG_CXX)
-HOST_LINK.c?=   ${HOST_LINK.cc}
-.else
-HOST_LINK.c?=	${HOST_CC} ${HOST_CFLAGS} ${HOST_CPPFLAGS} ${HOST_LDFLAGS}
-.endif
-
-HOST_CXX?=	c++
-HOST_CXXFLAGS?=	-O
-
-HOST_CPP?=	cpp
-HOST_CPPFLAGS?=
-
-HOST_LD?=	ld
-HOST_LDFLAGS?=
-
-HOST_AR?=	ar
-HOST_RANLIB?=	ranlib
-
-HOST_LN?=	ln
-
-# HOST_SH must be an absolute path
-HOST_SH?=	/bin/sh
 
 ELF2ECOFF?=	elf2ecoff
 MKDEP?=		mkdep
@@ -184,8 +176,6 @@ OBJCOPY?=	objcopy
 OBJDUMP?=	objdump
 PAXCTL?=	paxctl
 STRIP?=		strip
-
-# TOOL_* variables are defined in bsd.own.mk
 
 .SUFFIXES:	.o .ln .lo .c .cc .cpp .cxx .C .m ${YHEADER:D.h}
 

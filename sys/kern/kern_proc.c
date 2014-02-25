@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_proc.c,v 1.190 2013/11/14 12:07:11 martin Exp $	*/
+/*	$NetBSD: kern_proc.c,v 1.192 2014/02/25 18:30:11 pooka Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2006, 2007, 2008 The NetBSD Foundation, Inc.
@@ -62,7 +62,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_proc.c,v 1.190 2013/11/14 12:07:11 martin Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_proc.c,v 1.192 2014/02/25 18:30:11 pooka Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_kstack.h"
@@ -359,12 +359,6 @@ procinit_sysctl(void)
 
 	sysctl_createv(&clog, 0, NULL, NULL,
 		       CTLFLAG_PERMANENT,
-		       CTLTYPE_NODE, "kern", NULL,
-		       NULL, 0, NULL, 0,
-		       CTL_KERN, CTL_EOL);
-
-	sysctl_createv(&clog, 0, NULL, NULL,
-		       CTLFLAG_PERMANENT,
 		       CTLTYPE_NODE, "proc",
 		       SYSCTL_DESCR("System-wide process information"),
 		       sysctl_doeproc, 0, NULL, 0,
@@ -484,7 +478,7 @@ proc0_init(void)
 	 */
 	uvmspace_init(&vmspace0, pmap_kernel(), round_page(VM_MIN_ADDRESS),
 	    trunc_page(VM_MAX_ADDRESS),
-#ifdef __USING_TOPDOWN_VM
+#ifdef __USE_TOPDOWN_VM
 	    true
 #else
 	    false

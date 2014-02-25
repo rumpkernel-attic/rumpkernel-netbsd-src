@@ -1,4 +1,4 @@
-/*	$NetBSD: kernfs_vnops.c,v 1.147 2013/03/18 19:35:44 plunky Exp $	*/
+/*	$NetBSD: kernfs_vnops.c,v 1.150 2014/02/07 15:29:22 hannken Exp $	*/
 
 /*
  * Copyright (c) 1992, 1993
@@ -39,7 +39,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kernfs_vnops.c,v 1.147 2013/03/18 19:35:44 plunky Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kernfs_vnops.c,v 1.150 2014/02/07 15:29:22 hannken Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -468,7 +468,7 @@ kernfs_xwrite(const struct kernfs_node *kfs, char *bf, size_t len)
 int
 kernfs_lookup(void *v)
 {
-	struct vop_lookup_args /* {
+	struct vop_lookup_v2_args /* {
 		struct vnode * a_dvp;
 		struct vnode ** a_vpp;
 		struct componentname * a_cnp;
@@ -520,7 +520,10 @@ kernfs_lookup(void *v)
 
 	found:
 		error = kernfs_allocvp(dvp->v_mount, vpp, kt->kt_tag, kt, 0);
-		return (error);
+		if (error)
+			return error;
+		VOP_UNLOCK(*vpp);
+		return 0;
 
 	case KFSsubdir:
 		ks = (struct kernfs_subdir *)kfs->kfs_kt->kt_data;
@@ -1155,7 +1158,7 @@ kernfs_link(void *v)
 int
 kernfs_symlink(void *v)
 {
-	struct vop_symlink_args /* {
+	struct vop_symlink_v3_args /* {
 		struct vnode *a_dvp;
 		struct vnode **a_vpp;
 		struct componentname *a_cnp;
@@ -1164,6 +1167,5 @@ kernfs_symlink(void *v)
 	} */ *ap = v;
 
 	VOP_ABORTOP(ap->a_dvp, ap->a_cnp);
-	vput(ap->a_dvp);
 	return (EROFS);
 }

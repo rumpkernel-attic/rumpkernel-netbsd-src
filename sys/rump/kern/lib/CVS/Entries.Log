@@ -6,7 +6,9 @@ A D/libsolaris////
 A D/libsys_cygwin////
 A D/libsys_linux////
 A D/libsys_sunos////
+A D/libtime////
 A D/libtty////
 A D/libz////
+R D/libtime////
 R D/libksem////
 R D/libbpfjit////

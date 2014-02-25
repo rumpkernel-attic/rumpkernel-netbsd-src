@@ -1,4 +1,4 @@
-#	$NetBSD: Makefile.inc,v 1.14 2013/11/08 22:42:52 matt Exp $
+#	$NetBSD: Makefile.inc,v 1.18 2014/02/22 17:16:12 martin Exp $
 
 ARMV6= ${CPUFLAGS:M-march=armv6*} ${CPUFLAGS:M-mcpu=arm11*}
 ARMV6+= ${CFLAGS:M-march=armv6*:} ${CFLAGS:M-mcpu=arm11*}
@@ -23,6 +23,18 @@ SRCS.atomic+=	atomic_add_32_cas.c atomic_add_32_nv_cas.c \
 		atomic_inc_32_cas.c atomic_inc_32_nv_cas.c \
 		atomic_or_32_cas.c atomic_or_32_nv_cas.c \
 		atomic_swap_32_cas.c membar_ops_nop.c
+
+.if ${LIB} == "c"
+SRCS.atomic+=	atomic_xor_32_cas.c atomic_xor_16_cas.c atomic_xor_8_cas.c \
+		atomic_sub_32_cas.c atomic_sub_16_cas.c atomic_sub_8_cas.c \
+		atomic_nand_32_cas.c atomic_nand_16_cas.c atomic_nand_8_cas.c \
+		atomic_or_16_cas.c atomic_or_8_cas.c \
+		atomic_and_16_cas.c atomic_and_8_cas.c \
+		atomic_add_16_cas.c atomic_add_8_cas.c \
+		atomic_swap_16_cas.c atomic_swap_8_cas.c \
+		atomic_cas_32_cas.c atomic_cas_16_cas.c atomic_cas_8_cas.c
+.endif
+
 .else
 .for op in add and cas nand or xor
 .for sz in 8 16 32 64
@@ -58,6 +70,8 @@ CPUFLAGS.atomic_simplelock.c+=	-marm
 SRCS.atomic+=	atomic_init_testset.c
 SRCS.atomic+=	atomic_cas_up.S
 CPPFLAGS+= -D__HAVE_ASM_ATOMIC_CAS_UP
+CPPFLAGS+= -D__HAVE_ASM_ATOMIC_CAS_16_UP
+CPPFLAGS+= -D__HAVE_ASM_ATOMIC_CAS_8_UP
 .else
 SRCS.atomic+=	atomic_init_cas.c
 .endif

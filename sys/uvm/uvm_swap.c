@@ -1,4 +1,4 @@
-/*	$NetBSD: uvm_swap.c,v 1.165 2013/11/23 14:50:40 christos Exp $	*/
+/*	$NetBSD: uvm_swap.c,v 1.167 2014/02/22 19:05:31 mlelstv Exp $	*/
 
 /*
  * Copyright (c) 1995, 1996, 1997, 2009 Matthew R. Green
@@ -30,7 +30,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: uvm_swap.c,v 1.165 2013/11/23 14:50:40 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: uvm_swap.c,v 1.167 2014/02/22 19:05:31 mlelstv Exp $");
 
 #include "opt_uvmhist.h"
 #include "opt_compat_netbsd.h"
@@ -237,8 +237,6 @@ static void		 swaplist_trim(void);
 static int swap_on(struct lwp *, struct swapdev *);
 static int swap_off(struct lwp *, struct swapdev *);
 
-static void uvm_swap_stats(int, struct swapent *, int, register_t *);
-
 static void sw_reg_strategy(struct swapdev *, struct buf *, int);
 static void sw_reg_biodone(struct buf *);
 static void sw_reg_iodone(struct work *wk, void *dummy);
@@ -399,7 +397,7 @@ swaplist_trim(void)
 	struct swappri *spp, *nextspp;
 
 	LIST_FOREACH_SAFE(spp, &swap_priority, spi_swappri, nextspp) {
-		if (TAILQ_EMPTY(&spp->spi_swapdev))
+		if (!TAILQ_EMPTY(&spp->spi_swapdev))
 			continue;
 		LIST_REMOVE(spp, spi_swappri);
 		kmem_free(spp, sizeof(*spp));
@@ -733,7 +731,7 @@ out:
  * is not known at build time. Hence it would not be possible to
  * ensure it would fit in the stackgap in any case.
  */
-static void
+void
 uvm_swap_stats(int cmd, struct swapent *sep, int sec, register_t *retval)
 {
 	struct swappri *spp;

@@ -1,4 +1,4 @@
-/*	$NetBSD: rumpuser_port.h,v 1.25 2014/01/08 01:47:31 pooka Exp $	*/
+/*	$NetBSD: rumpuser_port.h,v 1.29 2014/02/25 20:58:18 pooka Exp $	*/
 
 /*
  * Portability header for non-NetBSD platforms.
@@ -21,8 +21,6 @@
 #define PLATFORM_HAS_NBSYSCTL
 #define PLATFORM_HAS_NBFILEHANDLE
 
-#define PLATFORM_HAS_DISKLABEL
-#define PLATFORM_HAS_NBMODULES
 #define PLATFORM_HAS_STRSUFTOLL
 #define PLATFORM_HAS_SETGETPROGNAME
 
@@ -49,7 +47,6 @@
 #ifdef __linux__
 #define _XOPEN_SOURCE 600
 #define _BSD_SOURCE
-#define _FILE_OFFSET_BITS 64
 #define _GNU_SOURCE
 #include <features.h>
 #endif
@@ -57,8 +54,6 @@
 #if defined(__sun__)
 #  if defined(RUMPUSER_NO_FILE_OFFSET_BITS)
 #    undef _FILE_OFFSET_BITS
-#  else
-#    define _FILE_OFFSET_BITS 64
 #  endif
 #endif
 
@@ -166,7 +161,11 @@ posix_memalign(void **ptr, size_t align, size_t size)
 #endif
 
 #ifndef __printflike
+#ifdef __GNUC__
+#define __printflike(a,b) __attribute__((__format__ (__printf__,a,b)))
+#else
 #define __printflike(a,b)
+#endif
 #endif
 
 #ifndef __noinline
@@ -237,6 +236,10 @@ do {						\
 	(ts)->tv_sec  = (tv)->tv_sec;		\
 	(ts)->tv_nsec = (tv)->tv_usec * 1000;	\
 } while (/*CONSTCOND*/0)
+#endif
+
+#ifndef PLATFORM_HAS_SETGETPROGNAME
+#define setprogname(a)
 #endif
 
 #endif /* _LIB_LIBRUMPUSER_RUMPUSER_PORT_H_ */

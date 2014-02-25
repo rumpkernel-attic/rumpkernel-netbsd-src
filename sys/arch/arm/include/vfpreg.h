@@ -1,4 +1,4 @@
-/*      $NetBSD: vfpreg.h,v 1.10 2013/08/02 01:59:00 matt Exp $ */
+/*      $NetBSD: vfpreg.h,v 1.12 2014/02/24 16:57:57 christos Exp $ */
 
 /*
  * Copyright (c) 2008 ARM Ltd
@@ -29,10 +29,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _VFPREG_H
-#define _VFPREG_H
+#ifndef _ARM_VFPREG_H_
+#define _ARM_VFPREG_H_
 
-/* FPSID regsiter */
+/* FPSID register */
 
 #define VFP_FPSID_IMP_MSK	0xff000000	/* Implementer */
 #define VFP_FPSID_IMP_ARM	0x41000000	/* Implementer: ARM */
@@ -78,7 +78,7 @@
 #define VFP_FPEXC_OFF		0x00000004	/* Potential overflow flag */
 #define VFP_FPEXC_DZF		0x00000002	/* Potential DivByZero flag */
 #define VFP_FPEXC_IOF		0x00000001	/* Potential inv. op. flag */
-#define VFP_FPEXE_FSUM		0x000000ff	/* all flag bits */
+#define VFP_FPEXC_FSUM		0x000000ff	/* all flag bits */
 
 #define VFP_FPSCR_N	0x80000000	/* set if compare <= result */
 #define VFP_FPSCR_Z	0x40000000	/* set if compare = result */
@@ -110,4 +110,4 @@
 #define VFP_FPSCR_DZC	0x00000002	/* DivByZero Cumulative Flag */
 #define VFP_FPSCR_IOC	0x00000001	/* Invalid Operation Cumulative Flag */
 
-#endif /* _VFPREG_H */
+#endif /* _ARM_VFPREG_H_ */

@@ -1,4 +1,4 @@
-/*	$NetBSD: jemalloc.c,v 1.29 2013/09/12 15:35:15 joerg Exp $	*/
+/*	$NetBSD: jemalloc.c,v 1.32 2014/02/25 12:13:19 martin Exp $	*/
 
 /*-
  * Copyright (C) 2006,2007 Jason Evans <jasone@FreeBSD.org>.
@@ -118,7 +118,7 @@
 
 #include <sys/cdefs.h>
 /* __FBSDID("$FreeBSD: src/lib/libc/stdlib/malloc.c,v 1.147 2007/06/15 22:00:16 jasone Exp $"); */ 
-__RCSID("$NetBSD: jemalloc.c,v 1.29 2013/09/12 15:35:15 joerg Exp $");
+__RCSID("$NetBSD: jemalloc.c,v 1.32 2014/02/25 12:13:19 martin Exp $");
 
 #ifdef __FreeBSD__
 #include "libc_private.h"
@@ -216,6 +216,14 @@ __strerror_r(int e, char *s, size_t l)
 #define	STRERROR_BUF		64
 
 /* Minimum alignment of allocations is 2^QUANTUM_2POW_MIN bytes. */
+
+/*
+ * If you touch the TINY_MIN_2POW definition for any architecture, please
+ * make sure to adjust the corresponding definition for JEMALLOC_TINY_MIN_2POW
+ * in the gcc 4.8 tree in dist/gcc/tree-ssa-ccp.c and verify that a native
+ * gcc is still buildable!
+ */
+
 #ifdef __i386__
 #  define QUANTUM_2POW_MIN	4
 #  define SIZEOF_PTR_2POW	2
@@ -228,27 +236,34 @@ __strerror_r(int e, char *s, size_t l)
 #ifdef __alpha__
 #  define QUANTUM_2POW_MIN	4
 #  define SIZEOF_PTR_2POW	3
+#  define TINY_MIN_2POW		3
 #  define NO_TLS
 #endif
 #ifdef __sparc64__
 #  define QUANTUM_2POW_MIN	4
 #  define SIZEOF_PTR_2POW	3
+#  define TINY_MIN_2POW		3
 #  define NO_TLS
 #endif
 #ifdef __amd64__
 #  define QUANTUM_2POW_MIN	4
 #  define SIZEOF_PTR_2POW	3
+#  define TINY_MIN_2POW		3
 #endif
 #ifdef __arm__
 #  define QUANTUM_2POW_MIN	3
 #  define SIZEOF_PTR_2POW	2
 #  define USE_BRK
+#  ifdef __ARM_EABI__
+#    define TINY_MIN_2POW	3
+#  endif
 #  define NO_TLS
 #endif
 #ifdef __powerpc__
 #  define QUANTUM_2POW_MIN	4
 #  define SIZEOF_PTR_2POW	2
 #  define USE_BRK
+#  define TINY_MIN_2POW		3
 #endif
 #if defined(__sparc__) && !defined(__sparc64__)
 #  define QUANTUM_2POW_MIN	4
@@ -303,7 +318,9 @@ __strerror_r(int e, char *s, size_t l)
 #define	CACHELINE		((size_t)(1 << CACHELINE_2POW))
 
 /* Smallest size class to support. */
-#define	TINY_MIN_2POW		1
+#ifndef TINY_MIN_2POW
+#define	TINY_MIN_2POW		2
+#endif
 
 /*
  * Maximum size class that is a multiple of the quantum, but not (necessarily)

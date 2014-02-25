@@ -1,4 +1,4 @@
-/*	$NetBSD: genfb_pci.c,v 1.34 2012/03/13 18:40:31 elad Exp $ */
+/*	$NetBSD: genfb_pci.c,v 1.36 2014/01/27 13:22:55 macallan Exp $ */
 
 /*-
  * Copyright (c) 2007 Michael Lorenz
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: genfb_pci.c,v 1.34 2012/03/13 18:40:31 elad Exp $");
+__KERNEL_RCSID(0, "$NetBSD: genfb_pci.c,v 1.36 2014/01/27 13:22:55 macallan Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>

@@ -1,4 +1,4 @@
-/*	$NetBSD: acpi.c,v 1.256 2013/10/16 17:30:42 christos Exp $	*/
+/*	$NetBSD: acpi.c,v 1.258 2014/02/25 18:30:09 pooka Exp $	*/
 
 /*-
  * Copyright (c) 2003, 2007 The NetBSD Foundation, Inc.
@@ -100,7 +100,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: acpi.c,v 1.256 2013/10/16 17:30:42 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: acpi.c,v 1.258 2014/02/25 18:30:09 pooka Exp $");
 
 #include "opt_acpi.h"
 #include "opt_pcifixup.h"
@@ -1459,18 +1459,10 @@ SYSCTL_SETUP(sysctl_acpi_setup, "sysctl hw.acpi subtree setup")
 	int err;
 
 	err = sysctl_createv(clog, 0, NULL, &rnode,
-	    CTLFLAG_PERMANENT, CTLTYPE_NODE, "hw",
-	    NULL, NULL, 0, NULL, 0,
-	    CTL_HW, CTL_EOL);
-
-	if (err != 0)
-		return;
-
-	err = sysctl_createv(clog, 0, &rnode, &rnode,
 	    CTLFLAG_PERMANENT, CTLTYPE_NODE,
 	    "acpi", SYSCTL_DESCR("ACPI subsystem parameters"),
 	    NULL, 0, NULL, 0,
-	    CTL_CREATE, CTL_EOL);
+	    CTL_HW, CTL_CREATE, CTL_EOL);
 
 	if (err != 0)
 		return;
@@ -1853,7 +1845,9 @@ acpi_allocate_resources(ACPI_HANDLE handle)
 	ACPI_BUFFER bufp, bufc, bufn;
 	ACPI_RESOURCE *resp, *resc, *resn;
 	ACPI_RESOURCE_IRQ *irq;
+#if 0
 	ACPI_RESOURCE_EXTENDED_IRQ *xirq;
+#endif
 	ACPI_STATUS rv;
 	uint delta;
 
@@ -1891,8 +1885,8 @@ acpi_allocate_resources(ACPI_HANDLE handle)
 		case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
 			memcpy(&resn->Data, &resp->Data,
 			       sizeof(ACPI_RESOURCE_EXTENDED_IRQ));
-			xirq = (ACPI_RESOURCE_EXTENDED_IRQ *)&resn->Data;
 #if 0
+			xirq = (ACPI_RESOURCE_EXTENDED_IRQ *)&resn->Data;
 			/*
 			 * XXX:	Not duplicating the interrupt logic above
 			 *	because its not clear what it accomplishes.

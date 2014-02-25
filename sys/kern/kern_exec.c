@@ -1,4 +1,4 @@
-/*	$NetBSD: kern_exec.c,v 1.368 2013/12/24 14:47:04 christos Exp $	*/
+/*	$NetBSD: kern_exec.c,v 1.377 2014/02/19 15:23:20 maxv Exp $	*/
 
 /*-
  * Copyright (c) 2008 The NetBSD Foundation, Inc.
@@ -59,7 +59,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.368 2013/12/24 14:47:04 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.377 2014/02/19 15:23:20 maxv Exp $");
 
 #include "opt_exec.h"
 #include "opt_execfmt.h"
@@ -113,7 +113,7 @@ __KERNEL_RCSID(0, "$NetBSD: kern_exec.c,v 1.368 2013/12/24 14:47:04 christos Exp
 #include <compat/common/compat_util.h>
 
 #ifndef MD_TOPDOWN_INIT
-#ifdef __USING_TOPDOWN_VM
+#ifdef __USE_TOPDOWN_VM
 #define	MD_TOPDOWN_INIT(epp)	(epp)->ep_flags |= EXEC_TOPDOWN_VM
 #else
 #define	MD_TOPDOWN_INIT(epp)
@@ -178,7 +178,11 @@ void	syscall(void);
 /* NetBSD emul struct */
 struct emul emul_netbsd = {
 	.e_name =		"netbsd",
+#ifdef EMUL_NATIVEROOT
+	.e_path =		EMUL_NATIVEROOT,
+#else
 	.e_path =		NULL,
+#endif
 #ifndef __HAVE_MINIMAL_EMUL
 	.e_flags =		EMUL_HAS_SYS___syscall,
 	.e_errno =		NULL,
@@ -512,7 +516,7 @@ sys_execve(struct lwp *l, const struct sys_execve_args *uap, register_t *retval)
 	    SCARG(uap, envp), execve_fetch_element);
 }
 
-int   
+int
 sys_fexecve(struct lwp *l, const struct sys_fexecve_args *uap,
     register_t *retval)
 {
@@ -567,9 +571,9 @@ exec_autoload(void)
 	list = (nexecs == 0 ? native : compat);
 	for (i = 0; list[i] != NULL; i++) {
 		if (module_autoload(list[i], MODULE_CLASS_EXEC) != 0) {
-		    	continue;
+			continue;
 		}
-	   	yield();
+		yield();
 	}
 #endif
 }
@@ -589,7 +593,7 @@ execve_loadvm(struct lwp *l, const char *path, char * const *args,
 	KASSERT(data != NULL);
 
 	p = l->l_proc;
- 	modgen = 0;
+	modgen = 0;
 
 	SDT_PROBE(proc,,,exec, path, 0, 0, 0, 0);
 
@@ -654,8 +658,7 @@ execve_loadvm(struct lwp *l, const char *path, char * const *args,
 	data->ed_pack.ep_hdrvalid = 0;
 	data->ed_pack.ep_emul_arg = NULL;
 	data->ed_pack.ep_emul_arg_free = NULL;
-	data->ed_pack.ep_vmcmds.evs_cnt = 0;
-	data->ed_pack.ep_vmcmds.evs_used = 0;
+	memset(&data->ed_pack.ep_vmcmds, 0, sizeof(data->ed_pack.ep_vmcmds));
 	data->ed_pack.ep_vap = &data->ed_attr;
 	data->ed_pack.ep_flags = 0;
 	MD_TOPDOWN_INIT(&data->ed_pack);
@@ -904,7 +907,7 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	KASSERT(no_local_exec_lock || rw_lock_held(&exec_lock));
 	KASSERT(data != NULL);
 	if (data == NULL)
-		return (EINVAL);
+		return EINVAL;
 
 	p = l->l_proc;
 	if (no_local_exec_lock)
@@ -947,8 +950,8 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 		    data->ed_pack.ep_flags & EXEC_TOPDOWN_VM);
 
 	/* record proc's vnode, for use by procfs and others */
-        if (p->p_textvp)
-                vrele(p->p_textvp);
+	if (p->p_textvp)
+		vrele(p->p_textvp);
 	vref(data->ed_pack.ep_vp);
 	p->p_textvp = data->ed_pack.ep_vp;
 
@@ -1423,7 +1426,7 @@ execve_runproc(struct lwp *l, struct execve_data * restrict data,
 	pathbuf_destroy(data->ed_pathbuf);
 	PNBUF_PUT(data->ed_resolvedpathbuf);
 	DPRINTF(("%s finished\n", __func__));
-	return (EJUSTRETURN);
+	return EJUSTRETURN;
 
  exec_abort:
 	SDT_PROBE(proc,,,exec_failure, error, 0, 0, 0, 0);
@@ -1753,7 +1756,7 @@ exec_sigcode_map(struct proc *p, const struct emul *e)
 				printf("kernel mapping failed %d\n", error);
 				(*uobj->pgops->pgo_detach)(uobj);
 				mutex_exit(&sigobject_lock);
-				return (error);
+				return error;
 			}
 			memcpy((void *)va, e->e_sigcode, sz);
 #ifdef PMAP_NEED_PROCWR
@@ -1791,10 +1794,10 @@ exec_sigcode_map(struct proc *p, const struct emul *e)
 		    __func__, __LINE__, &p->p_vmspace->vm_map, round_page(sz),
 		    va, error));
 		(*uobj->pgops->pgo_detach)(uobj);
-		return (error);
+		return error;
 	}
 	p->p_sigctx.ps_sigcode = (void *)va;
-	return (0);
+	return 0;
 }
 
 /*
@@ -1823,11 +1826,11 @@ spawn_exec_data_release(struct spawn_exec_data *data)
  * A child lwp of a posix_spawn operation starts here and ends up in
  * cpu_spawn_return, dealing with all filedescriptor and scheduler
  * manipulations in between.
- * The parent waits for the child, as it is not clear wether the child
- * will be able to aquire its own exec_lock. If it can, the parent can
+ * The parent waits for the child, as it is not clear whether the child
+ * will be able to acquire its own exec_lock. If it can, the parent can
  * be released early and continue running in parallel. If not (or if the
  * magic debug flag is passed in the scheduler attribute struct), the
- * child rides on the parent's exec lock untill it is ready to return to
+ * child rides on the parent's exec lock until it is ready to return to
  * to userland - and only then releases the parent. This method loses
  * concurrency, but improves error reporting.
  */
@@ -1881,8 +1884,8 @@ spawn_return(void *arg)
 				}
 				error = fd_open(fae->fae_path, fae->fae_oflag,
 				    fae->fae_mode, &newfd);
- 				if (error)
- 					break;
+				if (error)
+					break;
 				if (newfd != fae->fae_fildes) {
 					error = dodup(l, newfd,
 					    fae->fae_fildes, 0, &retval);
@@ -1973,6 +1976,16 @@ spawn_return(void *arg)
 		}
 
 		if (spawn_data->sed_attrs->sa_flags & POSIX_SPAWN_SETSIGDEF) {
+			/*
+			 * The following sigaction call is using a sigaction
+			 * version 0 trampoline which is in the compatibility
+			 * code only. This is not a problem because for SIG_DFL
+			 * and SIG_IGN, the trampolines are now ignored. If they
+			 * were not, this would be a problem because we are
+			 * holding the exec_lock, and the compat code needs
+			 * to do the same in order to replace the trampoline
+			 * code of the process.
+			 */
 			for (i = 1; i <= NSIG; i++) {
 				if (sigismember(
 				    &spawn_data->sed_attrs->sa_sigdefault, i))
@@ -2001,15 +2014,15 @@ spawn_return(void *arg)
 	/* release our refcount on the data */
 	spawn_exec_data_release(spawn_data);
 
-	/* and finaly: leave to userland for the first time */
+	/* and finally: leave to userland for the first time */
 	cpu_spawn_return(l);
 
 	/* NOTREACHED */
 	return;
 
  report_error:
- 	if (have_reflock) {
- 		/*
+	if (have_reflock) {
+		/*
 		 * We have not passed through execve_runproc(),
 		 * which would have released the p_reflock and also
 		 * taken ownership of the sed_exec part of spawn_data,
@@ -2061,7 +2074,7 @@ posix_spawn_fa_free(struct posix_spawn_file_actions *fa, size_t len)
 
 static int
 posix_spawn_fa_alloc(struct posix_spawn_file_actions **fap,
-    const struct posix_spawn_file_actions *ufa)
+    const struct posix_spawn_file_actions *ufa, rlim_t lim)
 {
 	struct posix_spawn_file_actions *fa;
 	struct posix_spawn_file_actions_entry *fae;
@@ -2071,15 +2084,14 @@ posix_spawn_fa_alloc(struct posix_spawn_file_actions **fap,
 
 	fa = kmem_alloc(sizeof(*fa), KM_SLEEP);
 	error = copyin(ufa, fa, sizeof(*fa));
-	if (error) {
-		fa->fae = NULL;
-		fa->len = 0;
-		goto out;
+	if (error || fa->len == 0) {
+		kmem_free(fa, sizeof(*fa));
+		return error;	/* 0 if not an error, and len == 0 */
 	}
 
-	if (fa->len == 0) {
+	if (fa->len > lim) {
 		kmem_free(fa, sizeof(*fa));
-		return 0;
+		return EINVAL;
 	}
 
 	fa->size = fa->len;
@@ -2410,14 +2422,14 @@ do_posix_spawn(struct lwp *l1, pid_t *pid_res, bool *child_ok, const char *path,
 	return error;
 
  error_exit:
- 	if (have_exec_lock) {
+	if (have_exec_lock) {
 		execve_free_data(&spawn_data->sed_exec);
 		rw_exit(&p1->p_reflock);
- 		rw_exit(&exec_lock);
+		rw_exit(&exec_lock);
 	}
 	mutex_exit(&spawn_data->sed_mtx_child);
 	spawn_exec_data_release(spawn_data);
- 
+
 	return error;
 }
 
@@ -2439,6 +2451,8 @@ sys_posix_spawn(struct lwp *l1, const struct sys_posix_spawn_args *uap,
 	struct posix_spawnattr *sa = NULL;
 	pid_t pid;
 	bool child_ok = false;
+	rlim_t max_fileactions;
+	proc_t *p = l1->l_proc;
 
 	error = check_posix_spawn(l1);
 	if (error) {
@@ -2448,7 +2462,10 @@ sys_posix_spawn(struct lwp *l1, const struct sys_posix_spawn_args *uap,
 
 	/* copy in file_actions struct */
 	if (SCARG(uap, file_actions) != NULL) {
-		error = posix_spawn_fa_alloc(&fa, SCARG(uap, file_actions));
+		max_fileactions = 2 * min(p->p_rlimit[RLIMIT_NOFILE].rlim_cur,
+		    maxfiles);
+		error = posix_spawn_fa_alloc(&fa, SCARG(uap, file_actions),
+		    max_fileactions);
 		if (error)
 			goto error_exit;
 	}

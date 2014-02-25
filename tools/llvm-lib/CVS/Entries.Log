@@ -115,12 +115,7 @@ A D/liblldReaderWriterMachO////
 A D/liblldReaderWriterNative////
 A D/liblldReaderWriterPECOFF////
 A D/liblldReaderWriterYAML////
-R D/liblldReaderWriterELFMips////
 R D/libclangStaticAnalyzer////
 R D/libclangRewrite////
 R D/libMCLinkerScript////
-R D/libLLVMSparcDisassembler////
-R D/libLLVMSparcAsmPrinter////
-R D/libLLVMSparcAsmParser////
-R D/libLLVMPowerPCDisassembler////
 R D/libLLVMCore////

@@ -1,4 +1,4 @@
-/*	$NetBSD: exec_script.c,v 1.67 2013/09/19 18:50:59 christos Exp $	*/
+/*	$NetBSD: exec_script.c,v 1.69 2014/02/21 08:11:59 maxv Exp $	*/
 
 /*
  * Copyright (c) 1993, 1994, 1996 Christopher G. Demetriou
@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: exec_script.c,v 1.67 2013/09/19 18:50:59 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: exec_script.c,v 1.69 2014/02/21 08:11:59 maxv Exp $");
 
 #if defined(SETUIDSCRIPTS) && !defined(FDSCRIPTS)
 #define FDSCRIPTS		/* Need this for safe set-id scripts. */
@@ -95,7 +95,7 @@ exec_script_modcmd(modcmd_t cmd, void *arg)
 
 	default:
 		return ENOTTY;
-        }
+	}
 }
 
 /*
@@ -153,13 +153,6 @@ exec_script_makecmds(struct lwp *l, struct exec_package *epp)
 		}
 	}
 	if (cp >= hdrstr + hdrlinelen)
-		return ENOEXEC;
-
-	/*
-	 * If the script has an ELF header, don't exec it.
-	 */
-	if (epp->ep_hdrvalid >= sizeof(ELFMAG)-1 &&
-	    memcmp(hdrstr, ELFMAG, sizeof(ELFMAG)-1) == 0)
 		return ENOEXEC;
 
 	shellname = NULL;
@@ -345,10 +338,10 @@ fail:
 #endif
 
 	/* kill the opened file descriptor, else close the file */
-        if (epp->ep_flags & EXEC_HASFD) {
-                epp->ep_flags &= ~EXEC_HASFD;
-                fd_close(epp->ep_fd);
-        } else if (scriptvp) {
+	if (epp->ep_flags & EXEC_HASFD) {
+		epp->ep_flags &= ~EXEC_HASFD;
+		fd_close(epp->ep_fd);
+	} else if (scriptvp) {
 		vn_lock(scriptvp, LK_EXCLUSIVE | LK_RETRY);
 		VOP_CLOSE(scriptvp, FREAD, l->l_cred);
 		vput(scriptvp);
@@ -363,11 +356,11 @@ fail:
 		kmem_free(shellargp, shellargp_len);
 	}
 
-        /*
-         * free any vmspace-creation commands,
-         * and release their references
-         */
-        kill_vmcmds(&epp->ep_vmcmds);
+	/*
+	 * free any vmspace-creation commands,
+	 * and release their references
+	 */
+	kill_vmcmds(&epp->ep_vmcmds);
 
-        return error;
+	return error;
 }

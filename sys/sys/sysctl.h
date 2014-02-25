@@ -1,4 +1,4 @@
-/*	$NetBSD: sysctl.h,v 1.209 2013/09/20 12:20:01 wiz Exp $	*/
+/*	$NetBSD: sysctl.h,v 1.211 2014/02/25 18:30:13 pooka Exp $	*/
 
 /*
  * Copyright (c) 1989, 1993
@@ -59,10 +59,6 @@
 #else
 #include <stddef.h>
 #include <stdbool.h>
-#endif
-
-#ifdef SYSCTL_PRIVATE
-#include <sys/cprng.h>
 #endif
 
 /*
@@ -1152,6 +1148,7 @@ void	fill_eproc(struct proc *, struct eproc *, bool);
  * subsystem setup
  */
 void	sysctl_init(void);
+void	sysctl_basenode_init(void);
 void	sysctl_finalize(void);
 
 /*
@@ -1250,10 +1247,6 @@ MALLOC_DECLARE(M_SYSCTLNODE);
 MALLOC_DECLARE(M_SYSCTLDATA);
 
 extern const u_int sysctl_lwpflagmap[];
-
-#ifdef SYSCTL_PRIVATE
-extern cprng_strong_t *sysctl_prng;
-#endif
 
 #else	/* !_KERNEL */
 #include <sys/cdefs.h>

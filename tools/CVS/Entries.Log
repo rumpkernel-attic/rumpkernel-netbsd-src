@@ -41,6 +41,7 @@ A D/hexdump////
 A D/host-mkdep////
 A D/hp300-mkboot////
 A D/hp700-mkboot////
+A D/hppa-mkboot////
 A D/ibmnws-ncdcs////
 A D/installboot////
 A D/join////
@@ -114,6 +115,7 @@ R D/toolchain////
 R D/sparc-installboot////
 R D/prep-mkbootimage////
 R D/nbmachine////
+R D/hp700-mkboot////
 R D/dumpfs////
 R D/bmake////
 R D/bebox-mkbootimage////

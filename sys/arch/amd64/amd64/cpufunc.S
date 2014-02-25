@@ -1,4 +1,4 @@
-/*	$NetBSD: cpufunc.S,v 1.22 2013/12/08 18:00:51 dsl Exp $	*/
+/*	$NetBSD: cpufunc.S,v 1.25 2014/02/12 23:24:09 dsl Exp $	*/
 
 /*-
  * Copyright (c) 1998, 2007, 2008 The NetBSD Foundation, Inc.
@@ -441,6 +441,10 @@ ENTRY(fnstcw)
 	fnstcw	(%rdi)
 	ret
 
+ENTRY(fngetsw)
+	fnstsw	%ax
+	ret
+
 ENTRY(fnstsw)
 	fnstsw	(%rdi)
 	ret
@@ -480,7 +484,7 @@ ENTRY(fxrstor)
 
 ENTRY(fldummy)
 	ffree	%st(7)
-	flds	(%rdi)
+	fldz
 	ret
 
 ENTRY(xsave)
@@ -502,6 +506,10 @@ ENTRY(xrstor)
 	movq	%rsi, %rdx
 	shrq	$32, %rdx
 	xrstor	(%rdi)
+	ret
+
+ENTRY(x86_stmxcsr)
+	stmxcsr	(%rdi)
 	ret
 
 ENTRY(x86_ldmxcsr)

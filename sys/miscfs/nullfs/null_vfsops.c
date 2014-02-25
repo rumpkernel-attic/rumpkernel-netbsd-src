@@ -1,4 +1,4 @@
-/*	$NetBSD: null_vfsops.c,v 1.84 2012/04/30 22:51:27 rmind Exp $	*/
+/*	$NetBSD: null_vfsops.c,v 1.86 2014/02/25 18:30:11 pooka Exp $	*/
 
 /*
  * Copyright (c) 1999 National Aeronautics & Space Administration
@@ -76,7 +76,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: null_vfsops.c,v 1.84 2012/04/30 22:51:27 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: null_vfsops.c,v 1.86 2014/02/25 18:30:11 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -159,9 +159,10 @@ nullfs_mount(struct mount *mp, const char *path, void *data, size_t *data_len)
 	    &nmp->nullm_node_hash);
 
 	/* Setup a null node for root vnode. */
+	VOP_UNLOCK(lowerrootvp);
 	error = layer_node_create(mp, lowerrootvp, &vp);
 	if (error) {
-		vput(lowerrootvp);
+		vrele(lowerrootvp);
 		hashdone(nmp->nullm_node_hashtbl, HASH_LIST,
 		    nmp->nullm_node_hash);
 		kmem_free(nmp, sizeof(struct null_mount));
@@ -171,6 +172,7 @@ nullfs_mount(struct mount *mp, const char *path, void *data, size_t *data_len)
 	 * Keep a held reference to the root vnode.  It will be released on
 	 * umount.  Note: nullfs is MP-safe.
 	 */
+	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
 	vp->v_vflag |= VV_ROOT;
 	nmp->nullm_rootvp = vp;
 	mp->mnt_iflag |= IMNT_MPSAFE;
@@ -253,11 +255,6 @@ null_modcmd(modcmd_t cmd, void *arg)
 		error = vfs_attach(&nullfs_vfsops);
 		if (error != 0)
 			break;
-		sysctl_createv(&nullfs_sysctl_log, 0, NULL, NULL,
-		    CTLFLAG_PERMANENT,
-		    CTLTYPE_NODE, "vfs", NULL,
-		    NULL, 0, NULL, 0,
-		    CTL_VFS, CTL_EOL);
 		sysctl_createv(&nullfs_sysctl_log, 0, NULL, NULL,
 		    CTLFLAG_PERMANENT,
 		    CTLTYPE_NODE, "null",

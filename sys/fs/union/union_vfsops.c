@@ -1,4 +1,4 @@
-/*	$NetBSD: union_vfsops.c,v 1.68 2012/04/30 22:51:27 rmind Exp $	*/
+/*	$NetBSD: union_vfsops.c,v 1.70 2014/02/25 18:30:11 pooka Exp $	*/
 
 /*
  * Copyright (c) 1994 The Regents of the University of California.
@@ -77,7 +77,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: union_vfsops.c,v 1.68 2012/04/30 22:51:27 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: union_vfsops.c,v 1.70 2014/02/25 18:30:11 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -386,19 +386,21 @@ union_root(struct mount *mp, struct vnode **vpp)
 	 * Return locked reference to root.
 	 */
 	vref(um->um_uppervp);
-	vn_lock(um->um_uppervp, LK_EXCLUSIVE | LK_RETRY);
 	if (um->um_lowervp)
 		vref(um->um_lowervp);
 	error = union_allocvp(vpp, mp, NULL, NULL, NULL,
 			      um->um_uppervp, um->um_lowervp, 1);
 
 	if (error) {
-		vput(um->um_uppervp);
+		vrele(um->um_uppervp);
 		if (um->um_lowervp)
 			vrele(um->um_lowervp);
+		return error;
 	}
 
-	return (error);
+	vn_lock(*vpp, LK_EXCLUSIVE | LK_RETRY);
+
+	return 0;
 }
 
 int
@@ -541,11 +543,6 @@ union_modcmd(modcmd_t cmd, void *arg)
 		error = vfs_attach(&union_vfsops);
 		if (error != 0)
 			break;
-		sysctl_createv(&union_sysctl_log, 0, NULL, NULL,
-			       CTLFLAG_PERMANENT,
-			       CTLTYPE_NODE, "vfs", NULL,
-			       NULL, 0, NULL, 0,
-			       CTL_VFS, CTL_EOL);
 		sysctl_createv(&union_sysctl_log, 0, NULL, NULL,
 			       CTLFLAG_PERMANENT,
 			       CTLTYPE_NODE, "union",
