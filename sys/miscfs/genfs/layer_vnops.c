@@ -1,4 +1,4 @@
-/*	$NetBSD: layer_vnops.c,v 1.54 2014/02/07 15:29:22 hannken Exp $	*/
+/*	$NetBSD: layer_vnops.c,v 1.56 2014/03/12 09:39:23 hannken Exp $	*/
 
 /*
  * Copyright (c) 1999 National Aeronautics & Space Administration
@@ -170,7 +170,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: layer_vnops.c,v 1.54 2014/02/07 15:29:22 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: layer_vnops.c,v 1.56 2014/03/12 09:39:23 hannken Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -702,6 +702,54 @@ layer_reclaim(void *v)
 	kmem_free(vp->v_data, lmp->layerm_size);
 	vp->v_data = NULL;
 	vrele(lowervp);
+
+	return 0;
+}
+
+int
+layer_lock(void *v)
+{
+	struct vop_lock_args /* {
+		struct vnode *a_vp;
+		int a_flags;
+	} */ *ap = v;
+	struct vnode *vp = ap->a_vp;
+	struct vnode *lowervp = LAYERVPTOLOWERVP(vp);
+	int flags = ap->a_flags;
+	int error;
+
+	if (ISSET(flags, LK_NOWAIT)) {
+		error = VOP_LOCK(lowervp, flags);
+		if (error)
+			return error;
+		if (mutex_tryenter(vp->v_interlock)) {
+			if (ISSET(vp->v_iflag, VI_XLOCK))
+				error = EBUSY;
+			else if (ISSET(vp->v_iflag, VI_CLEAN))
+				error = ENOENT;
+			else
+				error = 0;
+			mutex_exit(vp->v_interlock);
+		} else
+			error = EBUSY;
+		if (error)
+			VOP_UNLOCK(lowervp);
+		return error;
+	}
+
+	error = VOP_LOCK(lowervp, flags);
+	if (error)
+		return error;
+
+	mutex_enter(vp->v_interlock);
+	if (ISSET(vp->v_iflag, VI_XLOCK) || ISSET(vp->v_iflag, VI_CLEAN)) {
+		VOP_UNLOCK(lowervp);
+		vwait(vp, VI_XLOCK);
+		KASSERT(ISSET(vp->v_iflag, VI_CLEAN));
+		mutex_exit(vp->v_interlock);
+		return ENOENT;
+	}
+	mutex_exit(vp->v_interlock);
 
 	return 0;
 }

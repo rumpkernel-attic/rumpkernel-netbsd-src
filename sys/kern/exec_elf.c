@@ -1,4 +1,4 @@
-/*	$NetBSD: exec_elf.c,v 1.61 2014/02/22 07:53:16 maxv Exp $	*/
+/*	$NetBSD: exec_elf.c,v 1.64 2014/03/16 07:57:25 maxv Exp $	*/
 
 /*-
  * Copyright (c) 1994, 2000, 2005 The NetBSD Foundation, Inc.
@@ -57,7 +57,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(1, "$NetBSD: exec_elf.c,v 1.61 2014/02/22 07:53:16 maxv Exp $");
+__KERNEL_RCSID(1, "$NetBSD: exec_elf.c,v 1.64 2014/03/16 07:57:25 maxv Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_pax.h"
@@ -103,7 +103,7 @@ elf_load_file(struct lwp *, struct exec_package *, char *,
     struct exec_vmcmd_set *, u_long *, Elf_Addr *);
 static void
 elf_load_psection(struct exec_vmcmd_set *, struct vnode *, const Elf_Phdr *,
-    Elf_Addr *, u_long *, int *, int);
+    Elf_Addr *, u_long *, int);
 
 int	netbsd_elf_signature(struct lwp *, struct exec_package *, Elf_Ehdr *);
 int	netbsd_elf_probe(struct lwp *, struct exec_package *, void *, char *,
@@ -162,6 +162,7 @@ elf_placedynexec(struct lwp *l, struct exec_package *epp, Elf_Ehdr *eh,
 
 	for (i = 0; i < eh->e_phnum; i++)
 		ph[i].p_vaddr += offset;
+	epp->ep_entryoffset = offset;
 	eh->e_entry += offset;
 }
 
@@ -316,10 +317,11 @@ elf_check_header(Elf_Ehdr *eh)
  */
 static void
 elf_load_psection(struct exec_vmcmd_set *vcset, struct vnode *vp,
-    const Elf_Phdr *ph, Elf_Addr *addr, u_long *size, int *prot, int flags)
+    const Elf_Phdr *ph, Elf_Addr *addr, u_long *size, int flags)
 {
 	u_long msize, psize, rm, rf;
 	long diff, offset;
+	int vmprot = 0;
 
 	/*
 	 * If the user specified an address, then we load there.
@@ -341,9 +343,9 @@ elf_load_psection(struct exec_vmcmd_set *vcset, struct vnode *vp,
 	} else
 		diff = 0;
 
-	*prot |= (ph->p_flags & PF_R) ? VM_PROT_READ : 0;
-	*prot |= (ph->p_flags & PF_W) ? VM_PROT_WRITE : 0;
-	*prot |= (ph->p_flags & PF_X) ? VM_PROT_EXECUTE : 0;
+	vmprot |= (ph->p_flags & PF_R) ? VM_PROT_READ : 0;
+	vmprot |= (ph->p_flags & PF_W) ? VM_PROT_WRITE : 0;
+	vmprot |= (ph->p_flags & PF_X) ? VM_PROT_EXECUTE : 0;
 
 	/*
 	 * Adjust everything so it all starts on a page boundary.
@@ -371,12 +373,12 @@ elf_load_psection(struct exec_vmcmd_set *vcset, struct vnode *vp,
 	if (psize > 0) {
 		NEW_VMCMD2(vcset, ph->p_align < PAGE_SIZE ?
 		    vmcmd_map_readvn : vmcmd_map_pagedvn, psize, *addr, vp,
-		    offset, *prot, flags);
+		    offset, vmprot, flags);
 		flags &= VMCMD_RELATIVE;
 	}
 	if (psize < *size) {
 		NEW_VMCMD2(vcset, vmcmd_map_readvn, *size - psize,
-		    *addr + psize, vp, offset + psize, *prot, flags);
+		    *addr + psize, vp, offset + psize, vmprot, flags);
 	}
 
 	/*
@@ -388,7 +390,7 @@ elf_load_psection(struct exec_vmcmd_set *vcset, struct vnode *vp,
 
 	if (rm != rf) {
 		NEW_VMCMD2(vcset, vmcmd_map_zero, rm - rf, rf, NULLVP,
-		    0, *prot, flags & VMCMD_RELATIVE);
+		    0, vmprot, flags & VMCMD_RELATIVE);
 		*size = msize;
 	}
 }
@@ -555,7 +557,6 @@ elf_load_file(struct lwp *l, struct exec_package *epp, char *path,
 		switch (ph[i].p_type) {
 		case PT_LOAD: {
 			u_long size;
-			int prot = 0;
 			int flags;
 
 			if (base_ph == NULL) {
@@ -595,7 +596,7 @@ elf_load_file(struct lwp *l, struct exec_package *epp, char *path,
 			}
 			last_ph = &ph[i];
 			elf_load_psection(vcset, vp, &ph[i], &addr,
-			    &size, &prot, flags);
+			    &size, flags);
 			/*
 			 * If entry is within this psection then this
 			 * must contain the .text section.  *entryoff is
@@ -748,12 +749,11 @@ exec_elf_makecmds(struct lwp *l, struct exec_package *epp)
 	for (i = 0; i < eh->e_phnum; i++) {
 		Elf_Addr addr = ELFDEFNNAME(NO_ADDR);
 		u_long size = 0;
-		int prot = 0;
 
 		switch (ph[i].p_type) {
 		case PT_LOAD:
 			elf_load_psection(&epp->ep_vmcmds, epp->ep_vp,
-			    &ph[i], &addr, &size, &prot, VMCMD_FIXED);
+			    &ph[i], &addr, &size, VMCMD_FIXED);
 
 			/*
 			 * Consider this as text segment, if it is executable.
@@ -835,6 +835,7 @@ exec_elf_makecmds(struct lwp *l, struct exec_package *epp)
 		}
 
 		ap->arg_interp = epp->ep_vmcmds.evs_cmds[nused].ev_addr;
+		epp->ep_entryoffset = interp_offset;
 		epp->ep_entry = ap->arg_interp + interp_offset;
 		PNBUF_PUT(interp);
 	} else
@@ -876,7 +877,7 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 	size_t shsize, nsize;
 	int error;
 	int isnetbsd = 0;
-	char *ndata;
+	char *ndata, *ndesc;
 
 	epp->ep_pax_flags = 0;
 	if (eh->e_shnum > MAXSHNUM || eh->e_shnum == 0)
@@ -918,6 +919,7 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 		    roundup(np->n_descsz, 4);
 		if (nsize != shp->sh_size)
 			goto bad;
+		ndesc = ndata + roundup(np->n_namesz, 4);
 
 		switch (np->n_type) {
 		case ELF_NOTE_TYPE_NETBSD_TAG:
@@ -926,8 +928,7 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 			    np->n_descsz == ELF_NOTE_NETBSD_DESCSZ &&
 			    memcmp(ndata, ELF_NOTE_NETBSD_NAME,
 			    ELF_NOTE_NETBSD_NAMESZ) == 0) {
-				memcpy(&epp->ep_osversion,
-				    ndata + roundup(ELF_NOTE_NETBSD_NAMESZ, 4),
+				memcpy(&epp->ep_osversion, ndesc,
 				    ELF_NOTE_NETBSD_DESCSZ);
 				isnetbsd = 1;
 				break;
@@ -949,8 +950,7 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 			    np->n_descsz == ELF_NOTE_PAX_DESCSZ &&
 			    memcmp(ndata, ELF_NOTE_PAX_NAME,
 			    ELF_NOTE_PAX_NAMESZ) == 0) {
-				memcpy(&epp->ep_pax_flags,
-				    ndata + roundup(ELF_NOTE_PAX_NAMESZ, 4),
+				memcpy(&epp->ep_pax_flags, ndesc,
 				    sizeof(epp->ep_pax_flags));
 				break;
 			}
@@ -961,8 +961,17 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 			if (np->n_namesz == ELF_NOTE_MARCH_NAMESZ
 			    && memcmp(ndata, ELF_NOTE_MARCH_NAME,
 				    ELF_NOTE_MARCH_NAMESZ) == 0) {
-				strlcpy(epp->ep_machine_arch,
-				    ndata + roundup(ELF_NOTE_MARCH_NAMESZ, 4),
+				/* Do not truncate the buffer */
+				if (np->n_descsz > sizeof(epp->ep_machine_arch))
+					goto bad;
+				/*
+				 * Ensure ndesc is NUL-terminated and of the
+				 * expected length.
+				 */
+				if (strnlen(ndesc, np->n_descsz) + 1 !=
+				    np->n_descsz)
+					goto bad;
+				strlcpy(epp->ep_machine_arch, ndesc,
 				    sizeof(epp->ep_machine_arch));
 				break;
 			}
@@ -974,9 +983,7 @@ netbsd_elf_signature(struct lwp *l, struct exec_package *epp,
 			if (np->n_namesz == ELF_NOTE_MCMODEL_NAMESZ
 			    && memcmp(ndata, ELF_NOTE_MCMODEL_NAME,
 				    ELF_NOTE_MCMODEL_NAMESZ) == 0) {
-				ELF_MD_MCMODEL_CHECK(epp, 
-				    ndata + roundup(ELF_NOTE_MCMODEL_NAMESZ, 4),
-				    np->n_descsz);
+				ELF_MD_MCMODEL_CHECK(epp, ndesc, np->n_descsz);
 				break;
 			}
 			goto bad;

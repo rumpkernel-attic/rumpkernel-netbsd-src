@@ -68,6 +68,9 @@ A D/dm////
 A D/drm////
 A D/drm2////
 A D/drm2pci////
+A D/drmkms////
+A D/drmkms_linux////
+A D/drmkms_pci////
 A D/dtrace////
 A D/dtv////
 A D/dtv_math////
@@ -104,6 +107,7 @@ A D/hpet////
 A D/hpqlb////
 A D/i915drm////
 A D/i915drm2////
+A D/i915drmkms////
 A D/if_alc////
 A D/if_ath_pci////
 A D/if_athn_usb////
@@ -249,8 +253,12 @@ R D/msdosfs////
 R D/luadata////
 R D/luacore////
 R D/ksem////
+R D/i915drmkms////
 R D/i915drm2////
 R D/filecorefs////
+R D/drmkms_pci////
+R D/drmkms_linux////
+R D/drmkms////
 R D/drm2pci////
 R D/drm2////
 R D/dirhash////

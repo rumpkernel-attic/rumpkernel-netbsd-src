@@ -39,12 +39,6 @@ public:
   static step_result stepWithDwarf(A &, pint_t, pint_t, R &, unw_proc_info_t *);
 
 private:
-  // Pseudo-register used for return addresses.
-  enum {
-    DW_X86_RET_ADDR = 8,
-    DW_X86_64_RET_ADDR = 16,
-  };
-
   static pint_t evaluateExpression(pint_t, A &, const R &, pint_t);
   static pint_t
   getSavedRegister(A &, const R &, pint_t,
@@ -55,7 +49,7 @@ private:
 
   static int lastRestoreReg(const R &) { return R::LAST_RESTORE_REG; }
   static bool isReturnAddressRegister(int regno, const R &) {
-    return regno == R::IP_PSEUDO_REG;
+    return regno == R::RETURN_REG;
   }
 
   static pint_t getCFA(A &addressSpace,

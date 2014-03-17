@@ -16603,7 +16603,7 @@ static int		dtrace_unload(void);
 #include <dtrace_unload.c>
 #include <dtrace_vtime.c>
 #include <dtrace_hacks.c>
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__x86_64__) || defined(__arm__)
 #include <dtrace_isa.c>
 #endif
 
@@ -16655,7 +16655,7 @@ dtrace_state_worker_add(void (*fn)(dtrace_state_t *), dtrace_state_t *state,
     hrtime_t interval)
 {
 	struct dtrace_state_worker *w;
-	int error;
+	int error __diagused;
 
 	w = kmem_alloc(sizeof(*w), KM_SLEEP);
 	mutex_init(&w->lock, MUTEX_DEFAULT, IPL_NONE);
@@ -16673,7 +16673,7 @@ dtrace_state_worker_add(void (*fn)(dtrace_state_t *), dtrace_state_t *state,
 void
 dtrace_state_worker_remove(struct dtrace_state_worker *w)
 {
-	int error;
+	int error __diagused;
 
 	KASSERT(!w->exiting);
 	mutex_enter(&w->lock);

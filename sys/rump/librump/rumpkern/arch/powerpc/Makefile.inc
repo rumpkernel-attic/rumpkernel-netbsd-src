@@ -1,6 +1,7 @@
-# $NetBSD: Makefile.inc,v 1.3 2014/02/12 22:28:43 pooka Exp $
+# $NetBSD: Makefile.inc,v 1.5 2014/03/07 05:49:05 matt Exp $
 
-.if ${MACHINE_ARCH} == "powerpc"
+.if ${MACHINE_ARCH} == "powerpc" \
+    || (defined(MLIBDIR) && "${MLIBDIR}" == "powerpc")
 CPPFLAGS+=	-DARCH_ELFSIZE=32
 .else
 CPPFLAGS+=	-DARCH_ELFSIZE=64

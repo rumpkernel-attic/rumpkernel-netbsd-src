@@ -1,4 +1,4 @@
-/*	$NetBSD: xhci.c,v 1.13 2014/01/16 20:55:56 dsl Exp $	*/
+/*	$NetBSD: xhci.c,v 1.16 2014/03/10 13:21:22 skrll Exp $	*/
 
 /*
  * Copyright (c) 2013 Jonathan A. Kollasch
@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: xhci.c,v 1.13 2014/01/16 20:55:56 dsl Exp $");
+__KERNEL_RCSID(0, "$NetBSD: xhci.c,v 1.16 2014/03/10 13:21:22 skrll Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -566,7 +566,7 @@ hexdump(const char *msg, const void *base, size_t len)
 }
 
 
-usbd_status
+int
 xhci_init(struct xhci_softc *sc)
 {
 	bus_size_t bsz;
@@ -579,7 +579,8 @@ xhci_init(struct xhci_softc *sc)
 
 	DPRINTF(("%s\n", __func__));
 
-	sc->sc_bus.usbrev = USBREV_2_0; /* XXX Low/Full/High speeds for now */
+	/* XXX Low/Full/High speeds for now */
+	sc->sc_bus.usbrev = USBREV_2_0;
 
 	cap = xhci_read_4(sc, XHCI_CAPLENGTH);
 	caplength = XHCI_CAP_CAPLENGTH(cap);
@@ -597,7 +598,7 @@ xhci_init(struct xhci_softc *sc)
 	if (bus_space_subregion(sc->sc_iot, sc->sc_ioh, 0, caplength,
 	    &sc->sc_cbh) != 0) {
 		aprint_error_dev(sc->sc_dev, "capability subregion failure\n");
-		return USBD_NOMEM;
+		return ENOMEM;
 	}
 
 	hcs1 = xhci_cap_read_4(sc, XHCI_HCSPARAMS1);
@@ -653,21 +654,21 @@ xhci_init(struct xhci_softc *sc)
 	if (bus_space_subregion(sc->sc_iot, sc->sc_ioh, caplength, bsz,
 	    &sc->sc_obh) != 0) {
 		aprint_error_dev(sc->sc_dev, "operational subregion failure\n");
-		return USBD_NOMEM;
+		return ENOMEM;
 	}
 
 	dboff = xhci_cap_read_4(sc, XHCI_DBOFF);
 	if (bus_space_subregion(sc->sc_iot, sc->sc_ioh, dboff,
 	    sc->sc_maxslots * 4, &sc->sc_dbh) != 0) {
 		aprint_error_dev(sc->sc_dev, "doorbell subregion failure\n");
-		return USBD_NOMEM;
+		return ENOMEM;
 	}
 
 	rtsoff = xhci_cap_read_4(sc, XHCI_RTSOFF);
 	if (bus_space_subregion(sc->sc_iot, sc->sc_ioh, rtsoff,
 	    sc->sc_maxintrs * 0x20, &sc->sc_rbh) != 0) {
 		aprint_error_dev(sc->sc_dev, "runtime subregion failure\n");
-		return USBD_NOMEM;
+		return ENOMEM;
 	}
 
 	for (i = 0; i < 100; i++) {
@@ -677,7 +678,7 @@ xhci_init(struct xhci_softc *sc)
 		usb_delay_ms(&sc->sc_bus, 1);
 	}
 	if (i >= 100)
-		return USBD_IOERROR;
+		return EIO;
 
 	usbcmd = 0;
 	xhci_op_write_4(sc, XHCI_USBCMD, usbcmd);
@@ -692,7 +693,7 @@ xhci_init(struct xhci_softc *sc)
 		usb_delay_ms(&sc->sc_bus, 1);
 	}
 	if (i >= 100)
-		return USBD_IOERROR;
+		return EIO;
 
 	for (i = 0; i < 100; i++) {
 		usbsts = xhci_op_read_4(sc, XHCI_USBSTS);
@@ -701,13 +702,13 @@ xhci_init(struct xhci_softc *sc)
 		usb_delay_ms(&sc->sc_bus, 1);
 	}
 	if (i >= 100)
-		return USBD_IOERROR;
+		return EIO;
 
 	pagesize = xhci_op_read_4(sc, XHCI_PAGESIZE);
 	aprint_debug_dev(sc->sc_dev, "PAGESIZE 0x%08x\n", pagesize);
 	pagesize = ffs(pagesize);
 	if (pagesize == 0)
-		return USBD_IOERROR;
+		return EIO;
 	sc->sc_pgsz = 1 << (12 + (pagesize - 1));
 	aprint_debug_dev(sc->sc_dev, "sc_pgsz 0x%08x\n", (uint32_t)sc->sc_pgsz);
 	aprint_debug_dev(sc->sc_dev, "sc_maxslots 0x%08x\n",
@@ -761,45 +762,45 @@ xhci_init(struct xhci_softc *sc)
 		return err;
 	}
 
-	{
-		usb_dma_t *dma;
-		size_t size;
-		size_t align;
+	usb_dma_t *dma;
+	size_t size;
+	size_t align;
 
-		dma = &sc->sc_eventst_dma;
-		size = roundup2(XHCI_EVENT_RING_SEGMENTS * XHCI_ERSTE_SIZE,
-		    XHCI_EVENT_RING_SEGMENT_TABLE_ALIGN);
-		KASSERT(size <= (512 * 1024));
-		align = XHCI_EVENT_RING_SEGMENT_TABLE_ALIGN;
-		err = usb_allocmem(&sc->sc_bus, size, align, dma);
-		memset(KERNADDR(dma, 0), 0, size);
-		usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
-		aprint_debug_dev(sc->sc_dev, "eventst: %s %016jx %p %zx\n",
-		    usbd_errstr(err),
-		    (uintmax_t)DMAADDR(&sc->sc_eventst_dma, 0),
-		    KERNADDR(&sc->sc_eventst_dma, 0),
-		    sc->sc_eventst_dma.block->size);
+	dma = &sc->sc_eventst_dma;
+	size = roundup2(XHCI_EVENT_RING_SEGMENTS * XHCI_ERSTE_SIZE,
+	    XHCI_EVENT_RING_SEGMENT_TABLE_ALIGN);
+	KASSERT(size <= (512 * 1024));
+	align = XHCI_EVENT_RING_SEGMENT_TABLE_ALIGN;
+	err = usb_allocmem(&sc->sc_bus, size, align, dma);
 
-		dma = &sc->sc_dcbaa_dma;
-		size = (1 + sc->sc_maxslots) * sizeof(uint64_t);
-		KASSERT(size <= 2048);
-		align = XHCI_DEVICE_CONTEXT_BASE_ADDRESS_ARRAY_ALIGN;
-		err = usb_allocmem(&sc->sc_bus, size, align, dma);
-		memset(KERNADDR(dma, 0), 0, size);
-		if (sc->sc_maxspbuf != 0) {
-			/*
-			 * DCBA entry 0 hold the scratchbuf array pointer.
-			 */
-			*(uint64_t *)KERNADDR(dma, 0) =
-			    htole64(DMAADDR(&sc->sc_spbufarray_dma, 0));
-		}
-		usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
-		aprint_debug_dev(sc->sc_dev, "dcbaa: %s %016jx %p %zx\n",
-		    usbd_errstr(err),
-		    (uintmax_t)DMAADDR(&sc->sc_dcbaa_dma, 0),
-		    KERNADDR(&sc->sc_dcbaa_dma, 0),
-		    sc->sc_dcbaa_dma.block->size);
+	memset(KERNADDR(dma, 0), 0, size);
+	usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
+	aprint_debug_dev(sc->sc_dev, "eventst: %s %016jx %p %zx\n",
+	    usbd_errstr(err),
+	    (uintmax_t)DMAADDR(&sc->sc_eventst_dma, 0),
+	    KERNADDR(&sc->sc_eventst_dma, 0),
+	    sc->sc_eventst_dma.block->size);
+
+	dma = &sc->sc_dcbaa_dma;
+	size = (1 + sc->sc_maxslots) * sizeof(uint64_t);
+	KASSERT(size <= 2048);
+	align = XHCI_DEVICE_CONTEXT_BASE_ADDRESS_ARRAY_ALIGN;
+	err = usb_allocmem(&sc->sc_bus, size, align, dma);
+
+	memset(KERNADDR(dma, 0), 0, size);
+	if (sc->sc_maxspbuf != 0) {
+		/*
+		 * DCBA entry 0 hold the scratchbuf array pointer.
+		 */
+		*(uint64_t *)KERNADDR(dma, 0) =
+		    htole64(DMAADDR(&sc->sc_spbufarray_dma, 0));
 	}
+	usb_syncmem(dma, 0, size, BUS_DMASYNC_PREWRITE);
+	aprint_debug_dev(sc->sc_dev, "dcbaa: %s %016jx %p %zx\n",
+	    usbd_errstr(err),
+	    (uintmax_t)DMAADDR(&sc->sc_dcbaa_dma, 0),
+	    KERNADDR(&sc->sc_dcbaa_dma, 0),
+	    sc->sc_dcbaa_dma.block->size);
 
 	sc->sc_slots = kmem_zalloc(sizeof(*sc->sc_slots) * sc->sc_maxslots,
 	    KM_SLEEP);

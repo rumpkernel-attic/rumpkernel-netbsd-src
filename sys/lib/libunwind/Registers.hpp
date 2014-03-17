@@ -32,9 +32,9 @@ enum {
 class Registers_x86 {
 public:
   enum {
-    LAST_RESTORE_REG = REGNO_X86_EIP,
-    IP_PSEUDO_REG = REGNO_X86_EIP,
     LAST_REGISTER = REGNO_X86_EIP,
+    LAST_RESTORE_REG = REGNO_X86_EIP,
+    RETURN_REG = REGNO_X86_EIP,
   };
 
   __dso_hidden Registers_x86();
@@ -97,9 +97,9 @@ enum {
 class Registers_x86_64 {
 public:
   enum {
-    LAST_RESTORE_REG = REGNO_X86_64_RIP,
-    IP_PSEUDO_REG = REGNO_X86_64_RIP,
     LAST_REGISTER = REGNO_X86_64_RIP,
+    LAST_RESTORE_REG = REGNO_X86_64_RIP,
+    RETURN_REG = REGNO_X86_64_RIP,
   };
 
   __dso_hidden Registers_x86_64();
@@ -144,19 +144,18 @@ enum {
   DWARF_PPC32_R31 = 31,
   DWARF_PPC32_F0 = 32,
   DWARF_PPC32_F31 = 63,
-  DWARF_PPC32_V0 = 1124,
-  DWARF_PPC32_V31 = 1155,
   DWARF_PPC32_LR = 65,
-  DWARF_PPC32_CTR = 66,
-  DWARF_PPC32_XER = 76,
+  DWARF_PPC32_CR = 70,
+  DWARF_PPC32_V0 = 77,
+  DWARF_PPC32_V31 = 108,
+
   REGNO_PPC32_R0 = 0,
-  REGNO_PPC32_R1 = 0,
+  REGNO_PPC32_R1 = 1,
   REGNO_PPC32_R31 = 31,
-  REGNO_PPC32_CR = 32,
-  REGNO_PPC32_LR = 33,
-  REGNO_PPC32_CTR = 34,
-  REGNO_PPC32_XER = 35,
-  REGNO_PPC32_SRR0 = 36,
+  REGNO_PPC32_LR = 32,
+  REGNO_PPC32_CR = 33,
+  REGNO_PPC32_SRR0 = 34,
+
   REGNO_PPC32_F0 = REGNO_PPC32_SRR0 + 1,
   REGNO_PPC32_F31 = REGNO_PPC32_F0 + 31,
   REGNO_PPC32_V0 = REGNO_PPC32_F31 + 1,
@@ -166,9 +165,9 @@ enum {
 class Registers_ppc32 {
 public:
   enum {
-    LAST_RESTORE_REG = REGNO_PPC32_V31,
-    IP_PSEUDO_REG = REGNO_PPC32_SRR0,
     LAST_REGISTER = REGNO_PPC32_V31,
+    LAST_RESTORE_REG = REGNO_PPC32_V31,
+    RETURN_REG = REGNO_PPC32_LR,
   };
 
   __dso_hidden Registers_ppc32();
@@ -180,7 +179,14 @@ public:
       return REGNO_PPC32_F0 + (num - DWARF_PPC32_F0);
     if (num >= DWARF_PPC32_V0 && num <= DWARF_PPC32_V31)
       return REGNO_PPC32_V0 + (num - DWARF_PPC32_V0);
-    return LAST_REGISTER + 1;
+    switch (num) {
+    case DWARF_PPC32_LR:
+      return REGNO_PPC32_LR;
+    case DWARF_PPC32_CR:
+      return REGNO_PPC32_CR;
+    default:
+      return LAST_REGISTER + 1;
+    }
   }
 
   bool validRegister(int num) const {
@@ -225,6 +231,7 @@ private:
     uint64_t low, high;
   };
   uint32_t reg[REGNO_PPC32_SRR0 + 1];
+  uint32_t dummy;
   uint64_t fpreg[32];
   vecreg_t vecreg[64];
 };
@@ -246,9 +253,9 @@ enum {
 class Registers_arm32 {
 public:
   enum {
-    LAST_RESTORE_REG = REGNO_ARM32_SPSR,
-    IP_PSEUDO_REG = REGNO_ARM32_SPSR,
     LAST_REGISTER = REGNO_ARM32_D31,
+    LAST_RESTORE_REG = REGNO_ARM32_SPSR,
+    RETURN_REG = REGNO_ARM32_SPSR,
   };
 
   __dso_hidden Registers_arm32();

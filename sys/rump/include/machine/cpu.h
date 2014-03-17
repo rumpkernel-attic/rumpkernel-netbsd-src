@@ -1,4 +1,4 @@
-/*	$NetBSD: cpu.h,v 1.18 2014/01/22 23:38:21 christos Exp $	*/
+/*	$NetBSD: cpu.h,v 1.20 2014/03/15 15:15:26 pooka Exp $	*/
 
 /*
  * Copyright (c) 2008-2011 Antti Kantee.  All Rights Reserved.
@@ -25,6 +25,11 @@
  * SUCH DAMAGE.
  */
 
+/*
+ * CPU defitions for a generic arch.  Unfortunately there are some
+ * MD #ifdefs here.  They are required because of MD inlines and macros.
+ */
+
 #ifndef _SYS_RUMP_CPU_H_
 #define _SYS_RUMP_CPU_H_
 
@@ -32,6 +37,8 @@
 
 #include <sys/cpu_data.h>
 #include <machine/pcb.h>
+
+#include "rump_curlwp.h"
 
 struct cpu_info {
 	struct cpu_data ci_data;
@@ -44,20 +51,12 @@ struct cpu_info {
 	uint64_t ci_pcc_freq;
 #endif
 
-/*
- * XXX: horrible workaround for vax lock.h.
- * I eventually want to nuke rump include/machine, so don't waste
- * energy fighting with this.
- */
 #ifdef __vax__
 	int ci_ipimsgs;
 #define IPI_SEND_CNCHAR 0
 #define IPI_DDB 0
 #endif /* __vax__ */
 
-/*
- * More stinky hacks, this time for powerpc.  Will go away eventually.
- */
 #ifdef __powerpc__
 	struct cache_info {
 		int dcache_size;
@@ -68,17 +67,15 @@ struct cpu_info {
 #endif /* __powerpc */
 };
 
-/* more dirty rotten vax kludges */
 #ifdef __vax__
 static __inline void cpu_handle_ipi(void) {}
 #endif /* __vax__ */
 
 #ifdef __powerpc__
 void __syncicache(void *, size_t);
-#endif
+#endif /* __powerpc__ */
 
-struct lwp *rumpuser_curlwp(void);
-#define curlwp rumpuser_curlwp()
+#define curlwp rump_curlwp_fast()
 
 #define curcpu() (curlwp->l_cpu)
 #define cpu_number() (cpu_index(curcpu))
