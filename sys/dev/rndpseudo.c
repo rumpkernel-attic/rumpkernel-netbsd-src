@@ -1,4 +1,4 @@
-/*	$NetBSD: rndpseudo.c,v 1.17 2013/09/25 03:14:55 riastradh Exp $	*/
+/*	$NetBSD: rndpseudo.c,v 1.19 2014/03/16 05:20:26 dholland Exp $	*/
 
 /*-
  * Copyright (c) 1997-2013 The NetBSD Foundation, Inc.
@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rndpseudo.c,v 1.17 2013/09/25 03:14:55 riastradh Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rndpseudo.c,v 1.19 2014/03/16 05:20:26 dholland Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_compat_netbsd.h"
@@ -66,7 +66,7 @@ __KERNEL_RCSID(0, "$NetBSD: rndpseudo.c,v 1.17 2013/09/25 03:14:55 riastradh Exp
 
 #include <dev/rnd_private.h>
 
-#if defined(__HAVE_CPU_COUNTER) && !defined(_RUMPKERNEL) /* XXX: bad pooka */
+#if defined(__HAVE_CPU_COUNTER)
 #include <machine/cpu_counter.h>
 #endif
 
@@ -127,8 +127,17 @@ void	rndattach(int);
 dev_type_open(rndopen);
 
 const struct cdevsw rnd_cdevsw = {
-	rndopen, noclose, noread, nowrite, noioctl, nostop,
-	notty, nopoll, nommap, nokqfilter, D_OTHER|D_MPSAFE
+	.d_open = rndopen,
+	.d_close = noclose,
+	.d_read = noread,
+	.d_write = nowrite,
+	.d_ioctl = noioctl,
+	.d_stop = nostop,
+	.d_tty = notty,
+	.d_poll = nopoll,
+	.d_mmap = nommap,
+	.d_kqfilter = nokqfilter,
+	.d_flag = D_OTHER | D_MPSAFE
 };
 
 static int rnd_read(struct file *, off_t *, struct uio *, kauth_cred_t, int);
@@ -165,7 +174,7 @@ rndpseudo_counter(void)
 {
 	struct timeval tv;
 
-#if defined(__HAVE_CPU_COUNTER) && !defined(_RUMPKERNEL) /* XXX: bad pooka */
+#if defined(__HAVE_CPU_COUNTER)
 	if (cpu_hascounter())
 		return (cpu_counter32());
 #endif

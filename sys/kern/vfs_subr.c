@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_subr.c,v 1.441 2013/11/27 17:24:44 christos Exp $	*/
+/*	$NetBSD: vfs_subr.c,v 1.443 2014/03/17 09:28:37 hannken Exp $	*/
 
 /*-
  * Copyright (c) 1997, 1998, 2004, 2005, 2007, 2008 The NetBSD Foundation, Inc.
@@ -67,7 +67,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_subr.c,v 1.441 2013/11/27 17:24:44 christos Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_subr.c,v 1.443 2014/03/17 09:28:37 hannken Exp $");
 
 #include "opt_ddb.h"
 #include "opt_compat_netbsd.h"
@@ -131,8 +131,8 @@ vntblinit(void)
 {
 
 	vn_initialize_syncerd();
-	vfs_vnode_sysinit();
 	vfs_mount_sysinit();
+	vfs_vnode_sysinit();
 }
 
 /*
@@ -611,7 +611,8 @@ sysctl_kern_vnode(SYSCTLFN_ARGS)
 	char *where = oldp;
 	size_t *sizep = oldlenp;
 	struct mount *mp, *nmp;
-	vnode_t *vp, *mvp, vbuf;
+	vnode_t *vp, vbuf;
+	struct vnode_iterator *marker;
 	char *bp = where;
 	char *ewhere;
 	int error;
@@ -635,47 +636,29 @@ sysctl_kern_vnode(SYSCTLFN_ARGS)
 		if (vfs_busy(mp, &nmp)) {
 			continue;
 		}
-		/* Allocate a marker vnode. */
-		mvp = vnalloc(mp);
-		/* Should never fail for mp != NULL */
-		KASSERT(mvp != NULL);
-		mutex_enter(&mntvnode_lock);
-		for (vp = TAILQ_FIRST(&mp->mnt_vnodelist); vp;
-		    vp = vunmark(mvp)) {
-			vmark(mvp, vp);
-			/*
-			 * Check that the vp is still associated with
-			 * this filesystem.  RACE: could have been
-			 * recycled onto the same filesystem.
-			 */
-			if (vp->v_mount != mp || vismarker(vp))
-				continue;
+		vfs_vnode_iterator_init(mp, &marker);
+		while (vfs_vnode_iterator_next(marker, &vp)) {
 			if (bp + VPTRSZ + VNODESZ > ewhere) {
-				(void)vunmark(mvp);
-				mutex_exit(&mntvnode_lock);
-				vnfree(mvp);
+				vrele(vp);
+				vfs_vnode_iterator_destroy(marker);
 				vfs_unbusy(mp, false, NULL);
 				sysctl_relock();
 				*sizep = bp - where;
 				return (ENOMEM);
 			}
 			memcpy(&vbuf, vp, VNODESZ);
-			mutex_exit(&mntvnode_lock);
 			if ((error = copyout(&vp, bp, VPTRSZ)) ||
 			    (error = copyout(&vbuf, bp + VPTRSZ, VNODESZ))) {
-			   	mutex_enter(&mntvnode_lock);
-				(void)vunmark(mvp);
-				mutex_exit(&mntvnode_lock);
-				vnfree(mvp);
+				vrele(vp);
+				vfs_vnode_iterator_destroy(marker);
 				vfs_unbusy(mp, false, NULL);
 				sysctl_relock();
 				return (error);
 			}
+			vrele(vp);
 			bp += VPTRSZ + VNODESZ;
-			mutex_enter(&mntvnode_lock);
 		}
-		mutex_exit(&mntvnode_lock);
-		vnfree(mvp);
+		vfs_vnode_iterator_destroy(marker);
 		vfs_unbusy(mp, false, &nmp);
 	}
 	mutex_exit(&mountlist_lock);

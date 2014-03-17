@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.767 2014/02/24 07:23:41 skrll Exp $
+#	$NetBSD: bsd.own.mk,v 1.789 2014/03/17 07:11:40 mrg Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -47,17 +47,44 @@ NEED_OWN_INSTALL_TARGET?=	yes
 TOOLCHAIN_MISSING?=	no
 
 #
-# Platforms still using GCC 4.1
+# GCC Using platforms.
 #
 .if ${MKGCC:Uyes} != "no"
+
+#
+# Platforms still using GCC 4.1
+#
 .if ${MACHINE_CPU}  == "vax"
 HAVE_GCC?=    4
+
+# Platforms switched to GCC 4.8
+.elif \
+      ${MACHINE_CPU} == "alpha" || \
+      ${MACHINE_CPU} == "arm" || \
+      ${MACHINE_CPU} == "hppa" || \
+      ${MACHINE_CPU} == "sparc" || \
+      ${MACHINE_CPU} == "sparc64" || \
+      ${MACHINE_CPU} == "x86_64"
+HAVE_GCC?=    48
+
 .else
 # Otherwise, default to GCC4.5
 HAVE_GCC?=    45
 .endif
+
+#
+# We import the old gcc as "gcc.old" when upgrading.  EXTERNAL_GCC_SUBDIR is
+# set to the relevant subdirectory in src/external/gpl3 for his HAVE_GCC.
+#
+.if ${HAVE_GCC} == 45
+EXTERNAL_GCC_SUBDIR=	gcc.old
+.elif ${HAVE_GCC} == 48
+EXTERNAL_GCC_SUBDIR=	gcc
+.else
+EXTERNAL_GCC_SUBDIR=	/does/not/exist
 .endif
 
+.endif
 
 .if ${MACHINE_ARCH} == "ia64"
 USE_COMPILERCRTSTUFF?=	yes
@@ -71,7 +98,10 @@ HAVE_LIBGCC?=	no
 HAVE_LIBGCC?=	yes
 .endif
 
-.if ${MKLLVM:Uno} == "yes" && (${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "x86_64")
+_LIBC_UNWIND_SUPPORT.i386=	yes
+_LIBC_UNWIND_SUPPORT.powerpc=	yes
+_LIBC_UNWIND_SUPPORT.x86_64=	yes
+.if ${MKLLVM:Uno} == "yes" && ${_LIBC_UNWIND_SUPPORT.${MACHINE_ARCH}:Uno} == "yes"
 HAVE_LIBGCC_EH?=	no
 .else
 HAVE_LIBGCC_EH?=	yes
@@ -499,6 +529,16 @@ MACHINES.sparc64=	sparc64
 MACHINES.vax=		vax
 MACHINES.x86_64=	amd64
 
+# for crunchide & ldd, define the OBJECT_FMTS used by a MACHINE_ARCH
+#
+OBJECT_FMTS=
+.if	${MACHINE_ARCH} != "alpha" 
+OBJECT_FMTS+=	elf32
+.endif
+.if	${MACHINE_ARCH} == "alpha" || ${MACHINE_ARCH:M*64*} != ""
+OBJECT_FMTS+=	elf64
+.endif
+
 # OBJCOPY flags to create a.out binaries for old firmware
 # shared among src/distrib and ${MACHINE}/conf/Makefile.${MACHINE}.inc
 .if ${MACHINE_CPU} == "arm"
@@ -754,13 +794,7 @@ ARM_APCS_FLAGS=	-mabi=apcs-gnu -mfloat-abi=soft
 ARM_APCS_FLAGS+=${${ACTIVE_CC} == "clang":? -target ${MACHINE_GNU_ARCH}--netbsdelf -B ${TOOLDIR}/${MACHINE_GNU_PLATFORM}/bin :}
 .endif
 
-#
-# Determine if arch uses native kernel modules with rump
-#
-.if ${MACHINE_ARCH} == "i386" || \
-    ${MACHINE_ARCH} == "x86_64"
-RUMPKMOD=	# defined
-.endif
+GENASSYM_CPPFLAGS+=	${${ACTIVE_CC} == "clang":? -no-integrated-as :}
 
 TARGETS+=	all clean cleandir depend dependall includes \
 		install lint obj regress tags html analyze
@@ -829,8 +863,9 @@ MK${var}:=	yes
 #
 # MK* options which have variable defaults.
 #
-.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "sparc64" || \
-    ${MACHINE_ARCH} == "mips64eb" || ${MACHINE_ARCH} == "mips64el"
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "sparc64" \
+    || ${MACHINE_ARCH} == "mips64eb" || ${MACHINE_ARCH} == "mips64el" \
+    || ${MACHINE_ARCH} == "powerpc64"
 MKCOMPAT?=	yes
 .elif !empty(MACHINE_ARCH:Mearm*)
 MKCOMPAT?=	no
@@ -841,7 +876,7 @@ MKCOMPAT:=	no
 
 #.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "i386" || \
 
-.if ${MACHINE} == "evbppc"
+.if ${MACHINE} == "evbppc" && ${MACHINE_ARCH} == "powerpc"
 MKCOMPATMODULES?=	yes
 .else
 MKCOMPATMODULES:=	no
@@ -957,8 +992,7 @@ ${var}?=no
     ${MACHINE} == "amiga"	|| \
     ${MACHINE} == "mac68k"	|| \
     ${MACHINE} == "pmax"	|| \
-    ${MACHINE} == "sun3"	|| \
-    ${MACHINE} == "x68k"
+    ${MACHINE} == "sun3"
 X11FLAVOUR?=	XFree86
 .else
 X11FLAVOUR?=	Xorg
@@ -1166,15 +1200,16 @@ X11SRCDIRMIT?=		${X11SRCDIR}/external/mit
 	FS ICE SM X11 XScrnSaver XTrap Xau Xcomposite Xcursor Xdamage \
 	Xdmcp Xevie Xext Xfixes Xfont Xft Xi Xinerama Xmu Xpm \
 	Xrandr Xrender Xres Xt Xtst Xv XvMC Xxf86dga Xxf86misc Xxf86vm drm \
-	fontenc xkbfile xkbui Xaw lbxutil Xfontcache pciaccess xcb
+	fontenc xkbfile xkbui Xaw lbxutil Xfontcache pciaccess xcb \
+	pthread-stubs
 X11SRCDIR.${_lib}?=		${X11SRCDIRMIT}/lib${_lib}/dist
 .endfor
 
 .for _proto in \
 	xcmisc xext xf86bigfont bigreqs input kb x fonts fixes scrnsaver \
-	xinerama dri2 render resource record video xf86dga xf86misc \
+	xinerama dri2 dri3 render resource record video xf86dga xf86misc \
 	xf86vidmode composite damage trap gl randr fontcache xf86dri \
-	xcb-
+	present xcb-
 X11SRCDIR.${_proto}proto?=		${X11SRCDIRMIT}/${_proto}proto/dist
 .endfor
 

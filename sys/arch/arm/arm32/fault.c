@@ -1,4 +1,4 @@
-/*	$NetBSD: fault.c,v 1.95 2014/02/25 22:18:09 matt Exp $	*/
+/*	$NetBSD: fault.c,v 1.98 2014/03/05 06:27:41 matt Exp $	*/
 
 /*
  * Copyright 2003 Wasabi Systems, Inc.
@@ -81,7 +81,7 @@
 #include "opt_kgdb.h"
 
 #include <sys/types.h>
-__KERNEL_RCSID(0, "$NetBSD: fault.c,v 1.95 2014/02/25 22:18:09 matt Exp $");
+__KERNEL_RCSID(0, "$NetBSD: fault.c,v 1.98 2014/03/05 06:27:41 matt Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -242,7 +242,8 @@ data_abort_handler(trapframe_t *tf)
 	int error;
 	ksiginfo_t ksi;
 
-	UVMHIST_FUNC(__func__); UVMHIST_CALLED(maphist);
+	UVMHIST_FUNC(__func__);
+	UVMHIST_CALLED(maphist);
 
 	/* Grab FAR/FSR before enabling interrupts */
 	far = cpu_faultaddress();
@@ -412,11 +413,10 @@ data_abort_handler(trapframe_t *tf)
 	 * Otherwise we need to disassemble the instruction responsible to
 	 * determine if it was a write.
 	 */
-	if (/* CPU_IS_ARMV6_P() || */ CPU_IS_ARMV7_P()) {
+	if (CPU_IS_ARMV6_P() || CPU_IS_ARMV7_P()) {
 		ftype = (fsr & FAULT_WRITE) ? VM_PROT_WRITE : VM_PROT_READ;
 	} else if (IS_PERMISSION_FAULT(fsr)) {
 		ftype = VM_PROT_WRITE; 
-		// KASSERTMSG(fsr & FAULT_WRITE, "fsr %#x", fsr);
 	} else {
 #ifdef THUMB_CODE
 		/* Fast track the ARM case.  */
@@ -436,7 +436,6 @@ data_abort_handler(trapframe_t *tf)
 				ftype = VM_PROT_WRITE;
 			else
 				ftype = VM_PROT_READ;
-			// KASSERTMSG(ftype == (fsr & FAULT_WRITE) ? VM_PROT_WRITE : VM_PROT_READ, "fsr %#x insn %#x", fsr, insn);
 		}
 		else
 #endif
@@ -452,7 +451,6 @@ data_abort_handler(trapframe_t *tf)
 				ftype = VM_PROT_READ | VM_PROT_WRITE; 
 			else
 				ftype = VM_PROT_READ; 
-			// KASSERTMSG(ftype == (fsr & FAULT_WRITE) ? VM_PROT_WRITE : VM_PROT_READ, "fsr %#x insn %#x", fsr, insn);
 		}
 	}
 
@@ -785,7 +783,8 @@ prefetch_abort_handler(trapframe_t *tf)
 	ksiginfo_t ksi;
 	int error, user;
 
-	UVMHIST_FUNC(__func__); UVMHIST_CALLED(maphist);
+	UVMHIST_FUNC(__func__);
+	UVMHIST_CALLED(maphist);
 
 	/* Update vmmeter statistics */
 	curcpu()->ci_data.cpu_ntrap++;
@@ -829,8 +828,8 @@ prefetch_abort_handler(trapframe_t *tf)
 	/* Get fault address */
 	fault_pc = tf->tf_pc;
 	lwp_settrapframe(l, tf);
-	UVMHIST_LOG(maphist, " (pc=0x%x, l=0x%x, tf=0x%x)", fault_pc, l, tf,
-	    0);
+	UVMHIST_LOG(maphist, " (pc=0x%x, l=0x%x, tf=0x%x)",
+	    fault_pc, l, tf, 0);
 
 	/* Ok validate the address, can only execute in USER space */
 	if (__predict_false(fault_pc >= VM_MAXUSER_ADDRESS ||
@@ -874,6 +873,7 @@ prefetch_abort_handler(trapframe_t *tf)
 	KSI_INIT_TRAP(&ksi);
 
 	UVMHIST_LOG (maphist, " <- fatal (%d)", error, 0, 0, 0);
+
 	if (error == ENOMEM) {
 		printf("UVM: pid %d (%s), uid %d killed: "
 		    "out of swap\n", l->l_proc->p_pid, l->l_proc->p_comm,

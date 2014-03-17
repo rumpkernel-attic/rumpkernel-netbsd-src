@@ -1,4 +1,4 @@
-/*	$NetBSD: rumpuser_pth.c,v 1.34 2013/10/27 16:39:46 rmind Exp $	*/
+/*	$NetBSD: rumpuser_pth.c,v 1.36 2014/03/10 22:37:51 justin Exp $	*/
 
 /*
  * Copyright (c) 2007-2010 Antti Kantee.  All Rights Reserved.
@@ -28,7 +28,7 @@
 #include "rumpuser_port.h"
 
 #if !defined(lint)
-__RCSID("$NetBSD: rumpuser_pth.c,v 1.34 2013/10/27 16:39:46 rmind Exp $");
+__RCSID("$NetBSD: rumpuser_pth.c,v 1.36 2014/03/10 22:37:51 justin Exp $");
 #endif /* !lint */
 
 #include <sys/queue.h>

@@ -1,18 +1,23 @@
-#	$NetBSD: Makefile,v 1.64 2014/02/18 01:34:18 christos Exp $
+#	$NetBSD: Makefile,v 1.66 2014/02/27 20:15:53 mrg Exp $
 
 .include <bsd.own.mk>
 
 GCC_LANGUAGES=c c++ objc
 MODULE=			gcc4
 
+.if ${HAVE_GCC} < 45
+GCCDIST=	${.CURDIR}/../../gnu/dist/gcc4
+.else
+GCCDIST=	${.CURDIR}/../../external/gpl3/${EXTERNAL_GCC_SUBDIR}/dist
+.endif
+GNUHOSTDIST=	${GCCDIST}
+
 .if ${HAVE_GCC} == 48
 CC_FOR_BUILD=		${HOST_CXX:Q}
 LIB_INTL=
-MKNATIVE=		${.CURDIR}/mknative-gcc48
-GNUHOSTDIST=		${.CURDIR}/../../external/gpl3/yagcc/dist
 .elif ${HAVE_GCC} == 45
-GNUHOSTDIST=		${.CURDIR}/../../external/gpl3/gcc/dist
 UNWIND_H=unwind.h
+MKNATIVE=		${.CURDIR}/mknative-gcc.old
 .endif
 
 # Defaults
@@ -123,12 +128,6 @@ MKNATIVE_ENV=	${BINENV} ${CONFIGURE_ENV:NC*:NLD*} \
 			gdb_cv_scanf_has_long_double=yes \
 			gcc_cv_as_sparc_gotdata_op=no
 
-.if ${HAVE_GCC} < 45
-GCCSRCDIR=${.CURDIR}/../../gnu/dist/gcc4
-.else
-GCCSRCDIR=${.CURDIR}/../../external/gpl3/gcc/dist
-.endif
-
 CXXADDFLAGS=	--sysroot=${DESTDIR}
 CCADDFLAGS=	--sysroot=${DESTDIR} -L${DESTDIR}/lib -L${DESTDIR}/usr/lib -B${DESTDIR}/usr/lib/ -I${.OBJDIR}/.native/gcc/include
 
@@ -188,7 +187,7 @@ NATIVE_CONFIGURE_ARGS+=	\
 			--disable-multilib \
 			--disable-symvers \
 			--disable-libstdcxx-pch \
-			--build=`${GCCSRCDIR}/config.guess` \
+			--build=`${GCCDIST}/config.guess` \
 			--host=${MACHINE_GNU_PLATFORM} \
 			--with-sysroot=${DESTDIR}
 MKENV_BUILD_MAKE=cd .native && ${MKNATIVE_ENV} ${BUILD_MAKE}

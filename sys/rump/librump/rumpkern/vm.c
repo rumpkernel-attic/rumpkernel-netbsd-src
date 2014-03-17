@@ -1,4 +1,4 @@
-/*	$NetBSD: vm.c,v 1.150 2014/03/03 16:50:28 pooka Exp $	*/
+/*	$NetBSD: vm.c,v 1.152 2014/03/11 20:32:05 pooka Exp $	*/
 
 /*
  * Copyright (c) 2007-2011 Antti Kantee.  All Rights Reserved.
@@ -41,7 +41,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vm.c,v 1.150 2014/03/03 16:50:28 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vm.c,v 1.152 2014/03/11 20:32:05 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/atomic.h>
@@ -66,7 +66,8 @@ __KERNEL_RCSID(0, "$NetBSD: vm.c,v 1.150 2014/03/03 16:50:28 pooka Exp $");
 #include "rump_private.h"
 #include "rump_vfs_private.h"
 
-kmutex_t uvm_pageqlock;
+kmutex_t uvm_pageqlock; /* non-free page lock */
+kmutex_t uvm_fpageqlock; /* free page lock, non-gpl license */
 kmutex_t uvm_swap_data_lock;
 
 struct uvmexp uvmexp;
@@ -343,6 +344,9 @@ uvm_init(void)
 	mutex_init(&pagermtx, MUTEX_DEFAULT, IPL_NONE);
 	mutex_init(&uvm_pageqlock, MUTEX_DEFAULT, IPL_NONE);
 	mutex_init(&uvm_swap_data_lock, MUTEX_DEFAULT, IPL_NONE);
+
+	/* just to appease linkage */
+	mutex_init(&uvm_fpageqlock, MUTEX_SPIN, IPL_VM);
 
 	mutex_init(&pdaemonmtx, MUTEX_DEFAULT, IPL_NONE);
 	cv_init(&pdaemoncv, "pdaemon");
@@ -658,16 +662,6 @@ ubc_purge(struct uvm_object *uobj)
 {
 
 }
-
-#ifdef DEBUGPRINT
-void
-uvm_object_printit(struct uvm_object *uobj, bool full,
-	void (*pr)(const char *, ...))
-{
-
-	pr("VM OBJECT at %p, refs %d", uobj, uobj->uo_refs);
-}
-#endif
 
 vaddr_t
 uvm_default_mapaddr(struct proc *p, vaddr_t base, vsize_t sz)

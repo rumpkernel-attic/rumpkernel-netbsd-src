@@ -1,4 +1,4 @@
-/*	$NetBSD: ext2fs_vfsops.c,v 1.176 2014/02/25 18:30:13 pooka Exp $	*/
+/*	$NetBSD: ext2fs_vfsops.c,v 1.178 2014/03/17 09:30:32 hannken Exp $	*/
 
 /*
  * Copyright (c) 1989, 1991, 1993, 1994
@@ -60,7 +60,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: ext2fs_vfsops.c,v 1.176 2014/02/25 18:30:13 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: ext2fs_vfsops.c,v 1.178 2014/03/17 09:30:32 hannken Exp $");
 
 #if defined(_KERNEL_OPT)
 #include "opt_compat_netbsd.h"
@@ -512,7 +512,7 @@ fail:
 int
 ext2fs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 {
-	struct vnode *vp, *mvp, *devvp;
+	struct vnode *vp, *devvp;
 	struct inode *ip;
 	struct buf *bp;
 	struct m_ext2fs *fs;
@@ -520,6 +520,7 @@ ext2fs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 	int i, error;
 	void *cp;
 	struct ufsmount *ump;
+	struct vnode_iterator *marker;
 
 	if ((mp->mnt_flag & MNT_RDONLY) == 0)
 		return (EINVAL);
@@ -585,35 +586,19 @@ ext2fs_reload(struct mount *mp, kauth_cred_t cred, struct lwp *l)
 		brelse(bp, 0);
 	}
 
-	/* Allocate a marker vnode. */
-	mvp = vnalloc(mp);
-	/*
-	 * NOTE: not using the TAILQ_FOREACH here since in this loop vgone()
-	 * and vclean() can be called indirectly
-	 */
-	mutex_enter(&mntvnode_lock);
-loop:
-	for (vp = TAILQ_FIRST(&mp->mnt_vnodelist); vp; vp = vunmark(mvp)) {
-		vmark(mvp, vp);
-		if (vp->v_mount != mp || vismarker(vp))
-			continue;
+	vfs_vnode_iterator_init(mp, &marker);
+	while (vfs_vnode_iterator_next(marker, &vp)) {
 		/*
 		 * Step 4: invalidate all inactive vnodes.
 		 */
-		if (vrecycle(vp, &mntvnode_lock)) {
-			mutex_enter(&mntvnode_lock);
-			(void)vunmark(mvp);
-			goto loop;
-		}
+		if (vrecycle(vp))
+			continue;
 		/*
 		 * Step 5: invalidate all cached file data.
 		 */
-		mutex_enter(vp->v_interlock);
-		mutex_exit(&mntvnode_lock);
-		if (vget(vp, LK_EXCLUSIVE)) {
-			mutex_enter(&mntvnode_lock);
-			(void)vunmark(mvp);
-			goto loop;
+		if (vn_lock(vp, LK_EXCLUSIVE)) {
+			vrele(vp);
+			continue;
 		}
 		if (vinvalbuf(vp, 0, cred, l, 0, 0))
 			panic("ext2fs_reload: dirty2");
@@ -625,8 +610,6 @@ loop:
 		    (int)fs->e2fs_bsize, NOCRED, 0, &bp);
 		if (error) {
 			vput(vp);
-			mutex_enter(&mntvnode_lock);
-			(void)vunmark(mvp);
 			break;
 		}
 		cp = (char *)bp->b_data +
@@ -635,10 +618,8 @@ loop:
 		ext2fs_set_inode_guid(ip);
 		brelse(bp, 0);
 		vput(vp);
-		mutex_enter(&mntvnode_lock);
 	}
-	mutex_exit(&mntvnode_lock);
-	vnfree(mvp);
+	vfs_vnode_iterator_destroy(marker);
 	return (error);
 }
 
@@ -890,10 +871,11 @@ ext2fs_statvfs(struct mount *mp, struct statvfs *sbp)
 int
 ext2fs_sync(struct mount *mp, int waitfor, kauth_cred_t cred)
 {
-	struct vnode *vp, *mvp;
+	struct vnode *vp;
 	struct inode *ip;
 	struct ufsmount *ump = VFSTOUFS(mp);
 	struct m_ext2fs *fs;
+	struct vnode_iterator *marker;
 	int error, allerror = 0;
 
 	fs = ump->um_e2fs;
@@ -902,43 +884,30 @@ ext2fs_sync(struct mount *mp, int waitfor, kauth_cred_t cred)
 		panic("update: rofs mod");
 	}
 
-	/* Allocate a marker vnode. */
-	mvp = vnalloc(mp);
-
 	/*
 	 * Write back each (modified) inode.
 	 */
-	mutex_enter(&mntvnode_lock);
-loop:
-	/*
-	 * NOTE: not using the TAILQ_FOREACH here since in this loop vgone()
-	 * and vclean() can be called indirectly
-	 */
-	for (vp = TAILQ_FIRST(&mp->mnt_vnodelist); vp; vp = vunmark(mvp)) {
-		vmark(mvp, vp);
-		if (vp->v_mount != mp || vismarker(vp))
-			continue;
-		mutex_enter(vp->v_interlock);
-		ip = VTOI(vp);
-		if (ip == NULL || (vp->v_iflag & (VI_XLOCK|VI_CLEAN)) != 0 ||
-		    vp->v_type == VNON ||
-		    ((ip->i_flag &
-		      (IN_CHANGE | IN_UPDATE | IN_MODIFIED)) == 0 &&
-		     LIST_EMPTY(&vp->v_dirtyblkhd) &&
-		     UVM_OBJ_IS_CLEAN(&vp->v_uobj)))
-		{
-			mutex_exit(vp->v_interlock);
+	vfs_vnode_iterator_init(mp, &marker);
+	while (vfs_vnode_iterator_next(marker, &vp)) {
+		error = vn_lock(vp, LK_EXCLUSIVE);
+		if (error) {
+			vrele(vp);
 			continue;
 		}
-		mutex_exit(&mntvnode_lock);
-		error = vget(vp, LK_EXCLUSIVE | LK_NOWAIT);
-		if (error) {
-			mutex_enter(&mntvnode_lock);
-			if (error == ENOENT) {
-				mutex_enter(&mntvnode_lock);
-				(void)vunmark(mvp);
-				goto loop;
-			}
+		ip = VTOI(vp);
+		/*
+		 * Skip the vnode/inode if inaccessible.
+		 */
+		if (ip == NULL || vp->v_type == VNON) {
+			vput(vp);
+			continue;
+		}
+
+		if (((ip->i_flag &
+		      (IN_CHANGE | IN_UPDATE | IN_MODIFIED)) == 0 &&
+		     LIST_EMPTY(&vp->v_dirtyblkhd) &&
+		     UVM_OBJ_IS_CLEAN(&vp->v_uobj))) {
+			vput(vp);
 			continue;
 		}
 		if (vp->v_type == VREG && waitfor == MNT_LAZY)
@@ -949,10 +918,8 @@ loop:
 		if (error)
 			allerror = error;
 		vput(vp);
-		mutex_enter(&mntvnode_lock);
 	}
-	mutex_exit(&mntvnode_lock);
-	vnfree(mvp);
+	vfs_vnode_iterator_destroy(marker);
 	/*
 	 * Force stale file system control information to be flushed.
 	 */

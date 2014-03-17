@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_vnode.c,v 1.30 2013/12/07 10:03:28 hannken Exp $	*/
+/*	$NetBSD: vfs_vnode.c,v 1.34 2014/03/17 09:27:37 hannken Exp $	*/
 
 /*-
  * Copyright (c) 1997-2011 The NetBSD Foundation, Inc.
@@ -116,7 +116,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_vnode.c,v 1.30 2013/12/07 10:03:28 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_vnode.c,v 1.34 2014/03/17 09:27:37 hannken Exp $");
 
 #define _VFS_VNODE_PRIVATE
 
@@ -150,6 +150,7 @@ __KERNEL_RCSID(0, "$NetBSD: vfs_vnode.c,v 1.30 2013/12/07 10:03:28 hannken Exp $
 u_int			numvnodes		__cacheline_aligned;
 
 static pool_cache_t	vnode_cache		__read_mostly;
+static struct mount	*dead_mount;
 
 /*
  * There are two free lists: one is for vnodes which have no buffer/page
@@ -178,6 +179,7 @@ static void		vnpanic(vnode_t *, const char *, ...)
 
 /* Routines having to do with the management of the vnode table. */
 extern int		(**dead_vnodeop_p)(void *);
+extern struct vfsops	dead_vfsops;
 
 void
 vfs_vnode_sysinit(void)
@@ -187,6 +189,10 @@ vfs_vnode_sysinit(void)
 	vnode_cache = pool_cache_init(sizeof(vnode_t), 0, 0, 0, "vnodepl",
 	    NULL, IPL_NONE, NULL, NULL, NULL);
 	KASSERT(vnode_cache != NULL);
+
+	dead_mount = vfs_mountalloc(&dead_vfsops, NULL);
+	KASSERT(dead_mount != NULL);
+	dead_mount->mnt_iflag = IMNT_MPSAFE;
 
 	mutex_init(&vnode_free_list_lock, MUTEX_DEFAULT, IPL_NONE);
 	TAILQ_INIT(&vnode_free_list);
@@ -636,28 +642,17 @@ vrelel(vnode_t *vp, int flags)
 			 * We have to try harder.
 			 */
 			mutex_exit(vp->v_interlock);
-			error = VOP_LOCK(vp, LK_EXCLUSIVE);
+			error = vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
 			KASSERT(error == 0);
 			mutex_enter(vp->v_interlock);
-			/*
-			 * If the node got another reference while sleeping,
-			 * don't try to inactivate it yet.
-			 */
-			if (__predict_false(vtryrele(vp))) {
-				VOP_UNLOCK(vp);
-				if ((flags & VRELEL_CHANGING_SET) != 0) {
-					KASSERT((vp->v_iflag & VI_CHANGING) != 0);
-					vp->v_iflag &= ~VI_CHANGING;
-					cv_broadcast(&vp->v_cv);
-				}
-				mutex_exit(vp->v_interlock);
-				return;
-			}
 			defer = false;
 		} else {
 			/* If we can't acquire the lock, then defer. */
-			error = VOP_LOCK(vp, LK_EXCLUSIVE | LK_NOWAIT);
+			mutex_exit(vp->v_interlock);
+			error = vn_lock(vp,
+			    LK_EXCLUSIVE | LK_RETRY | LK_NOWAIT);
 			defer = (error != 0);
+			mutex_enter(vp->v_interlock);
 		}
 
 		KASSERT(mutex_owned(vp->v_interlock));
@@ -678,6 +673,21 @@ vrelel(vnode_t *vp, int flags)
 			if (++vrele_pending > (desiredvnodes >> 8))
 				cv_signal(&vrele_cv); 
 			mutex_exit(&vrele_lock);
+			mutex_exit(vp->v_interlock);
+			return;
+		}
+
+		/*
+		 * If the node got another reference while we
+		 * released the interlock, don't try to inactivate it yet.
+		 */
+		if (__predict_false(vtryrele(vp))) {
+			VOP_UNLOCK(vp);
+			if ((flags & VRELEL_CHANGING_SET) != 0) {
+				KASSERT((vp->v_iflag & VI_CHANGING) != 0);
+				vp->v_iflag &= ~VI_CHANGING;
+				cv_broadcast(&vp->v_cv);
+			}
 			mutex_exit(vp->v_interlock);
 			return;
 		}
@@ -810,17 +820,27 @@ vrele_async(vnode_t *vp)
 static void
 vrele_thread(void *cookie)
 {
+	vnodelst_t skip_list;
 	vnode_t *vp;
+	struct mount *mp;
 
+	TAILQ_INIT(&skip_list);
+
+	mutex_enter(&vrele_lock);
 	for (;;) {
-		mutex_enter(&vrele_lock);
 		while (TAILQ_EMPTY(&vrele_list)) {
 			vrele_gen++;
 			cv_broadcast(&vrele_cv);
 			cv_timedwait(&vrele_cv, &vrele_lock, hz);
+			TAILQ_CONCAT(&vrele_list, &skip_list, v_freelist);
 		}
 		vp = TAILQ_FIRST(&vrele_list);
+		mp = vp->v_mount;
 		TAILQ_REMOVE(&vrele_list, vp, v_freelist);
+		if (fstrans_start_nowait(mp, FSTRANS_LAZY) != 0) {
+			TAILQ_INSERT_TAIL(&skip_list, vp, v_freelist);
+			continue;
+		}
 		vrele_pending--;
 		mutex_exit(&vrele_lock);
 
@@ -830,6 +850,8 @@ vrele_thread(void *cookie)
 		 */
 		mutex_enter(vp->v_interlock);
 		vrelel(vp, 0);
+		fstrans_done(mp);
+		mutex_enter(&vrele_lock);
 	}
 }
 
@@ -924,35 +946,31 @@ vclean(vnode_t *vp)
 	KASSERT((vp->v_iflag & VI_MARKER) == 0);
 	KASSERT(vp->v_usecount != 0);
 
-	/* If cleaning is already in progress wait until done and return. */
-	if (vp->v_iflag & VI_XLOCK) {
-		vwait(vp, VI_XLOCK);
-		return;
-	}
-
 	/* If already clean, nothing to do. */
 	if ((vp->v_iflag & VI_CLEAN) != 0) {
 		return;
 	}
 
+	active = (vp->v_usecount > 1);
+	doclose = ! (active && vp->v_type == VBLK &&
+	    spec_node_getmountedfs(vp) != NULL);
+	mutex_exit(vp->v_interlock);
+
+	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
+
 	/*
 	 * Prevent the vnode from being recycled or brought into use
 	 * while we clean it out.
 	 */
+	mutex_enter(vp->v_interlock);
+	KASSERT((vp->v_iflag & (VI_XLOCK | VI_CLEAN)) == 0);
 	vp->v_iflag |= VI_XLOCK;
 	if (vp->v_iflag & VI_EXECMAP) {
 		atomic_add_int(&uvmexp.execpages, -vp->v_uobj.uo_npages);
 		atomic_add_int(&uvmexp.filepages, vp->v_uobj.uo_npages);
 	}
 	vp->v_iflag &= ~(VI_TEXT|VI_EXECMAP);
-	active = (vp->v_usecount > 1);
-
-	/* XXXAD should not lock vnode under layer */
 	mutex_exit(vp->v_interlock);
-	VOP_LOCK(vp, LK_EXCLUSIVE);
-
-	doclose = ! (active && vp->v_type == VBLK &&
-	    spec_node_getmountedfs(vp) != NULL);
 
 	/*
 	 * Clean out any cached data associated with the vnode.
@@ -999,12 +1017,10 @@ vclean(vnode_t *vp)
 	/* Purge name cache. */
 	cache_purge(vp);
 
-	/*
-	 * The vnode isn't clean, but still resides on the mount list.  Remove
-	 * it. XXX This is a bit dodgy.
-	 */
-	if (! doclose)
-		vfs_insmntque(vp, NULL);
+	/* Move to dead mount. */
+	vp->v_vflag &= ~VV_ROOT;
+	atomic_inc_uint(&dead_mount->mnt_refcnt);
+	vfs_insmntque(vp, dead_mount);
 
 	/* Done with purge, notify sleepers of the grim news. */
 	mutex_enter(vp->v_interlock);
@@ -1025,30 +1041,33 @@ vclean(vnode_t *vp)
 }
 
 /*
- * Recycle an unused vnode to the front of the free list.
- * Release the passed interlock if the vnode will be recycled.
+ * Recycle an unused vnode if caller holds the last reference.
  */
-int
-vrecycle(vnode_t *vp, kmutex_t *inter_lkp)
+bool
+vrecycle(vnode_t *vp)
 {
+
+	mutex_enter(vp->v_interlock);
 
 	KASSERT((vp->v_iflag & VI_MARKER) == 0);
 
-	mutex_enter(vp->v_interlock);
-	if (vp->v_usecount != 0 || (vp->v_iflag & (VI_CLEAN|VI_XLOCK)) != 0) {
+	if (vp->v_usecount != 1) {
 		mutex_exit(vp->v_interlock);
-		return 0;
+		return false;
 	}
-	if (inter_lkp) {
-		mutex_exit(inter_lkp);
+	if ((vp->v_iflag & VI_CHANGING) != 0)
+		vwait(vp, VI_CHANGING);
+	if (vp->v_usecount != 1) {
+		mutex_exit(vp->v_interlock);
+		return false;
+	} else if ((vp->v_iflag & VI_CLEAN) != 0) {
+		mutex_exit(vp->v_interlock);
+		return true;
 	}
-	vremfree(vp);
-	vp->v_usecount = 1;
-	KASSERT((vp->v_iflag & VI_CHANGING) == 0);
 	vp->v_iflag |= VI_CHANGING;
 	vclean(vp);
 	vrelel(vp, VRELEL_CHANGING_SET);
-	return 1;
+	return true;
 }
 
 /*

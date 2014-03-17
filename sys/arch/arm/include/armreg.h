@@ -1,4 +1,4 @@
-/*	$NetBSD: armreg.h,v 1.86 2014/02/24 16:45:06 matt Exp $	*/
+/*	$NetBSD: armreg.h,v 1.93 2014/03/07 05:30:08 matt Exp $	*/
 
 /*
  * Copyright (c) 1998, 2001 Ben Harris
@@ -269,6 +269,11 @@
 #define CPU_ID_ARM_88SV584X_V6	0x410fb020 /* Marvell Sheeva 88SV584x v6 Core */
 
 /* CPUID registers */
+#define ARM_ISA3_SYNCHPRIM_MASK	0x0000f000
+#define ARM_ISA4_SYNCHPRIM_MASK	0x00f00000
+#define ARM_ISA3_SYNCHPRIM_LDREX	0x10	// LDREX
+#define ARM_ISA3_SYNCHPRIM_LDREXPLUS	0x13	// +CLREX/LDREXB/LDREXH
+#define ARM_ISA3_SYNCHPRIM_LDREXD	0x20	// +LDREXD
 #define ARM_PFR0_THUMBEE_MASK	0x0000f000
 #define ARM_PFR1_GTIMER_MASK	0x000f0000
 #define ARM_PFR1_VIRT_MASK	0x0000f000
@@ -358,6 +363,9 @@
 #define CPU_CONTROL_VECRELOC	0x00002000 /* V: Vector relocation */
 #define CPU_CONTROL_ROUNDROBIN	0x00004000 /* RR: Predictable replacement */
 #define CPU_CONTROL_V4COMPAT	0x00008000 /* L4: ARMv4 compat LDR R15 etc */
+#define CPU_CONTROL_HA_ENABLE	0x00020000 /* HA: Hardware Access flag enable */
+#define CPU_CONTROL_WXN_ENABLE	0x00080000 /* WXN: Write Execute Never */
+#define CPU_CONTROL_UWXN_ENABLE	0x00100000 /* UWXN: User Write eXecute Never */
 #define CPU_CONTROL_FI_ENABLE	0x00200000 /* FI: Low interrupt latency */
 #define CPU_CONTROL_UNAL_ENABLE	0x00400000 /* U: unaligned data access */
 #define CPU_CONTROL_XP_ENABLE	0x00800000 /* XP: extended page table */
@@ -557,7 +565,21 @@
 
 #define INSN_SIZE		4		/* Always 4 bytes */
 #define INSN_COND_MASK		0xf0000000	/* Condition mask */
-#define INSN_COND_AL		0xe0000000	/* Always condition */
+#define INSN_COND_EQ		0		/* Z == 1 */
+#define INSN_COND_NE		1		/* Z == 0 */
+#define INSN_COND_CS		2		/* C == 1 */
+#define INSN_COND_CC		3		/* C == 0 */
+#define INSN_COND_MI		4		/* N == 1 */
+#define INSN_COND_PL		5		/* N == 0 */
+#define INSN_COND_VS		6		/* V == 1 */
+#define INSN_COND_VC		7		/* V == 0 */
+#define INSN_COND_HI		8		/* C == 1 && Z == 0 */
+#define INSN_COND_LS		9		/* C == 0 || Z == 1 */
+#define INSN_COND_GE		10		/* N == V */
+#define INSN_COND_LT		11		/* N != V */
+#define INSN_COND_GT		12		/* Z == 0 && N == V */
+#define INSN_COND_LE		13		/* Z == 1 || N != V */
+#define INSN_COND_AL		14		/* Always condition */
 
 #define THUMB_INSN_SIZE		2		/* Some are 4 bytes.  */
 
@@ -635,6 +657,22 @@
 #define TTBCR_L_EPD0	__BIT(7)	// Don't use TTBR0
 #define TTBCR_L_T0SZ	__BITS(2,0)	// TTBR0 size offset
 
+#define NRRR_ORn(n)	__BITS(17+2*(n),16+2*(n)) // Outer Cacheable mappings
+#define NRRR_IRn(n)	__BITS(1+2*(n),0+2*(n)) // Inner Cacheable mappings
+#define NRRR_NC		0		// non-cacheable
+#define NRRR_WB_WA	1		// write-back write-allocate
+#define NRRR_WT		2		// write-through
+#define NRRR_WB		3		// write-back
+#define PRRR_NOSn(n)	__BITS(24+2*(n))// Memory region is Inner Shareable
+#define PRRR_NS1	__BIT(19)	// Normal Shareable S=1 is Shareable
+#define PRRR_NS0	__BIT(18)	// Normal Shareable S=0 is Shareable
+#define PRRR_DS1	__BIT(17)	// Device Shareable S=1 is Shareable
+#define PRRR_DS0	__BIT(16)	// Device Shareable S=0 is Shareable
+#define PRRR_TRn(n)	__BITS(1+2*(n),0+2*(n))
+#define PRRR_TR_STRONG	0		// Strongly Ordered
+#define PRRR_TR_DEVICE	1		// Device
+#define PRRR_TR_NORMAL	2		// Normal Memory
+
 /* Defines for ARM Generic Timer */
 #define ARM_CNTCTL_ENABLE		__BIT(0) // Timer Enabled
 #define ARM_CNTCTL_IMASK		__BIT(1) // Mask Interrupt
@@ -653,6 +691,125 @@
 #define ARM_CNTHCTL_EVNTEN		__BIT(2)
 #define ARM_CNTHCTL_PL1PCTEN		__BIT(1)
 #define ARM_CNTHCTL_PL1VCTEN		__BIT(0)
+
+#define ARM_A5_TLBDATA_DOM		__BITS(62,59)
+#define ARM_A5_TLBDATA_AP		__BITS(58,56)
+#define ARM_A5_TLBDATA_NS_WALK		__BIT(55)
+#define ARM_A5_TLBDATA_NS_PAGE		__BIT(54)
+#define ARM_A5_TLBDATA_XN		__BIT(53)
+#define ARM_A5_TLBDATA_TEX		__BITS(52,50)
+#define ARM_A5_TLBDATA_B		__BIT(49)
+#define ARM_A5_TLBDATA_C		__BIT(48)
+#define ARM_A5_TLBDATA_S		__BIT(47)
+#define ARM_A5_TLBDATA_ASID		__BITS(46,39)
+#define ARM_A5_TLBDATA_SIZE		__BITS(38,37)
+#define ARM_A5_TLBDATA_SIZE_4KB		0
+#define ARM_A5_TLBDATA_SIZE_16KB	1
+#define ARM_A5_TLBDATA_SIZE_1MB		2
+#define ARM_A5_TLBDATA_SIZE_16MB	3
+#define ARM_A5_TLBDATA_VA		__BITS(36,22)
+#define ARM_A5_TLBDATA_PA		__BITS(21,2)
+#define ARM_A5_TLBDATA_nG		__BIT(1)
+#define ARM_A5_TLBDATA_VALID		__BIT(0)
+
+#define ARM_A7_TLBDATA2_S2_LEVEL	__BITS(85-64,84-64)
+#define ARM_A7_TLBDATA2_S1_SIZE		__BITS(83-64,82-64)
+#define ARM_A7_TLBDATA2_S1_SIZE_4KB	0
+#define ARM_A7_TLBDATA2_S1_SIZE_64KB	0
+#define ARM_A7_TLBDATA2_S1_SIZE_1MB	0
+#define ARM_A7_TLBDATA2_S1_SIZE_16MB	0
+#define ARM_A7_TLBDATA2_DOM		__BITS(81-64,78-64)
+#define ARM_A7_TLBDATA2_IS		__BITS(77-64,76-64)
+#define ARM_A7_TLBDATA2_IS_NC		0
+#define ARM_A7_TLBDATA2_IS_WB		1
+#define ARM_A7_TLBDATA2_IS_WT		2
+#define ARM_A7_TLBDATA2_IS_DSO		3
+#define ARM_A7_TLBDATA2_S2OVR		__BIT(75-64)
+#define ARM_A7_TLBDATA2_SDO_MT		__BITS(74-64,72-64)
+#define ARM_A7_TLBDATA2_SDO_MT_D	2
+#define ARM_A7_TLBDATA2_SDO_MT_SO	6
+#define ARM_A7_TLBDATA2_OS		__BITS(75-64,74-64)
+#define ARM_A7_TLBDATA2_OS_NC		0
+#define ARM_A7_TLBDATA2_OS_WB_WA	1
+#define ARM_A7_TLBDATA2_OS_WT		2
+#define ARM_A7_TLBDATA2_OS_WB		3
+#define ARM_A7_TLBDATA2_SH		__BITS(73-64,72-64)
+#define ARM_A7_TLBDATA2_SH_NONE		0
+#define ARM_A7_TLBDATA2_SH_UNUSED	1
+#define ARM_A7_TLBDATA2_SH_OS		2
+#define ARM_A7_TLBDATA2_SH_IS		3
+#define ARM_A7_TLBDATA2_XN2		__BIT(71-64)
+#define ARM_A7_TLBDATA2_XN1		__BIT(70-64)
+#define ARM_A7_TLBDATA2_PXN		__BIT(69-64)
+
+#define ARM_A7_TLBDATA12_PA		__BITS(68-32,41-32)
+
+#define ARM_A7_TLBDATA1_NS		__BIT(40-32)
+#define ARM_A7_TLBDATA1_HAP		__BITS(39-32,38-32)
+#define ARM_A7_TLBDATA1_AP		__BITS(37-32,35-32)
+#define ARM_A7_TLBDATA1_nG		__BIT(34-32)
+
+#define ARM_A7_TLBDATA01_ASID		__BITS(33,26)
+
+#define ARM_A7_TLBDATA0_VMID		__BITS(25,18)
+#define ARM_A7_TLBDATA0_VA		__BITS(17,5)
+#define ARM_A7_TLBDATA0_NS_WALK		__BIT(4)
+#define ARM_A7_TLBDATA0_SIZE		__BITS(3,1)
+#define ARM_A7_TLBDATA0_SIZE_V7_4KB	0
+#define ARM_A7_TLBDATA0_SIZE_LPAE_4KB	1
+#define ARM_A7_TLBDATA0_SIZE_V7_64KB	2
+#define ARM_A7_TLBDATA0_SIZE_LPAE_64KB	3
+#define ARM_A7_TLBDATA0_SIZE_V7_1MB	4
+#define ARM_A7_TLBDATA0_SIZE_LPAE_2MB	5
+#define ARM_A7_TLBDATA0_SIZE_V7_16MB	6
+#define ARM_A7_TLBDATA0_SIZE_LPAE_1GB	7
+
+#define ARM_TLBDATA_VALID		__BIT(0)
+
+#define ARM_TLBDATAOP_WAY		__BIT(31)
+#define ARM_A5_TLBDATAOP_INDEX		__BITS(5,0)
+#define ARM_A7_TLBDATAOP_INDEX		__BITS(6,0)
+
+#if !defined(__ASSEMBLER__) && defined(_KERNEL) 
+static inline bool
+arm_cond_ok_p(uint32_t insn, uint32_t psr)
+{
+	const uint32_t __cond = __SHIFTOUT(insn, INSN_COND_MASK);
+
+	bool __ok;
+	const bool __z = (psr & PSR_Z_bit);
+	const bool __n = (psr & PSR_N_bit);
+	const bool __c = (psr & PSR_C_bit);
+	const bool __v = (psr & PSR_V_bit);
+	switch (__cond & ~1) {
+	case INSN_COND_EQ:	// Z == 1
+		__ok = __z;
+		break;
+	case INSN_COND_CS:	// C == 1
+		__ok = __c;
+		break;
+	case INSN_COND_MI:	// N == 1
+		__ok = __n;
+		break;
+	case INSN_COND_VS:	// V == 1
+		__ok = __v;
+		break;
+	case INSN_COND_HI:	// C == 1 && Z == 0
+		__ok = __c && !__z;
+		break;
+	case INSN_COND_GE:	// N == V
+		__ok = __n == __v;
+		break;
+	case INSN_COND_GT:	// N == V && Z == 0
+		__ok = __n == __v && !__z;
+		break;
+	default: /* INSN_COND_AL or unconditional */
+		return true;
+	}
+
+	return (__cond & 1) ? !__ok : __ok;
+}
+#endif /* !__ASSEMBLER && _KERNEL */
 
 #if !defined(__ASSEMBLER__) && !defined(_RUMPKERNEL)
 #define	ARMREG_READ_INLINE(name, __insnstring)			\
@@ -713,6 +870,7 @@ ARMREG_WRITE_INLINE2(fpinst2, "fmxr\tfpinst2, %0") /* VFP Exception Instruction 
 /* cp15 c0 registers */
 ARMREG_READ_INLINE(midr, "p15,0,%0,c0,c0,0") /* Main ID Register */
 ARMREG_READ_INLINE(ctr, "p15,0,%0,c0,c0,1") /* Cache Type Register */
+ARMREG_READ_INLINE(tlbtr, "p15,0,%0,c0,c0,3") /* TLB Type Register */
 ARMREG_READ_INLINE(mpidr, "p15,0,%0,c0,c0,5") /* Multiprocess Affinity Register */
 ARMREG_READ_INLINE(pfr0, "p15,0,%0,c0,c1,0") /* Processor Feature Register 0 */
 ARMREG_READ_INLINE(pfr1, "p15,0,%0,c0,c1,1") /* Processor Feature Register 1 */
@@ -803,6 +961,11 @@ ARMREG_WRITE_INLINE(pmccntr, "p15,0,%0,c9,c13,0") /* PMC Cycle Counter */
 ARMREG_READ_INLINE(pmuserenr, "p15,0,%0,c9,c14,0") /* PMC User Enable */
 ARMREG_WRITE_INLINE(pmuserenr, "p15,0,%0,c9,c14,0") /* PMC User Enable */
 ARMREG_READ_INLINE(l2ctrl, "p15,1,%0,c9,c0,2") /* A7/A15 L2 Control Register */
+/* cp10 c10 registers */
+ARMREG_READ_INLINE(prrr, "p15,0,%0,c10,c2,0") /* Primary Region Remap Register */
+ARMREG_WRITE_INLINE(prrr, "p15,0,%0,c10,c2,0") /* Primary Region Remap Register */
+ARMREG_READ_INLINE(nrrr, "p15,0,%0,c10,c2,1") /* Normal Region Remap Register */
+ARMREG_WRITE_INLINE(nrrr, "p15,0,%0,c10,c2,1") /* Normal Region Remap Register */
 /* cp15 c13 registers */
 ARMREG_READ_INLINE(contextidr, "p15,0,%0,c13,c0,1") /* Context ID Register */
 ARMREG_WRITE_INLINE(contextidr, "p15,0,%0,c13,c0,1") /* Context ID Register */
@@ -839,6 +1002,11 @@ ARMREG_READ_INLINE(pmcrv6, "p15,0,%0,c15,c12,0") /* PMC Control Register (armv6)
 ARMREG_WRITE_INLINE(pmcrv6, "p15,0,%0,c15,c12,0") /* PMC Control Register (armv6) */
 ARMREG_READ_INLINE(pmccntrv6, "p15,0,%0,c15,c12,1") /* PMC Cycle Counter (armv6) */
 ARMREG_WRITE_INLINE(pmccntrv6, "p15,0,%0,c15,c12,1") /* PMC Cycle Counter (armv6) */
+
+ARMREG_READ_INLINE(tlbdata0, "p15,3,%0,c15,c0,0") /* TLB Data Register 0 (cortex) */
+ARMREG_READ_INLINE(tlbdata1, "p15,3,%0,c15,c0,1") /* TLB Data Register 1 (cortex) */
+ARMREG_READ_INLINE(tlbdata2, "p15,3,%0,c15,c0,2") /* TLB Data Register 2 (cortex) */
+ARMREG_WRITE_INLINE(tlbdataop, "p15,3,%0,c15,c4,2") /* TLB Data Read Operation (cortex) */
 
 #endif /* !__ASSEMBLER__ */
 
