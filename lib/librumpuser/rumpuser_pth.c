@@ -1,4 +1,4 @@
-/*	$NetBSD: rumpuser_pth.c,v 1.36 2014/03/10 22:37:51 justin Exp $	*/
+/*	$NetBSD: rumpuser_pth.c,v 1.40 2014/04/02 17:09:23 justin Exp $	*/
 
 /*
  * Copyright (c) 2007-2010 Antti Kantee.  All Rights Reserved.
@@ -28,7 +28,7 @@
 #include "rumpuser_port.h"
 
 #if !defined(lint)
-__RCSID("$NetBSD: rumpuser_pth.c,v 1.36 2014/03/10 22:37:51 justin Exp $");
+__RCSID("$NetBSD: rumpuser_pth.c,v 1.40 2014/04/02 17:09:23 justin Exp $");
 #endif /* !lint */
 
 #include <sys/queue.h>
@@ -93,18 +93,14 @@ rumpuser_thread_create(void *(*f)(void *), void *arg, const char *thrname,
 		nanosleep(&ts, NULL);
 	}
 
-#if defined(__NetBSD__)
-	if (rv == 0 && thrname)
-		pthread_setname_np(ptid, thrname, NULL);
-#elif defined(__linux__)
-	/*
-	 * The pthread_setname_np() call varies from one Linux distro to
-	 * another.  Comment out the call pending autoconf support.
-	 */
-#if 0
-	if (rv == 0 && thrname)
-		pthread_setname_np(ptid, thrname);
-#endif
+#if defined(HAVE_PTHREAD_SETNAME_3)
+	if (rv == 0 && thrname) {
+		pthread_setname_np(*ptidp, thrname, NULL);
+	}
+#elif defined(HAVE_PTHREAD_SETNAME_2)
+	if (rv == 0 && thrname) {
+		pthread_setname_np(*ptidp, thrname);
+	}
 #endif
 
 	if (joinable) {
@@ -258,7 +254,7 @@ rumpuser_mutex_owner(struct rumpuser_mtx *mtx, struct lwp **lp)
 
 struct rumpuser_rw {
 	pthread_rwlock_t pthrw;
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(__ANDROID__)
 	char pad[64 - sizeof(pthread_rwlock_t)];
 	pthread_spinlock_t spin;
 #endif
@@ -321,7 +317,7 @@ static inline void
 rw_readup(struct rumpuser_rw *rw)
 {
 
-#if defined(__NetBSD__) || defined(__APPLE__)
+#if defined(__NetBSD__) || defined(__APPLE__) || defined(__ANDROID__)
 	atomic_inc_uint(&rw->readers);
 #else
 	pthread_spin_lock(&rw->spin);
@@ -334,7 +330,7 @@ static inline void
 rw_readdown(struct rumpuser_rw *rw)
 {
 
-#if defined(__NetBSD__) || defined(__APPLE__)
+#if defined(__NetBSD__) || defined(__APPLE__) || defined(__ANDROID__)
 	atomic_dec_uint(&rw->readers);
 #else
 	pthread_spin_lock(&rw->spin);
@@ -350,7 +346,7 @@ rumpuser_rw_init(struct rumpuser_rw **rw)
 
 	NOFAIL(*rw = aligned_alloc(sizeof(struct rumpuser_rw)));
 	NOFAIL_ERRNO(pthread_rwlock_init(&((*rw)->pthrw), NULL));
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(__ANDROID__)
 	NOFAIL_ERRNO(pthread_spin_init(&((*rw)->spin),PTHREAD_PROCESS_PRIVATE));
 #endif
 	(*rw)->readers = 0;
@@ -456,7 +452,7 @@ rumpuser_rw_destroy(struct rumpuser_rw *rw)
 {
 
 	NOFAIL_ERRNO(pthread_rwlock_destroy(&rw->pthrw));
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && ! defined(__ANDROID__)
 	NOFAIL_ERRNO(pthread_spin_destroy(&rw->spin));
 #endif
 	free(rw);

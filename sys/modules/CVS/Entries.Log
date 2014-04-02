@@ -19,6 +19,10 @@ A D/adosfs////
 A D/aibs////
 A D/aio////
 A D/amdtemp////
+A D/apple_smc////
+A D/apple_smc_acpi////
+A D/apple_smc_fan////
+A D/apple_smc_temp////
 A D/aps////
 A D/arch////
 A D/asus////
@@ -264,5 +268,9 @@ R D/drm2////
 R D/dirhash////
 R D/compat_irix////
 R D/bpf_filter////
+R D/apple_smc_temp////
+R D/apple_smc_fan////
+R D/apple_smc_acpi////
+R D/apple_smc////
 R D/accf_http////
 R D/accf_data////
