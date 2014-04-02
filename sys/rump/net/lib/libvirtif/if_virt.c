@@ -1,4 +1,4 @@
-/*	$NetBSD: if_virt.c,v 1.44 2014/03/13 21:11:12 pooka Exp $	*/
+/*	$NetBSD: if_virt.c,v 1.47 2014/04/02 19:44:15 pooka Exp $	*/
 
 /*
  * Copyright (c) 2008, 2013 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: if_virt.c,v 1.44 2014/03/13 21:11:12 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: if_virt.c,v 1.47 2014/04/02 19:44:15 pooka Exp $");
 
 #include <sys/param.h>
 #include <sys/kernel.h>
@@ -109,7 +109,8 @@ virtif_clone(struct if_clone *ifc, int num)
 	sc = kmem_zalloc(sizeof(*sc), KM_SLEEP);
 	sc->sc_num = num;
 	ifp = &sc->sc_ec.ec_if;
-	sprintf(ifp->if_xname, "%s%d", VIF_NAME, num);
+
+	if_initname(ifp, VIF_NAME, num);
 	ifp->if_softc = sc;
 
 	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;
@@ -353,8 +354,10 @@ VIF_DELIVERPKT(struct virtif_sc *sc, struct iovec *iov, size_t iovlen)
 			return;
 		}
 	}
-
 	m->m_data += align;
+	m->m_pkthdr.len -= align;
+	m->m_len -= align;
+
 	eth = mtod(m, struct ether_header *);
 	if (memcmp(eth->ether_dhost, CLLADDR(ifp->if_sadl),
 	    ETHER_ADDR_LEN) == 0) {
