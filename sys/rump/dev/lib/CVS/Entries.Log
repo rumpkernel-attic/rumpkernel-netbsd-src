@@ -6,10 +6,13 @@ A D/libdm////
 A D/libdrvctl////
 A D/libfss////
 A D/libmd////
+A D/libmiiphy////
 A D/libnetsmb////
 A D/libnpf////
 A D/libopencrypto////
 A D/libpad////
+A D/libpci////
+A D/libpci_if_wm////
 A D/libpud////
 A D/libputter////
 A D/libraidframe////
@@ -26,4 +29,7 @@ A D/libusb////
 A D/libwscons////
 A D/opt////
 R D/opt////
+R D/libpci_if_wm////
+R D/libpci////
 R D/libnpf////
+R D/libmiiphy////
