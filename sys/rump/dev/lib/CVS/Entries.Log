@@ -12,6 +12,7 @@ A D/libnpf////
 A D/libopencrypto////
 A D/libpad////
 A D/libpci////
+A D/libpci_if_iwn////
 A D/libpci_if_wm////
 A D/libpud////
 A D/libputter////
@@ -30,6 +31,7 @@ A D/libwscons////
 A D/opt////
 R D/opt////
 R D/libpci_if_wm////
+R D/libpci_if_iwn////
 R D/libpci////
 R D/libnpf////
 R D/libmiiphy////

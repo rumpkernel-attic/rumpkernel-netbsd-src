@@ -58,6 +58,7 @@ A D/pud////
 A D/putter////
 A D/qbus////
 A D/raidframe////
+A D/ralink////
 A D/rasops////
 A D/rcons////
 A D/sbus////
@@ -83,6 +84,7 @@ A D/wsfont////
 A D/xmi////
 R D/vinum////
 R D/scsi////
+R D/ralink////
 R D/pckbc////
 R D/lsu////
 R D/freescale////
