@@ -1,3 +1,4 @@
+A D/libaio////
 A D/libcd9660////
 A D/libcd9660fs////
 A D/libefs////
@@ -39,3 +40,4 @@ R D/libp2k////
 R D/libnullfs////
 R D/libmsdosfs////
 R D/libcd9660fs////
+R D/libaio////
