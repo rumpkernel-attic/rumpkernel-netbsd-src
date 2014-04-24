@@ -1,4 +1,4 @@
-/*	$NetBSD: lfs_segment.c,v 1.234 2014/03/17 09:33:20 hannken Exp $	*/
+/*	$NetBSD: lfs_segment.c,v 1.236 2014/03/24 13:42:40 hannken Exp $	*/
 
 /*-
  * Copyright (c) 1999, 2000, 2001, 2002, 2003 The NetBSD Foundation, Inc.
@@ -60,7 +60,9 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: lfs_segment.c,v 1.234 2014/03/17 09:33:20 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: lfs_segment.c,v 1.236 2014/03/24 13:42:40 hannken Exp $");
+
+#define _VFS_VNODE_PRIVATE	/* XXX: check for VI_MARKER, this has to go */
 
 #ifdef DEBUG
 # define vndebug(vp, str) do {						\
@@ -279,11 +281,12 @@ lfs_vflush(struct vnode *vp)
 		ivndebug(vp,"vflush/writeinprog");
 		cv_wait(&vp->v_cv, vp->v_interlock);
 	}
+	error = vdead_check(vp, VDEAD_NOWAIT);
 	mutex_exit(vp->v_interlock);
 
-	/* Protect against VI_XLOCK deadlock in vinvalbuf() */
-	lfs_seglock(fs, SEGM_SYNC | ((vp->v_iflag & VI_XLOCK) ? SEGM_RECLAIM : 0));
-	if (vp->v_iflag & VI_XLOCK) {
+	/* Protect against deadlock in vinvalbuf() */
+	lfs_seglock(fs, SEGM_SYNC | ((error != 0) ? SEGM_RECLAIM : 0));
+	if (error != 0) {
 		fs->lfs_reclino = ip->i_number;
 	}
 
@@ -509,7 +512,7 @@ lfs_writevnodes(struct lfs *fs, struct mount *mp, struct segment *sp, int op)
 
 		mutex_enter(vp->v_interlock);
 		if (vp->v_type == VNON || (vp->v_iflag & VI_MARKER) ||
-		    (vp->v_iflag & VI_CLEAN) != 0) {
+		    vdead_check(vp, VDEAD_NOWAIT) != 0) {
 			mutex_exit(vp->v_interlock);
 			continue;
 		}
@@ -2753,7 +2756,7 @@ lfs_shellsort(struct buf **bp_array, int32_t *lb_array, int nmemb, int size)
 }
 
 /*
- * Call vget with LK_NOWAIT.  If we are the one who holds VI_XLOCK,
+ * Call vget with LK_NOWAIT.  If we are the one who is dead,
  * however, we must press on.  Just fake success in that case.
  */
 int

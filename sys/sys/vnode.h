@@ -1,4 +1,4 @@
-/*	$NetBSD: vnode.h,v 1.244 2014/03/05 09:37:29 hannken Exp $	*/
+/*	$NetBSD: vnode.h,v 1.246 2014/03/24 13:42:40 hannken Exp $	*/
 
 /*-
  * Copyright (c) 2008 The NetBSD Foundation, Inc.
@@ -199,13 +199,17 @@ typedef struct vnode vnode_t;
 #define	VI_EXECMAP	0x00000200	/* might have PROT_EXEC mappings */
 #define	VI_WRMAP	0x00000400	/* might have PROT_WRITE u. mappings */
 #define	VI_WRMAPDIRTY	0x00000800	/* might have dirty pages */
+#ifdef _VFS_VNODE_PRIVATE
 #define	VI_XLOCK	0x00001000	/* vnode is locked to change type */
+#endif	/* _VFS_VNODE_PRIVATE */
 #define	VI_ONWORKLST	0x00004000	/* On syncer work-list */
+#ifdef _VFS_VNODE_PRIVATE
 #define	VI_MARKER	0x00008000	/* Dummy marker vnode */
+#endif	/* _VFS_VNODE_PRIVATE */
 #define	VI_LAYER	0x00020000	/* vnode is on a layer filesystem */
+#ifdef _VFS_VNODE_PRIVATE
 #define	VI_LOCKSHARE	0x00040000	/* v_interlock is shared */
 #define	VI_CLEAN	0x00080000	/* has been reclaimed */
-#ifdef _VFS_VNODE_PRIVATE
 #define	VI_CHANGING	0x00100000	/* vnode changes state */
 #endif	/* _VFS_VNODE_PRIVATE */
 
@@ -330,6 +334,8 @@ extern const int	vttoif_tab[];
 #define	UPDATE_DIROP	0x0002		/* update: hint to fs to wait or not */
 #define	UPDATE_CLOSE	0x0004		/* update: clean up on close */
 
+#define VDEAD_NOWAIT	0x0001		/* vdead_check: do not sleep */
+
 void holdrelel(struct vnode *);
 void vholdl(struct vnode *);
 void vref(struct vnode *);
@@ -359,13 +365,6 @@ vhold(struct vnode *vp)
 	mutex_enter(vp->v_interlock);
 	vholdl(vp);
 	mutex_exit(vp->v_interlock);
-}
-
-static __inline bool
-vismarker(struct vnode *vp)
-{
-
-	return (vp->v_iflag & VI_MARKER) != 0;
 }
 
 #define	NULLVP	((struct vnode *)NULL)
@@ -551,14 +550,11 @@ void 	vrele_async(struct vnode *);
 void	vrele_flush(void);
 int	vtruncbuf(struct vnode *, daddr_t, bool, int);
 void	vwakeup(struct buf *);
-void	vwait(struct vnode *, int);
+int	vdead_check(struct vnode *, int);
 void	vrevoke(struct vnode *);
 struct vnode *
 	vnalloc(struct mount *);
 void	vnfree(struct vnode *);
-void	vmark(struct vnode *, struct vnode *);
-struct vnode *
-	vunmark(struct vnode *);
 void	vremfree(struct vnode *);
 
 /* see vnsubr(9) */

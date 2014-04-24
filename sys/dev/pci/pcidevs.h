@@ -1,10 +1,10 @@
-/*	$NetBSD: pcidevs.h,v 1.1177 2014/03/15 10:32:36 kiyohara Exp $	*/
+/*	$NetBSD: pcidevs.h,v 1.1180 2014/04/09 10:21:35 msaitoh Exp $	*/
 
 /*
  * THIS FILE AUTOMATICALLY GENERATED.  DO NOT EDIT.
  *
  * generated from:
- *	NetBSD: pcidevs,v 1.1184 2014/03/15 10:30:41 kiyohara Exp
+ *	NetBSD: pcidevs,v 1.1187 2014/04/09 10:21:10 msaitoh Exp
  */
 
 /*
@@ -2551,13 +2551,17 @@
 #define	PCI_PRODUCT_INTEL_SANDYBRIDGE_S_HB	0x0108		/* Sandy Bridge Host Bridge */
 #define	PCI_PRODUCT_INTEL_SANDYBRIDGE_S_IGD	0x010A		/* Sandy Bridge Integrated Graphics Device */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_HB	0x0150		/* Ivy Bridge Host Bridge */
+#define	PCI_PRODUCT_INTEL_IVYBRIDGE_PCIE	0x0151		/* Ivy Bridge PCI Express Root Port */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_IGD	0x0152		/* Ivy Bridge Integrated Graphics Device */
-#define	PCI_PRODUCT_INTEL_IVYBRIDGE_IGD_1	0x0162		/* Ivy Bridge Integrated Graphics Device */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_M_HB	0x0154		/* Ivy Bridge Host Bridge */
+#define	PCI_PRODUCT_INTEL_IVYBRIDGE_PCIE_1	0x0155		/* Ivy Bridge PCI Express Root Port */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_M_IGD	0x0156		/* Ivy Bridge Integrated Graphics Device */
-#define	PCI_PRODUCT_INTEL_IVYBRIDGE_M_IGD_1	0x0166		/* Ivy Bridge Integrated Graphics Device */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_S_HB	0x0158		/* Ivy Bridge Host Bridge */
+#define	PCI_PRODUCT_INTEL_IVYBRIDGE_PCIE_2	0x0159		/* Ivy Bridge PCI Express Root Port */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_S_IGD	0x015a		/* Ivy Bridge Integrated Graphics Device */
+#define	PCI_PRODUCT_INTEL_IVYBRIDGE_PCIE_3	0x015d		/* Ivy Bridge PCI Express Root Port */
+#define	PCI_PRODUCT_INTEL_IVYBRIDGE_IGD_1	0x0162		/* Ivy Bridge Integrated Graphics Device */
+#define	PCI_PRODUCT_INTEL_IVYBRIDGE_M_IGD_1	0x0166		/* Ivy Bridge Integrated Graphics Device */
 #define	PCI_PRODUCT_INTEL_IVYBRIDGE_S_IGD_1	0x016a		/* Ivy Bridge Integrated Graphics Device */
 #define	PCI_PRODUCT_INTEL_80312	0x030d		/* 80312 I/O Companion Chip */
 #define	PCI_PRODUCT_INTEL_80321	0x0319		/* 80321 I/O Processor */
@@ -2832,6 +2836,7 @@
 #define	PCI_PRODUCT_INTEL_I211_COPPER	0x1539		/* I211 Ethernet (COPPER) */
 #define	PCI_PRODUCT_INTEL_I217_LM	0x153a		/* I217-LM Ethernet Connection */
 #define	PCI_PRODUCT_INTEL_I217_V	0x153b		/* I217-V Ethernet Connection */
+#define	PCI_PRODUCT_INTEL_82599_SFP_SF2	0x154d		/* 82599 (SFP+) 10 GbE Controller */
 #define	PCI_PRODUCT_INTEL_I218_V	0x1559		/* I218-V Ethernet Connection */
 #define	PCI_PRODUCT_INTEL_I218_LM	0x155a		/* I218-LM Ethernet Connection */
 #define	PCI_PRODUCT_INTEL_80960_RP	0x1960		/* ROB-in i960RP Microprocessor */

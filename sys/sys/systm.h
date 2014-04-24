@@ -1,4 +1,4 @@
-/*	$NetBSD: systm.h,v 1.260 2014/02/01 09:04:57 matt Exp $	*/
+/*	$NetBSD: systm.h,v 1.263 2014/04/03 15:22:57 christos Exp $	*/
 
 /*-
  * Copyright (c) 1982, 1988, 1991, 1993
@@ -67,7 +67,6 @@ extern const char *panicstr;	/* panic message */
 extern int doing_shutdown;	/* shutting down */
 
 extern const char copyright[];	/* system copyright */
-extern char cpu_model[];	/* machine/cpu model name */
 extern char machine[];		/* machine type */
 extern char machine_arch[];	/* machine architecture */
 extern const char osrelease[];	/* short system version */
@@ -215,13 +214,9 @@ void	printf_nolog(const char *, ...) __printflike(1, 2);
 
 void	printf(const char *, ...) __printflike(1, 2);
 
-int	sprintf(char *, const char *, ...) __printflike(2, 3);
-
 int	snprintf(char *, size_t, const char *, ...) __printflike(3, 4);
 
 void	vprintf(const char *, va_list) __printflike(1, 0);
-
-int	vsprintf(char *, const char *, va_list) __printflike(2, 0);
 
 int	vsnprintf(char *, size_t, const char *, va_list) __printflike(3, 0);
 
@@ -408,6 +403,7 @@ void	consinit(void);
 
 void	cpu_startup(void);
 void	cpu_configure(void);
+void	cpu_bootconf(void);
 void	cpu_rootconf(void);
 void	cpu_dumpconf(void);
 

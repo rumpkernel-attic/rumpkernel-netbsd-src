@@ -1,4 +1,4 @@
-/*	$NetBSD: bus_dma.c,v 1.82 2014/02/26 07:57:09 skrll Exp $	*/
+/*	$NetBSD: bus_dma.c,v 1.86 2014/04/10 02:44:05 matt Exp $	*/
 
 /*-
  * Copyright (c) 1996, 1997, 1998 The NetBSD Foundation, Inc.
@@ -35,13 +35,15 @@
 #include "opt_arm_bus_space.h"
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: bus_dma.c,v 1.82 2014/02/26 07:57:09 skrll Exp $");
+__KERNEL_RCSID(0, "$NetBSD: bus_dma.c,v 1.86 2014/04/10 02:44:05 matt Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/proc.h>
 #include <sys/buf.h>
+#include <sys/bus.h>
+#include <sys/cpu.h>
 #include <sys/reboot.h>
 #include <sys/conf.h>
 #include <sys/file.h>
@@ -52,10 +54,11 @@ __KERNEL_RCSID(0, "$NetBSD: bus_dma.c,v 1.82 2014/02/26 07:57:09 skrll Exp $");
 
 #include <uvm/uvm.h>
 
-#include <sys/bus.h>
-#include <machine/cpu.h>
-
 #include <arm/cpufunc.h>
+
+#ifdef __HAVE_MM_MD_DIRECT_MAPPED_PHYS
+#include <dev/mm.h>
+#endif
 
 #ifdef BUSDMA_COUNTERS
 static struct evcnt bus_dma_creates =
@@ -763,7 +766,8 @@ _bus_dmamap_unload(bus_dma_tag_t t, bus_dmamap_t map)
 static void
 _bus_dmamap_sync_segment(vaddr_t va, paddr_t pa, vsize_t len, int ops, bool readonly_p)
 {
-	KASSERT((va & PAGE_MASK) == (pa & PAGE_MASK));
+	KASSERTMSG((va & PAGE_MASK) == (pa & PAGE_MASK),
+	    "va %#lx pa %#lx", va, pa);
 #if 0
 	printf("sync_segment: va=%#lx pa=%#lx len=%#lx ops=%#x ro=%d\n",
 	    va, pa, len, ops, readonly_p);
@@ -1359,15 +1363,6 @@ _bus_dmamem_map(bus_dma_tag_t t, bus_dma_segment_t *segs, int nsegs,
 
 			pmap_kenter_pa(va, pa, VM_PROT_READ | VM_PROT_WRITE,
 			    PMAP_WIRED | (uncached ? PMAP_NOCACHE : 0));
-
-			/*
-			 * If the memory must remain coherent with the
-			 * cache then we must make the memory uncacheable
-			 * in order to maintain virtual cache coherency.
-			 * We must also guarantee the cache does not already
-			 * contain the virtal addresses we are making
-			 * uncacheable.
-			 */
 		}
 	}
 	pmap_update(pmap_kernel());
@@ -1389,7 +1384,20 @@ _bus_dmamem_unmap(bus_dma_tag_t t, void *kva, size_t size)
 	printf("dmamem_unmap: t=%p kva=%p size=%zx\n", t, kva, size);
 #endif	/* DEBUG_DMA */
 	KASSERTMSG(((uintptr_t)kva & PAGE_MASK) == 0,
-	    "kva %p (%#"PRIxPTR")", kva, (uintptr_t)kva & PAGE_MASK);
+	    "kva %p (%#"PRIxPTR")", kva, ((uintptr_t)kva & PAGE_MASK));
+
+#ifdef __HAVE_MM_MD_DIRECT_MAPPED_PHYS
+	/*
+	 * Check to see if this used direct mapped memory.  Get it's physical
+	 * address and try to map it.  If the resultant matches the kva, then
+	 * it was and so we can just return since we have notice to free up.
+	 */
+	paddr_t pa;
+	vaddr_t va;
+	(void)pmap_extract(pmap_kernel(), (vaddr_t)kva, &pa);
+	if (mm_md_direct_mapped_phys(pa, &va) && va == (vaddr_t)kva)
+		return;
+#endif
 
 	size = round_page(size);
 	pmap_kremove((vaddr_t)kva, size);
@@ -1495,8 +1503,8 @@ _bus_dmamap_load_buffer(bus_dma_tag_t t, bus_dmamap_t map, void *buf,
 					    (vaddr & L2_L_OFFSET);
 					coherent = (pte & L2_L_CACHE_MASK) == 0;
 				} else {
-					curaddr = (pte & L2_S_FRAME) |
-					    (vaddr & L2_S_OFFSET);
+					curaddr = (pte & ~PAGE_MASK) |
+					    (vaddr & PAGE_MASK);
 					coherent = (pte & L2_S_CACHE_MASK) == 0;
 				}
 			}
@@ -1504,6 +1512,8 @@ _bus_dmamap_load_buffer(bus_dma_tag_t t, bus_dmamap_t map, void *buf,
 			(void) pmap_extract(pmap, vaddr, &curaddr);
 			coherent = false;
 		}
+		KASSERTMSG((vaddr & PAGE_MASK) == (curaddr & PAGE_MASK),
+		    "va %#lx curaddr %#lx", vaddr, curaddr);
 
 		/*
 		 * Compute the segment size, and adjust counts.

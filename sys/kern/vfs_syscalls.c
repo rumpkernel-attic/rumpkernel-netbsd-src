@@ -1,4 +1,4 @@
-/*	$NetBSD: vfs_syscalls.c,v 1.476 2014/02/15 22:32:16 njoly Exp $	*/
+/*	$NetBSD: vfs_syscalls.c,v 1.482 2014/04/20 21:26:51 maxv Exp $	*/
 
 /*-
  * Copyright (c) 2008, 2009 The NetBSD Foundation, Inc.
@@ -70,7 +70,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: vfs_syscalls.c,v 1.476 2014/02/15 22:32:16 njoly Exp $");
+__KERNEL_RCSID(0, "$NetBSD: vfs_syscalls.c,v 1.482 2014/04/20 21:26:51 maxv Exp $");
 
 #ifdef _KERNEL_OPT
 #include "opt_fileassoc.h"
@@ -454,6 +454,7 @@ do_sys_mount(struct lwp *l, struct vfsops *vfsops, const char *type,
 	struct vnode *vp;
 	void *data_buf = data;
 	bool vfsopsrele = false;
+	size_t alloc_sz = 0;
 	int error;
 
 	/* XXX: The calling convention of this routine is totally bizarre */
@@ -481,14 +482,15 @@ do_sys_mount(struct lwp *l, struct vfsops *vfsops, const char *type,
 		}
 	}
 
+	/*
+	 * We allow data to be NULL, even for userspace. Some fs's don't need
+	 * it. The others will handle NULL.
+	 */
 	if (data != NULL && data_seg == UIO_USERSPACE) {
 		if (data_len == 0) {
 			/* No length supplied, use default for filesystem */
 			data_len = vfsops->vfs_min_mount_data;
-			if (data_len > VFS_MAX_MOUNT_DATA) {
-				error = EINVAL;
-				goto done;
-			}
+
 			/*
 			 * Hopefully a longer buffer won't make copyin() fail.
 			 * For compatibility with 3.0 and earlier.
@@ -497,7 +499,12 @@ do_sys_mount(struct lwp *l, struct vfsops *vfsops, const char *type,
 			    && data_len < sizeof (struct mnt_export_args30))
 				data_len = sizeof (struct mnt_export_args30);
 		}
-		data_buf = kmem_alloc(data_len, KM_SLEEP);
+		if ((data_len == 0) || (data_len > VFS_MAX_MOUNT_DATA)) {
+			error = EINVAL;
+			goto done;
+		}
+		alloc_sz = data_len;
+		data_buf = kmem_alloc(alloc_sz, KM_SLEEP);
 
 		/* NFS needs the buffer even for mnt_getargs .... */
 		error = copyin(data, data_buf, data_len);
@@ -533,7 +540,7 @@ do_sys_mount(struct lwp *l, struct vfsops *vfsops, const char *type,
 	    	vrele(vp);
 	}
 	if (data_buf != data)
-		kmem_free(data_buf, data_len);
+		kmem_free(data_buf, alloc_sz);
 	return (error);
 }
 
@@ -1624,9 +1631,11 @@ do_sys_openat(lwp_t *l, int fdat, const char *path, int flags,
 	int error;
 
 #ifdef COMPAT_10	/* XXX: and perhaps later */
-	if (path == NULL)
+	if (path == NULL) {
 		pb = pathbuf_create(".");
-	else
+		if (pb == NULL)
+			return ENOMEM;
+	} else
 #endif
 	{
 		error = pathbuf_copyin(path, &pb);
@@ -1974,6 +1983,7 @@ dofhopen(struct lwp *l, const void *ufhp, size_t fhsize, int oflags,
 		goto bad;
 	}
 	error = vfs_fhtovp(fh, &vp);
+	vfs_copyinfh_free(fh);
 	if (error != 0) {
 		goto bad;
 	}
@@ -2011,14 +2021,12 @@ dofhopen(struct lwp *l, const void *ufhp, size_t fhsize, int oflags,
 	VOP_UNLOCK(vp);
 	*retval = indx;
 	fd_affix(p, fp, indx);
-	vfs_copyinfh_free(fh);
 	return (0);
 
 bad:
 	fd_abort(p, fp, indx);
 	if (vp != NULL)
 		vput(vp);
-	vfs_copyinfh_free(fh);
 	return (error);
 }
 

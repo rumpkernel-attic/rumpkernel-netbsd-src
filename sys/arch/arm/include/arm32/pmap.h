@@ -1,4 +1,4 @@
-/*	$NetBSD: pmap.h,v 1.125 2014/02/26 01:51:51 matt Exp $	*/
+/*	$NetBSD: pmap.h,v 1.132 2014/04/16 07:29:52 matt Exp $	*/
 
 /*
  * Copyright (c) 2002, 2003 Wasabi Systems, Inc.
@@ -83,6 +83,10 @@
 #ifdef ARM_MMU_EXTENDED
 #define PMAP_TLB_MAX			1
 #define PMAP_TLB_HWPAGEWALKER		1
+#if PMAP_TLB_MAX > 1
+#define PMAP_TLB_NEED_SHOOTDOWN		1
+#endif
+#define PMAP_TLB_FLUSH_ASID_ON_RESET	(arm_has_tlbiasid_p)
 #define PMAP_TLB_NUM_PIDS		256
 #define cpu_set_tlb_info(ci, ti)        ((void)((ci)->ci_tlb_info = (ti)))
 #if PMAP_TLB_MAX > 1
@@ -99,8 +103,8 @@
  * user and kernel, we can use the TTBR0/TTBR1 to have separate L1 tables for
  * user and kernel address spaces.
  */      
-#if KERNEL_BASE != 0x80000000
-#error ARMv6 or later systems must have a KERNEL_BASE of 0x8000000
+#if (KERNEL_BASE & 0x80000000) == 0
+#error ARMv6 or later systems must have a KERNEL_BASE >= 0x80000000
 #endif  
 #endif  /* ARM_MMU_EXTENDED */
 
@@ -227,10 +231,11 @@ struct pmap {
 #ifdef MULTIPROCESSOR
 	kcpuset_t		*pm_onproc;
 	kcpuset_t		*pm_active;
-	struct pmap_asid_info	pm_pai[2];
-#else
-	struct pmap_asid_info	pm_pai[1];
+#if PMAP_TLB_MAX > 1
+	u_int			pm_shootdown_pending;
 #endif
+#endif
+	struct pmap_asid_info	pm_pai[PMAP_TLB_MAX];
 #else
 	struct l1_ttable	*pm_l1;
 	union pmap_cache_state	pm_cstate;
@@ -268,6 +273,10 @@ extern pv_addr_t undstack;
 extern pv_addr_t idlestack;
 extern pv_addr_t systempage;
 extern pv_addr_t kernel_l1pt;
+
+#ifdef ARM_MMU_EXTENDED
+extern bool arm_has_tlbiasid_p;	/* also in <arm/locore.h> */
+#endif
 
 /*
  * Determine various modes for PTEs (user vs. kernel, cacheable
@@ -397,6 +406,15 @@ void	pmap_devmap_register(const struct pmap_devmap *);
 bool	pmap_pageidlezero(paddr_t);
 #define PMAP_PAGEIDLEZERO(pa)	pmap_pageidlezero((pa))
 
+#ifdef __HAVE_MM_MD_DIRECT_MAPPED_PHYS
+/*
+ * For the pmap, this is a more useful way to map a direct mapped page.
+ * It returns either the direct-mapped VA or the VA supplied if it can't
+ * be direct mapped.
+ */
+vaddr_t	pmap_direct_mapped_phys(paddr_t, bool *, vaddr_t);
+#endif
+
 /*
  * used by dumpsys to record the PA of the L1 table
  */
@@ -405,6 +423,13 @@ uint32_t pmap_kernel_L1_addr(void);
  * The current top of kernel VM
  */
 extern vaddr_t	pmap_curmaxkvaddr;
+
+#if defined(ARM_MMU_EXTENDED) && defined(__HAVE_MM_MD_DIRECT_MAPPED_PHYS)
+/*
+ * Starting VA of direct mapped memory (usually KERNEL_BASE).
+ */
+extern vaddr_t pmap_directbase;
+#endif
 
 /*
  * Useful macros and constants 
@@ -478,8 +503,13 @@ extern int pmap_needs_pte_sync;
 static inline void
 pmap_ptesync(pt_entry_t *ptep, size_t cnt)
 {
-	if (PMAP_NEEDS_PTE_SYNC)
+	if (PMAP_NEEDS_PTE_SYNC) {
 		cpu_dcache_wb_range((vaddr_t)ptep, cnt * sizeof(pt_entry_t));
+#ifdef SHEEVA_L2_CACHE
+		cpu_sdcache_wb_range((vaddr_t)ptep, -1,
+		    cnt * sizeof(pt_entry_t));
+#endif
+	}
 #if ARM_MMU_V7 > 0
 	__asm("dsb");
 #endif
@@ -536,14 +566,20 @@ l1pte_set(pt_entry_t *pdep, pt_entry_t pde)
 static inline void
 l2pte_set(pt_entry_t *ptep, pt_entry_t pte, pt_entry_t opte)
 {
-	for (size_t k = 0; k < PAGE_SIZE / L2_S_SIZE; k++) {
-		KASSERTMSG(*ptep == opte, "%#x [*%p] != %#x", *ptep, ptep, opte);
-		*ptep++ = pte;
-		pte += L2_S_SIZE;
-		if (opte)
-			opte += L2_S_SIZE;
+	if (l1pte_lpage_p(pte)) {
+		for (size_t k = 0; k < L2_L_SIZE / L2_S_SIZE; k++) {
+			*ptep++ = pte;
+		}
+	} else {
+		for (size_t k = 0; k < PAGE_SIZE / L2_S_SIZE; k++) {
+			KASSERTMSG(*ptep == opte, "%#x [*%p] != %#x", *ptep, ptep, opte);
+			*ptep++ = pte;
+			pte += L2_S_SIZE;
+			if (opte)
+				opte += L2_S_SIZE;
+		}
 	}
-}       
+}
 
 static inline void
 l2pte_reset(pt_entry_t *ptep)
@@ -901,7 +937,7 @@ extern void (*pmap_zero_page_func)(paddr_t);
 #define	L2_L_CACHE_MASK		L2_L_CACHE_MASK_generic
 #define	L2_S_CACHE_MASK		L2_S_CACHE_MASK_generic
 
-#define	L1_SS_PROTO		L1_SS_PROTO_generic
+#define	L1_SS_PROTO		L1_SS_PROTO_armv6
 #define	L1_S_PROTO		L1_S_PROTO_generic
 #define	L1_C_PROTO		L1_C_PROTO_generic
 #define	L2_S_PROTO		L2_S_PROTO_generic
@@ -1015,10 +1051,10 @@ struct vm_page *arm_pmap_alloc_poolpage(int);
 #define	PMAP_ALLOC_POOLPAGE	arm_pmap_alloc_poolpage
 #endif
 #if defined(PMAP_NEED_ALLOC_POOLPAGE) || defined(__HAVE_MM_MD_DIRECT_MAPPED_PHYS)
-#define	PMAP_MAP_POOLPAGE(pa) \
-        ((vaddr_t)((paddr_t)(pa) - physical_start + KERNEL_BASE))
-#define PMAP_UNMAP_POOLPAGE(va) \
-        ((paddr_t)((vaddr_t)(va) - KERNEL_BASE + physical_start))
+vaddr_t	pmap_map_poolpage(paddr_t);
+paddr_t	pmap_unmap_poolpage(vaddr_t);
+#define	PMAP_MAP_POOLPAGE(pa)	pmap_map_poolpage(pa)
+#define PMAP_UNMAP_POOLPAGE(va)	pmap_unmap_poolpage(va)
 #endif
 
 /*
