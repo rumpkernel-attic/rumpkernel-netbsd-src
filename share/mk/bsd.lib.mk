@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.lib.mk,v 1.348 2014/03/09 18:00:51 christos Exp $
+#	$NetBSD: bsd.lib.mk,v 1.354 2014/04/24 00:14:59 pooka Exp $
 #	@(#)bsd.lib.mk	8.3 (Berkeley) 4/22/94
 
 .include <bsd.init.mk>
@@ -169,7 +169,9 @@ CFLAGS+=	-g
 # Platform-independent linker flags for ELF shared libraries
 SHLIB_SOVERSION=	${SHLIB_MAJOR}
 SHLIB_SHFLAGS=		-Wl,-soname,${_LIB}.so.${SHLIB_SOVERSION}
+.if !defined(SHLIB_WARNTEXTREL) || ${SHLIB_WARNTEXTREL} != "no"
 SHLIB_SHFLAGS+=		-Wl,--warn-shared-textrel
+.endif
 .if !defined(SHLIB_MKMAP) || ${SHLIB_MKMAP} != "no"
 SHLIB_SHFLAGS+=		-Wl,-Map=${_LIB}.so.${SHLIB_SOVERSION}.map
 .endif
@@ -442,7 +444,7 @@ ${_LIB}_combine.o: ${COMBINESRCS}
 	${_MKTARGET_COMPILE}
 	${COMPILE.c} -MD --combine ${.ALLSRC} -o ${.TARGET}
 .if defined(LIBSTRIPOBJS)
-	${OBJCOPY} -x ${.TARGET}
+	${OBJCOPY} ${OBJCOPYLIBFLAGS} ${.TARGET}
 .endif
 
 CLEANFILES+=	${_LIB}_combine.d
