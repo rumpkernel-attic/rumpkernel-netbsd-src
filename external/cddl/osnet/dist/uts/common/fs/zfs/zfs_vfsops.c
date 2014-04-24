@@ -768,7 +768,7 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
  */
 static int
 id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
-    char *buf, boolean_t addok)
+    char *buf, size_t buflen, boolean_t addok)
 {
 	uint64_t fuid;
 	int domainid = 0;
@@ -779,7 +779,7 @@ id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
 			return (ENOENT);
 	}
 	fuid = FUID_ENCODE(domainid, rid);
-	(void) sprintf(buf, "%llx", (longlong_t)fuid);
+	(void) snprintf(buf, buflen, "%llx", (longlong_t)fuid);
 	return (0);
 }
 
@@ -800,7 +800,7 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	if (obj == 0)
 		return (0);
 
-	err = id_to_fuidstr(zfsvfs, domain, rid, buf, B_FALSE);
+	err = id_to_fuidstr(zfsvfs, domain, rid, buf, sizeof(buf), FALSE);
 	if (err)
 		return (err);
 
@@ -829,7 +829,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	objp = (type == ZFS_PROP_USERQUOTA) ? &zfsvfs->z_userquota_obj :
 	    &zfsvfs->z_groupquota_obj;
 
-	err = id_to_fuidstr(zfsvfs, domain, rid, buf, B_TRUE);
+	err = id_to_fuidstr(zfsvfs, domain, rid, buf, sizeof(buf), B_TRUE);
 	if (err)
 		return (err);
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
@@ -884,7 +884,7 @@ zfs_usergroup_overquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
 	if (quotaobj == 0 || zfsvfs->z_replay)
 		return (B_FALSE);
 
-	(void) sprintf(buf, "%llx", (longlong_t)fuid);
+	(void) snprintf(buf, sizeof(buf), "%llx", (longlong_t)fuid);
 	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
 	if (err != 0)
 		return (B_FALSE);
@@ -1596,6 +1596,9 @@ zfs_mount(vfs_t *vfsp, const char *path, void *data, size_t *data_len)
 	if (mvp->v_type != VDIR)
 		return (ENOTDIR);
 
+	if (uap == NULL)
+		return (EINVAL);
+
 	mutex_enter(mvp->v_interlock);
 	if ((uap->flags & MS_REMOUNT) == 0 &&
 	    (uap->flags & MS_OVERLAY) == 0 &&
@@ -1959,6 +1962,9 @@ zfs_umount(vfs_t *vfsp, int fflag)
 		}
 	}
 #endif
+	ret = vflush(vfsp, NULL, (ISSET(fflag, MS_FORCE)? FORCECLOSE : 0));
+	if (ret != 0)
+		return ret;
 	vfsp->vfs_flag |= VFS_UNMOUNTED;
 
 	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
@@ -1988,13 +1994,6 @@ zfs_umount(vfs_t *vfsp, int fflag)
 	if (zfsvfs->z_ctldir != NULL)
 		zfsctl_destroy(zfsvfs);
 
-	if (fflag & MS_FORCE)
-		flags |= FORCECLOSE;
-	
-	ret = vflush(vfsp, NULL, 0);
-	if (ret != 0)
-		return ret;
-	
 	return (0);
 }
 

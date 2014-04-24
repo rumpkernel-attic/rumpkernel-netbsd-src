@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.789 2014/03/17 07:11:40 mrg Exp $
+#	$NetBSD: bsd.own.mk,v 1.800 2014/04/22 13:20:58 joerg Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -64,7 +64,8 @@ HAVE_GCC?=    4
       ${MACHINE_CPU} == "hppa" || \
       ${MACHINE_CPU} == "sparc" || \
       ${MACHINE_CPU} == "sparc64" || \
-      ${MACHINE_CPU} == "x86_64"
+      ${MACHINE_CPU} == "x86_64" || \
+      ${MACHINE_CPU} == "i386"
 HAVE_GCC?=    48
 
 .else
@@ -86,20 +87,22 @@ EXTERNAL_GCC_SUBDIR=	/does/not/exist
 
 .endif
 
-.if ${MACHINE_ARCH} == "ia64"
-USE_COMPILERCRTSTUFF?=	yes
-.else
-USE_COMPILERCRTSTUFF?=	no
-.endif
-
 .if ${MKLLVM:Uno} == "yes" && (${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "x86_64")
 HAVE_LIBGCC?=	no
 .else
 HAVE_LIBGCC?=	yes
 .endif
 
+_LIBC_UNWIND_SUPPORT.alpha=	yes
+_LIBC_UNWIND_SUPPORT.hppa=	yes
 _LIBC_UNWIND_SUPPORT.i386=	yes
+_LIBC_UNWIND_SUPPORT.m68k=	yes
 _LIBC_UNWIND_SUPPORT.powerpc=	yes
+_LIBC_UNWIND_SUPPORT.sh3el=	yes
+_LIBC_UNWIND_SUPPORT.sh3eb=	yes
+_LIBC_UNWIND_SUPPORT.sparc=	yes
+_LIBC_UNWIND_SUPPORT.sparc64=	yes
+_LIBC_UNWIND_SUPPORT.vax=	yes
 _LIBC_UNWIND_SUPPORT.x86_64=	yes
 .if ${MKLLVM:Uno} == "yes" && ${_LIBC_UNWIND_SUPPORT.${MACHINE_ARCH}:Uno} == "yes"
 HAVE_LIBGCC_EH?=	no
@@ -503,7 +506,7 @@ FC=		${TOOL_FC.${ACTIVE_FC}}
 OBJC=		${TOOL_OBJC.${ACTIVE_OBJC}}
 
 # Override with tools versions if needed
-.if exists(${TOOL_CTFCONVERT}) && exists(${TOOL_CTFMERGE})
+.if ${MKCTF:Uno} != "no" && !defined(NOCTF)
 CTFCONVERT=	${TOOL_CTFCONVERT}
 CTFMERGE=	${TOOL_CTFMERGE}
 .endif
@@ -970,7 +973,7 @@ MKGCCCMDS?=	${MKGCC}
 #
 _MKVARS.no= \
 	MKBSDGREP MKBSDTAR \
-	MKCATPAGES MKCRYPTO_RC5 MKDEBUG \
+	MKCATPAGES MKCRYPTO_RC5 MKCTF MKDEBUG \
 	MKDEBUGLIB MKDTRACE MKEXTSRC \
 	MKKYUA MKLLD MKLLDB MKLINT \
 	MKMANZ MKMCLINKER MKOBJDIRS \

@@ -44,6 +44,8 @@
 #include <sys/rwlock.h>
 #include <sys/callout.h>
 
+#include <linux/completion.h>
+
 /*
  * Copy from/to user API
  */
@@ -178,28 +180,6 @@ int del_timer(struct timer_list *t);
 int del_timer_sync(struct timer_list *t);
 
 /*
- * Completion API
- */
-struct completion {
-	kcondvar_t cv;
-	kmutex_t lock;
-	int done;
-};
-
-void init_completion(struct completion *c);
-void destroy_completion(struct completion *c);
-int try_wait_for_completion(struct completion *);
-int wait_for_completion_interruptible(struct completion *);
-int wait_for_completion_interruptible_timeout(struct completion *, unsigned long ticks);
-int wait_for_completion_killable(struct completion *);
-void wait_for_completion(struct completion *c);
-int wait_for_completion_timeout(struct completion *c, unsigned long timeout);
-void complete(struct completion *c);
-void complete_all(struct completion *c);
-
-#define	INIT_COMPLETION(x)	do {(x).done = 0;} while(0)
-
-/*
  * Semaphore API
  */
 struct semaphore {
@@ -315,7 +295,8 @@ MALLOC_DECLARE(M_VCHI);
  */
 #if 1
 /* emulate jiffies */
-static inline unsigned long _jiffies(void)
+static inline unsigned long
+_jiffies(void)
 {
 	struct timeval tv;
 
@@ -323,7 +304,8 @@ static inline unsigned long _jiffies(void)
 	return tvtohz(&tv);
 }
 
-static inline unsigned long msecs_to_jiffies(unsigned long msecs)
+static inline unsigned long
+msecs_to_jiffies(unsigned long msecs)
 {
 	struct timeval tv;
 
@@ -388,6 +370,10 @@ typedef	off_t	loff_t;
 #define rmb	membar_consumer
 #define wmb	membar_producer
 #define dsb	membar_producer
+
+#define smp_mb	membar_producer
+#define smp_rmb	membar_consumer
+#define smp_wmb	membar_producer
 
 #define device_print_prettyname(dev)	device_printf((dev), "")
 

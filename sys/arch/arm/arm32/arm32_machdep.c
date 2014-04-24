@@ -1,4 +1,4 @@
-/*	$NetBSD: arm32_machdep.c,v 1.101 2014/03/03 08:15:36 matt Exp $	*/
+/*	$NetBSD: arm32_machdep.c,v 1.104 2014/04/11 04:19:47 matt Exp $	*/
 
 /*
  * Copyright (c) 1994-1998 Mark Brinicombe.
@@ -42,7 +42,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: arm32_machdep.c,v 1.101 2014/03/03 08:15:36 matt Exp $");
+__KERNEL_RCSID(0, "$NetBSD: arm32_machdep.c,v 1.104 2014/04/11 04:19:47 matt Exp $");
 
 #include "opt_modular.h"
 #include "opt_md.h"
@@ -257,7 +257,6 @@ cpu_startup(void)
 {
 	vaddr_t minaddr;
 	vaddr_t maxaddr;
-	u_int loop;
 	char pbuf[9];
 
 	/*
@@ -284,10 +283,13 @@ cpu_startup(void)
 	 */
 
 	/* msgbufphys was setup during the secondary boot strap */
-	for (loop = 0; loop < btoc(MSGBUFSIZE); ++loop)
-		pmap_kenter_pa((vaddr_t)msgbufaddr + loop * PAGE_SIZE,
-		    msgbufphys + loop * PAGE_SIZE,
-		    VM_PROT_READ|VM_PROT_WRITE, 0);
+	if (!pmap_extract(pmap_kernel(), (vaddr_t)msgbufaddr, NULL)) {
+		for (u_int loop = 0; loop < btoc(MSGBUFSIZE); ++loop) {
+			pmap_kenter_pa((vaddr_t)msgbufaddr + loop * PAGE_SIZE,
+			    msgbufphys + loop * PAGE_SIZE,
+			    VM_PROT_READ|VM_PROT_WRITE, 0);
+		}
+	}
 	pmap_update(pmap_kernel());
 	initmsgbuf(msgbufaddr, round_page(MSGBUFSIZE));
 
@@ -683,16 +685,17 @@ cpu_uarea_alloc_idlelwp(struct cpu_info *ci)
 void
 cpu_boot_secondary_processors(void)
 {
-	uint32_t mbox;
-	kcpuset_export_u32(kcpuset_attached, &mbox, sizeof(mbox));
-#ifdef VERBOSE_ARM_INIT
-	printf("%s: writing mbox with %#x\n", __func__, mbox);
+#ifdef VERBOSE_INIT_ARM
+	printf("%s: writing mbox with %#x\n", __func__, arm_cpu_hatched);
 #endif
-	atomic_swap_32(&arm_cpu_mbox, mbox);
+	arm_cpu_mbox = arm_cpu_hatched;
 	membar_producer();
 #ifdef _ARM_ARCH_7
 	__asm __volatile("sev; sev; sev");
 #endif
+	while (arm_cpu_mbox) {
+		__asm("wfe");
+	}
 }
 
 void
@@ -701,23 +704,7 @@ xc_send_ipi(struct cpu_info *ci)
 	KASSERT(kpreempt_disabled());
 	KASSERT(curcpu() != ci);
 
-
-	if (ci) {
-		/* Unicast, remote CPU */
-		printf("%s: -> %s", __func__, ci->ci_data.cpu_name);
-		intr_ipi_send(ci->ci_kcpuset, IPI_XCALL);
-	} else {
-		printf("%s: -> !%s", __func__, ci->ci_data.cpu_name);
-		/* Broadcast to all but ourselves */
-		kcpuset_t *kcp;
-		kcpuset_create(&kcp, (ci != NULL));
-		KASSERT(kcp != NULL);
-		kcpuset_copy(kcp, kcpuset_running);
-		kcpuset_clear(kcp, cpu_index(ci));
-		intr_ipi_send(kcp, IPI_XCALL);
-		kcpuset_destroy(kcp);
-	}
-	printf("\n");
+	intr_ipi_send(ci != NULL ? ci->ci_kcpuset : NULL, IPI_XCALL);
 }
 #endif /* MULTIPROCESSOR */
 
@@ -725,11 +712,11 @@ xc_send_ipi(struct cpu_info *ci)
 bool
 mm_md_direct_mapped_phys(paddr_t pa, vaddr_t *vap)
 {
-	if (physical_start <= pa && pa < physical_end) {
-		*vap = KERNEL_BASE + (pa - physical_start);
-		return true;
+	bool rv;
+	vaddr_t va = pmap_direct_mapped_phys(pa, &rv, 0);
+	if (rv) {
+		*vap = va;
 	}
-
-	return false;
+	return rv;
 }
 #endif

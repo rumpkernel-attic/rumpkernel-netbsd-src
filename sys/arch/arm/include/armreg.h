@@ -1,4 +1,4 @@
-/*	$NetBSD: armreg.h,v 1.93 2014/03/07 05:30:08 matt Exp $	*/
+/*	$NetBSD: armreg.h,v 1.97 2014/04/14 20:50:47 matt Exp $	*/
 
 /*
  * Copyright (c) 1998, 2001 Ben Harris
@@ -386,6 +386,13 @@
 #define	CPACR_PRIVED		1 /* Privileged mode access */
 #define	CPACR_RESERVED		2
 #define	CPACR_ALL		3 /* Privileged and User mode access */
+
+/* ARMv6/ARMv7 Non-Secure Access Control Register (CP15, 0, c1, c1, 2) */
+#define NSACR_SMP		0x00040000 /* ACTRL.SMP is writeable (!A8) */
+#define NSACR_L2ERR		0x00020000 /* L2ECTRL is writeable (!A8) */
+#define NSACR_ASEDIS		0x00008000 /* Deny Advanced SIMD Ext. */
+#define NSACR_D32DIS		0x00004000 /* Deny VFP regs 15-31 */
+#define NSACR_CPn(n)		(1 << (n)) /* NonSecure access allowed */
 
 /* ARM11x6 Auxiliary Control Register (CP15 register 1, opcode2 1) */
 #define	ARM11X6_AUXCTL_RS	0x00000001 /* return stack */
@@ -895,6 +902,8 @@ ARMREG_READ_INLINE(auxctl, "p15,0,%0,c1,c0,1") /* Auxiliary Control Register */
 ARMREG_WRITE_INLINE(auxctl, "p15,0,%0,c1,c0,1") /* Auxiliary Control Register */
 ARMREG_READ_INLINE(cpacr, "p15,0,%0,c1,c0,2") /* Co-Processor Access Control Register */
 ARMREG_WRITE_INLINE(cpacr, "p15,0,%0,c1,c0,2") /* Co-Processor Access Control Register */
+ARMREG_READ_INLINE(scr, "p15,0,%0,c1,c1,0") /* Secure Configuration Register */
+ARMREG_READ_INLINE(nsacr, "p15,0,%0,c1,c1,2") /* Non-Secure Access Control Register */
 /* cp15 c2 registers */
 ARMREG_READ_INLINE(ttbr, "p15,0,%0,c2,c0,0") /* Translation Table Base Register 0 */
 ARMREG_WRITE_INLINE(ttbr, "p15,0,%0,c2,c0,0") /* Translation Table Base Register 0 */
@@ -969,6 +978,10 @@ ARMREG_WRITE_INLINE(nrrr, "p15,0,%0,c10,c2,1") /* Normal Region Remap Register *
 /* cp15 c13 registers */
 ARMREG_READ_INLINE(contextidr, "p15,0,%0,c13,c0,1") /* Context ID Register */
 ARMREG_WRITE_INLINE(contextidr, "p15,0,%0,c13,c0,1") /* Context ID Register */
+ARMREG_READ_INLINE(tpidrurw, "p15,0,%0,c13,c0,2") /* User read-write Thread ID Register */
+ARMREG_WRITE_INLINE(tpidrurw, "p15,0,%0,c13,c0,2") /* User read-write Thread ID Register */
+ARMREG_READ_INLINE(tpidruro, "p15,0,%0,c13,c0,3") /* User read-only Thread ID Register */
+ARMREG_WRITE_INLINE(tpidruro, "p15,0,%0,c13,c0,3") /* User read-only Thread ID Register */
 ARMREG_READ_INLINE(tpidrprw, "p15,0,%0,c13,c0,4") /* PL1 only Thread ID Register */
 ARMREG_WRITE_INLINE(tpidrprw, "p15,0,%0,c13,c0,4") /* PL1 only Thread ID Register */
 /* cp14 c12 registers */
@@ -1007,6 +1020,9 @@ ARMREG_READ_INLINE(tlbdata0, "p15,3,%0,c15,c0,0") /* TLB Data Register 0 (cortex
 ARMREG_READ_INLINE(tlbdata1, "p15,3,%0,c15,c0,1") /* TLB Data Register 1 (cortex) */
 ARMREG_READ_INLINE(tlbdata2, "p15,3,%0,c15,c0,2") /* TLB Data Register 2 (cortex) */
 ARMREG_WRITE_INLINE(tlbdataop, "p15,3,%0,c15,c4,2") /* TLB Data Read Operation (cortex) */
+
+ARMREG_READ_INLINE(sheeva_xctrl, "p15,1,%0,c15,c1,0") /* Sheeva eXtra Control register */
+ARMREG_WRITE_INLINE(sheeva_xctrl, "p15,1,%0,c15,c1,0") /* Sheeva eXtra Control register */
 
 #endif /* !__ASSEMBLER__ */
 
