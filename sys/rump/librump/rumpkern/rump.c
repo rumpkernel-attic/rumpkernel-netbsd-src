@@ -1,4 +1,4 @@
-/*	$NetBSD: rump.c,v 1.296 2014/04/23 23:25:45 pooka Exp $	*/
+/*	$NetBSD: rump.c,v 1.304 2014/04/27 15:08:52 pooka Exp $	*/
 
 /*
  * Copyright (c) 2007-2011 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rump.c,v 1.296 2014/04/23 23:25:45 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rump.c,v 1.304 2014/04/27 15:08:52 pooka Exp $");
 
 #include <sys/systm.h>
 #define ELFSIZE ARCH_ELFSIZE
@@ -111,11 +111,6 @@ static struct lwp *bootlwp;
 
 static char rump_msgbuf[16*1024]; /* 16k should be enough for std rump needs */
 
-#ifdef LOCKDEBUG
-const int rump_lockdebug = 1;
-#else
-const int rump_lockdebug = 0;
-#endif
 bool rump_ttycomponent = false;
 
 static void
@@ -129,8 +124,7 @@ rump_aiodone_worker(struct work *wk, void *dummy)
 
 static int rump_inited;
 
-void (*rump_vfs_drainbufs)(int);
-void (*rump_vfs_fini)(void);
+void (*rump_vfs_drainbufs)(int) = (void *)nullop;
 int  (*rump_vfs_makeonedevnode)(dev_t, const char *,
 				devmajor_t, devminor_t) = (void *)nullop;
 int  (*rump_vfs_makedevnodes)(dev_t, const char *, char,
@@ -140,19 +134,9 @@ int rump__unavailable(void);
 int rump__unavailable() {return EOPNOTSUPP;}
 
 __weak_alias(biodone,rump__unavailable);
-__weak_alias(sopoll,rump__unavailable);
 
-void rump__unavailable_vfs_panic(void);
-void rump__unavailable_vfs_panic() {panic("vfs component not available");}
-__weak_alias(usermount_common_policy,rump__unavailable_vfs_panic);
-
-/* easier to write vfs-less clients */
-__weak_alias(rump_pub_etfs_register,rump__unavailable);
-__weak_alias(rump_pub_etfs_register_withsize,rump__unavailable);
-__weak_alias(rump_pub_etfs_remove,rump__unavailable);
-
-rump_proc_vfs_init_fn rump_proc_vfs_init;
-rump_proc_vfs_release_fn rump_proc_vfs_release;
+rump_proc_vfs_init_fn rump_proc_vfs_init = (void *)nullop;
+rump_proc_vfs_release_fn rump_proc_vfs_release = (void *)nullop;
 
 static void add_linkedin_modules(const struct modinfo *const *, size_t);
 
@@ -471,67 +455,10 @@ rump_init(void)
 	if (initproc == NULL)
 		panic("where in the world is initproc?");
 
-	/*
-	 * Adjust syscall vector in case factions were dlopen()'d
-	 * before calling rump_init().
-	 * (modules will handle dynamic syscalls the usual way)
-	 *
-	 * Note: this will adjust the function vectors of
-	 * syscalls which use a funcalias (getpid etc.), but
-	 * it makes no difference.
-	 */
-	for (i = 0; i < SYS_NSYSENT; i++) {
-		void *sym;
-
-		if (rump_sysent[i].sy_flags & SYCALL_NOSYS ||
-		    *syscallnames[i] == '#' ||
-		    rump_sysent[i].sy_call == sys_nomodule)
-			continue;
-
-		/*
-		 * deal with compat wrappers.  makesyscalls.sh should
-		 * generate the necessary info instead of this hack,
-		 * though.  ugly, fix it later.
-		 */ 
-#define CPFX "compat_"
-#define CPFXLEN (sizeof(CPFX)-1)
-		if (strncmp(syscallnames[i], CPFX, CPFXLEN) == 0) {
-			const char *p = syscallnames[i] + CPFXLEN;
-			size_t namelen;
-
-			/* skip version number */
-			while (*p >= '0' && *p <= '9')
-				p++;
-			if (p == syscallnames[i] + CPFXLEN || *p != '_')
-				panic("invalid syscall name %s\n",
-				    syscallnames[i]);
-
-			/* skip over the next underscore */
-			p++;
-			namelen = p + (sizeof("rumpns_")-1) - syscallnames[i];
-
-			strcpy(buf, "rumpns_");
-			strcat(buf, syscallnames[i]);
-			/* XXX: no strncat in the kernel */
-			strcpy(buf+namelen, "sys_");
-			strcat(buf, p);
-#undef CPFX
-#undef CPFXLEN
-		} else {
-			snprintf(buf, sizeof(buf), "rumpns_sys_%s",
-			    syscallnames[i]);
-		}
-		if ((sym = rumpuser_dl_globalsym(buf)) != NULL
-		    && sym != rump_sysent[i].sy_call) {
-#if 0
-			rumpuser_dprintf("adjusting %s: %p (old %p)\n",
-			    syscallnames[i], sym, rump_sysent[i].sy_call);
-#endif
-			rump_sysent[i].sy_call = sym;
-		}
-	}
-
 	rump_component_init(RUMP_COMPONENT_POSTINIT);
+
+	/* load syscalls */
+	rump_component_init(RUMP_COMPONENT_SYSCALL);
 
 	/* component inits done */
 	bootlwp = NULL;
@@ -555,135 +482,6 @@ rump_init_server(const char *url)
 {
 
 	return rumpuser_sp_init(url, ostype, osrelease, MACHINE);
-}
-
-void
-cpu_reboot(int howto, char *bootstr)
-{
-	int ruhow = 0;
-	void *finiarg;
-
-	printf("rump kernel halting...\n");
-
-	if (!RUMP_LOCALPROC_P(curproc))
-		finiarg = curproc->p_vmspace->vm_map.pmap;
-	else
-		finiarg = NULL;
-
-	/* dump means we really take the dive here */
-	if ((howto & RB_DUMP) || panicstr) {
-		ruhow = RUMPUSER_PANIC;
-		goto out;
-	}
-
-	/* try to sync */
-	if (!((howto & RB_NOSYNC) || panicstr)) {
-		if (rump_vfs_fini)
-			rump_vfs_fini();
-	}
-
-	doshutdownhooks();
-
-	/* your wish is my command */
-	if (howto & RB_HALT) {
-		printf("rump kernel halted\n");
-		rumpuser_sp_fini(finiarg);
-		for (;;) {
-			rumpuser_clock_sleep(RUMPUSER_CLOCK_RELWALL, 10, 0);
-		}
-	}
-
-	/* this function is __dead, we must exit */
- out:
-	printf("halted\n");
-	rumpuser_sp_fini(finiarg);
-	rumpuser_exit(ruhow);
-}
-
-struct uio *
-rump_uio_setup(void *buf, size_t bufsize, off_t offset, enum rump_uiorw rw)
-{
-	struct uio *uio;
-	enum uio_rw uiorw;
-
-	switch (rw) {
-	case RUMPUIO_READ:
-		uiorw = UIO_READ;
-		break;
-	case RUMPUIO_WRITE:
-		uiorw = UIO_WRITE;
-		break;
-	default:
-		panic("%s: invalid rw %d", __func__, rw);
-	}
-
-	uio = kmem_alloc(sizeof(struct uio), KM_SLEEP);
-	uio->uio_iov = kmem_alloc(sizeof(struct iovec), KM_SLEEP);
-
-	uio->uio_iov->iov_base = buf;
-	uio->uio_iov->iov_len = bufsize;
-
-	uio->uio_iovcnt = 1;
-	uio->uio_offset = offset;
-	uio->uio_resid = bufsize;
-	uio->uio_rw = uiorw;
-	UIO_SETUP_SYSSPACE(uio);
-
-	return uio;
-}
-
-size_t
-rump_uio_getresid(struct uio *uio)
-{
-
-	return uio->uio_resid;
-}
-
-off_t
-rump_uio_getoff(struct uio *uio)
-{
-
-	return uio->uio_offset;
-}
-
-size_t
-rump_uio_free(struct uio *uio)
-{
-	size_t resid;
-
-	resid = uio->uio_resid;
-	kmem_free(uio->uio_iov, sizeof(*uio->uio_iov));
-	kmem_free(uio, sizeof(*uio));
-
-	return resid;
-}
-
-kauth_cred_t
-rump_cred_create(uid_t uid, gid_t gid, size_t ngroups, gid_t *groups)
-{
-	kauth_cred_t cred;
-	int rv;
-
-	cred = kauth_cred_alloc();
-	kauth_cred_setuid(cred, uid);
-	kauth_cred_seteuid(cred, uid);
-	kauth_cred_setsvuid(cred, uid);
-	kauth_cred_setgid(cred, gid);
-	kauth_cred_setgid(cred, gid);
-	kauth_cred_setegid(cred, gid);
-	kauth_cred_setsvgid(cred, gid);
-	rv = kauth_cred_setgroups(cred, groups, ngroups, 0, UIO_SYSSPACE);
-	/* oh this is silly.  and by "this" I mean kauth_cred_setgroups() */
-	assert(rv == 0);
-
-	return cred;
-}
-
-void
-rump_cred_put(kauth_cred_t cred)
-{
-
-	kauth_cred_free(cred);
 }
 
 static int compcounter[RUMP_COMPONENT_MAX];
@@ -1076,6 +874,20 @@ rump_syscall(int num, void *data, size_t dlen, register_t *retval)
 	rump_unschedule();
 
 	return rv;
+}
+
+void
+rump_syscall_boot_establish(const struct rump_onesyscall *calls, size_t ncall)
+{
+	struct sysent *callp;
+	size_t i;
+
+	for (i = 0; i < ncall; i++) {
+		callp = rump_sysent + calls[i].ros_num;
+		KASSERT(bootlwp != NULL
+		    && callp->sy_call == (sy_call_t *)enosys);
+		callp->sy_call = calls[i].ros_handler;
+	}
 }
 
 /*
