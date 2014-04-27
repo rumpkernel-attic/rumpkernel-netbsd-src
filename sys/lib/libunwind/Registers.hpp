@@ -34,7 +34,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_X86_EIP,
     LAST_RESTORE_REG = REGNO_X86_EIP,
-    RETURN_REG = REGNO_X86_EIP,
     RETURN_OFFSET = 0,
   };
 
@@ -100,7 +99,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_X86_64_RIP,
     LAST_RESTORE_REG = REGNO_X86_64_RIP,
-    RETURN_REG = REGNO_X86_64_RIP,
     RETURN_OFFSET = 0,
   };
 
@@ -169,7 +167,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_PPC32_V31,
     LAST_RESTORE_REG = REGNO_PPC32_V31,
-    RETURN_REG = REGNO_PPC32_LR,
     RETURN_OFFSET = 0,
   };
 
@@ -258,7 +255,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_ARM32_D31,
     LAST_RESTORE_REG = REGNO_ARM32_SPSR,
-    RETURN_REG = REGNO_ARM32_SPSR,
     RETURN_OFFSET = 0,
   };
 
@@ -328,7 +324,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_VAX_PSW,
     LAST_RESTORE_REG = REGNO_VAX_PSW,
-    RETURN_REG = REGNO_VAX_R15,
     RETURN_OFFSET = 0,
   };
 
@@ -400,7 +395,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_M68K_FP7,
     LAST_RESTORE_REG = REGNO_M68K_FP7,
-    RETURN_REG = REGNO_M68K_PC,
     RETURN_OFFSET = 0,
   };
 
@@ -477,7 +471,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_SH3_PR,
     LAST_RESTORE_REG = REGNO_SH3_PR,
-    RETURN_REG = REGNO_SH3_PR,
     RETURN_OFFSET = 0,
   };
 
@@ -542,7 +535,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_SPARC64_PC,
     LAST_RESTORE_REG = REGNO_SPARC64_PC,
-    RETURN_REG = REGNO_SPARC64_R15,
     RETURN_OFFSET = 8,
   };
   typedef uint64_t reg_t;
@@ -606,7 +598,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_SPARC_PC,
     LAST_RESTORE_REG = REGNO_SPARC_PC,
-    RETURN_REG = REGNO_SPARC_R15,
     RETURN_OFFSET = 8,
   };
   typedef uint32_t reg_t;
@@ -672,7 +663,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_ALPHA_F30,
     LAST_RESTORE_REG = REGNO_ALPHA_F30,
-    RETURN_REG = REGNO_ALPHA_R26,
     RETURN_OFFSET = 0,
   };
   typedef uint32_t reg_t;
@@ -740,7 +730,6 @@ public:
   enum {
     LAST_REGISTER = REGNO_HPPA_FR31H,
     LAST_RESTORE_REG = REGNO_HPPA_FR31H,
-    RETURN_REG = REGNO_HPPA_R2,
     RETURN_OFFSET = -3, // strictly speaking, this is a mask
   };
 
@@ -793,6 +782,148 @@ private:
   uint32_t fpreg[56];
 };
 
+enum {
+  DWARF_MIPS_R1 = 0,
+  DWARF_MIPS_R31 = 31,
+  DWARF_MIPS_F0 = 32,
+  DWARF_MIPS_F31 = 63,
+
+  REGNO_MIPS_PC = 0,
+  REGNO_MIPS_R1 = 0,
+  REGNO_MIPS_R29 = 29,
+  REGNO_MIPS_R31 = 31,
+  REGNO_MIPS_F0 = 33,
+  REGNO_MIPS_F31 = 64
+};
+
+class Registers_MIPS {
+public:
+  enum {
+    LAST_REGISTER = REGNO_MIPS_F31,
+    LAST_RESTORE_REG = REGNO_MIPS_F31,
+    RETURN_OFFSET = 0,
+  };
+
+  __dso_hidden Registers_MIPS();
+
+  static int dwarf2regno(int num) {
+    if (num >= DWARF_MIPS_R1 && num <= DWARF_MIPS_R31)
+      return REGNO_MIPS_R1 + (num - DWARF_MIPS_R1);
+    if (num >= DWARF_MIPS_F0 && num <= DWARF_MIPS_F31)
+      return REGNO_MIPS_F0 + (num - DWARF_MIPS_F0);
+    return LAST_REGISTER + 1;
+  }
+
+  bool validRegister(int num) const {
+    return num >= REGNO_MIPS_PC && num <= REGNO_MIPS_R31;
+  }
+
+  uint64_t getRegister(int num) const {
+    assert(validRegister(num));
+    return reg[num];
+  }
+
+  void setRegister(int num, uint64_t value) {
+    assert(validRegister(num));
+    reg[num] = value;
+  }
+
+  uint64_t getIP() const { return reg[REGNO_MIPS_PC]; }
+
+  void setIP(uint64_t value) { reg[REGNO_MIPS_PC] = value; }
+
+  uint64_t getSP() const { return reg[REGNO_MIPS_R29]; }
+
+  void setSP(uint64_t value) { reg[REGNO_MIPS_R29] = value; }
+
+  bool validFloatVectorRegister(int num) const {
+    return num >= DWARF_MIPS_F0 && num <= DWARF_MIPS_F31;
+  }
+
+  void copyFloatVectorRegister(int num, uint64_t addr_) {
+    assert(validFloatVectorRegister(num));
+    const void *addr = reinterpret_cast<const void *>(addr_);
+    memcpy(fpreg + (num - REGNO_MIPS_F0), addr, sizeof(fpreg[0]));
+  }
+
+  __dso_hidden void jumpto() const __dead;
+
+private:
+  uint32_t reg[REGNO_MIPS_R31 + 1];
+  uint64_t fpreg[32];
+};
+
+enum {
+  DWARF_MIPS64_R1 = 0,
+  DWARF_MIPS64_R31 = 31,
+  DWARF_MIPS64_F0 = 32,
+  DWARF_MIPS64_F31 = 63,
+
+  REGNO_MIPS64_PC = 0,
+  REGNO_MIPS64_R1 = 0,
+  REGNO_MIPS64_R29 = 29,
+  REGNO_MIPS64_R31 = 31,
+  REGNO_MIPS64_F0 = 33,
+  REGNO_MIPS64_F31 = 64
+};
+
+class Registers_MIPS64 {
+public:
+  enum {
+    LAST_REGISTER = REGNO_MIPS64_F31,
+    LAST_RESTORE_REG = REGNO_MIPS64_F31,
+    RETURN_OFFSET = 0,
+  };
+
+  __dso_hidden Registers_MIPS64();
+
+  static int dwarf2regno(int num) {
+    if (num >= DWARF_MIPS64_R1 && num <= DWARF_MIPS64_R31)
+      return REGNO_MIPS64_R1 + (num - DWARF_MIPS64_R1);
+    if (num >= DWARF_MIPS64_F0 && num <= DWARF_MIPS64_F31)
+      return REGNO_MIPS64_F0 + (num - DWARF_MIPS64_F0);
+    return LAST_REGISTER + 1;
+  }
+
+  bool validRegister(int num) const {
+    return num >= REGNO_MIPS64_PC && num <= REGNO_MIPS64_R31;
+  }
+
+  uint64_t getRegister(int num) const {
+    assert(validRegister(num));
+    return reg[num];
+  }
+
+  void setRegister(int num, uint64_t value) {
+    assert(validRegister(num));
+    reg[num] = value;
+  }
+
+  uint64_t getIP() const { return reg[REGNO_MIPS64_PC]; }
+
+  void setIP(uint64_t value) { reg[REGNO_MIPS64_PC] = value; }
+
+  uint64_t getSP() const { return reg[REGNO_MIPS64_R29]; }
+
+  void setSP(uint64_t value) { reg[REGNO_MIPS64_R29] = value; }
+
+  bool validFloatVectorRegister(int num) const {
+    return num >= DWARF_MIPS64_F0 && num <= DWARF_MIPS64_F31;
+  }
+
+  void copyFloatVectorRegister(int num, uint64_t addr_) {
+    assert(validFloatVectorRegister(num));
+    const void *addr = reinterpret_cast<const void *>(addr_);
+    memcpy(fpreg + (num - REGNO_MIPS64_F0), addr, sizeof(fpreg[0]));
+  }
+
+  __dso_hidden void jumpto() const __dead;
+
+private:
+  uint64_t reg[REGNO_MIPS64_R31 + 1];
+  uint64_t fpreg[32];
+};
+
 #if __i386__
 typedef Registers_x86 NativeUnwindRegisters;
 #elif __x86_64__
@@ -805,6 +936,10 @@ typedef Registers_arm32 NativeUnwindRegisters;
 typedef Registers_vax NativeUnwindRegisters;
 #elif __m68k__
 typedef Registers_M68K NativeUnwindRegisters;
+#elif __mips_n64 || __mips_n32
+typedef Registers_MIPS64 NativeUnwindRegisters;
+#elif __mips__
+typedef Registers_MIPS NativeUnwindRegisters;
 #elif __sh3__
 typedef Registers_SH3 NativeUnwindRegisters;
 #elif __sparc64__

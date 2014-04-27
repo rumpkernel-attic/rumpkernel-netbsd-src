@@ -1,7 +1,7 @@
-/*	$NetBSD: scsitest_component.c,v 1.1 2014/03/13 01:58:46 pooka Exp $	*/
+/*	$NetBSD: etfs_wrap.c,v 1.1 2014/04/25 13:10:42 pooka Exp $	*/
 
 /*
- * Copyright (c) 2010 Antti Kantee.  All Rights Reserved.
+ * Copyright (c) 2014 Antti Kantee.  All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,21 +26,35 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: scsitest_component.c,v 1.1 2014/03/13 01:58:46 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: etfs_wrap.c,v 1.1 2014/04/25 13:10:42 pooka Exp $");
 
 #include <sys/param.h>
-#include <sys/conf.h>
-#include <sys/device.h>
-#include <sys/mbuf.h>
-#include <sys/stat.h>
-
-#include "ioconf.c"
 
 #include "rump_private.h"
 
-RUMP_COMPONENT(RUMP_COMPONENT_DEV)
+rump_etfs_register_withsize_fn rump__etfs_register	= (void *)enosys;
+rump_etfs_remove_fn rump__etfs_remove			= (void *)enosys;
+
+int
+rump_etfs_register(const char *key, const char *hostpath,
+        enum rump_etfs_type ftype)
 {
 
-	config_init_component(cfdriver_ioconf_scsitest,
-	    cfattach_ioconf_scsitest, cfdata_ioconf_scsitest);
+	return rump__etfs_register(key, hostpath, ftype,
+	    0, RUMP_ETFS_SIZE_ENDOFF);
+}
+
+int
+rump_etfs_register_withsize(const char *key, const char *hostpath,
+        enum rump_etfs_type ftype, uint64_t begin, uint64_t size)
+{
+
+	return rump__etfs_register(key, hostpath, ftype, begin, size);
+}
+
+int
+rump_etfs_remove(const char *key)
+{
+
+	return rump__etfs_remove(key);
 }
