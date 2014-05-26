@@ -1,4 +1,4 @@
-#	$NetBSD: bsd.own.mk,v 1.802 2014/04/26 20:25:07 wiz Exp $
+#	$NetBSD: bsd.own.mk,v 1.809 2014/05/23 18:51:31 matt Exp $
 
 # This needs to be before bsd.init.mk
 .if defined(BSD_MK_COMPAT_FILE)
@@ -57,20 +57,17 @@ TOOLCHAIN_MISSING?=	no
 .if ${MACHINE_CPU}  == "vax"
 HAVE_GCC?=    4
 
-# Platforms switched to GCC 4.8
+# Platforms still using GCC 4.5
 .elif \
-      ${MACHINE_CPU} == "alpha" || \
-      ${MACHINE_CPU} == "arm" || \
-      ${MACHINE_CPU} == "hppa" || \
-      ${MACHINE_CPU} == "sparc" || \
-      ${MACHINE_CPU} == "sparc64" || \
-      ${MACHINE_CPU} == "x86_64" || \
-      ${MACHINE_CPU} == "i386"
-HAVE_GCC?=    48
+      ${MACHINE_CPU} == "ia64" || \
+      ${MACHINE_CPU} == "m68k" || \
+      ${MACHINE_CPU} == "sh3" || \
+      ${MACHINE_ARCH} == "powerpc"
+HAVE_GCC?=    45
 
 .else
-# Otherwise, default to GCC4.5
-HAVE_GCC?=    45
+# Otherwise, default to GCC4.8
+HAVE_GCC?=    48
 .endif
 
 #
@@ -87,7 +84,15 @@ EXTERNAL_GCC_SUBDIR=	/does/not/exist
 
 .endif
 
-.if ${MKLLVM:Uno} == "yes" && (${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "x86_64")
+.if !empty(MACHINE_ARCH:Mearm*)
+_LIBC_COMPILER_RT.${MACHINE_ARCH}=	yes
+_LIBC_UNWIND_SUPPORT.${MACHINE_ARCH}=	yes
+.endif
+
+_LIBC_COMPILER_RT.i386=		yes
+_LIBC_COMPILER_RT.x86_64=	yes
+
+.if ${MKLLVM:Uno} == "yes" && ${_LIBC_COMPILER_RT.${MACHINE_ARCH}:Uno} == "yes"
 HAVE_LIBGCC?=	no
 .else
 HAVE_LIBGCC?=	yes
@@ -361,6 +366,7 @@ TOOL_ELFTOSB=		${TOOLDIR}/bin/${_TOOL_PREFIX}elftosb
 TOOL_MSGC=		MSGDEF=${TOOLDIR}/share/misc ${TOOLDIR}/bin/${_TOOL_PREFIX}msgc
 TOOL_MTREE=		${TOOLDIR}/bin/${_TOOL_PREFIX}mtree
 TOOL_NBPERF=		${TOOLDIR}/bin/${_TOOL_PREFIX}perf
+TOOL_NCDCS=		${TOOLDIR}/bin/${_TOOL_PREFIX}ibmnws-ncdcs
 TOOL_PAX=		${TOOLDIR}/bin/${_TOOL_PREFIX}pax
 TOOL_PIC=		${TOOLDIR}/bin/${_TOOL_PREFIX}pic
 TOOL_PIGZ=		${TOOLDIR}/bin/${_TOOL_PREFIX}pigz
@@ -462,6 +468,7 @@ TOOL_ELFTOSB=		elftosb
 TOOL_MSGC=		msgc
 TOOL_MTREE=		mtree
 TOOL_NBPERF=		nbperf
+TOOL_NCDCS=		ncdcs
 TOOL_PAX=		pax
 TOOL_PIC=		pic
 TOOL_PIGZ=		pigz

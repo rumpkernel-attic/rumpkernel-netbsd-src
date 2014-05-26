@@ -1,4 +1,4 @@
-/*	$NetBSD: union_subr.c,v 1.63 2014/02/16 09:50:25 hannken Exp $	*/
+/*	$NetBSD: union_subr.c,v 1.65 2014/05/17 04:07:15 dholland Exp $	*/
 
 /*
  * Copyright (c) 1994
@@ -72,7 +72,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: union_subr.c,v 1.63 2014/02/16 09:50:25 hannken Exp $");
+__KERNEL_RCSID(0, "$NetBSD: union_subr.c,v 1.65 2014/05/17 04:07:15 dholland Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -811,6 +811,7 @@ union_mkshadow(struct union_mount *um, struct vnode *dvp,
 	va.va_type = VDIR;
 	va.va_mode = um->um_cmode;
 
+	KASSERT(*vpp == NULL);
 	error = VOP_MKDIR(dvp, vpp, &cn, &va);
 	VOP_UNLOCK(dvp);
 	PNBUF_PUT(pnbuf);
@@ -889,6 +890,7 @@ union_vn_create(struct vnode **vpp, struct union_node *un, struct lwp *l)
 	vap->va_type = VREG;
 	vap->va_mode = cmode;
 	vref(un->un_dirvp);
+	vp = NULL;
 	error = VOP_CREATE(un->un_dirvp, &vp, &cn, vap);
 	if (error)
 		return error;

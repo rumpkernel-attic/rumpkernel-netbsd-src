@@ -1490,9 +1490,13 @@ i915_gem_mmap_ioctl(struct drm_device *dev, void *data,
 	    obj->gemo_shm_uao, args->offset, 0,
 	    UVM_MAPFLAG((VM_PROT_READ | VM_PROT_WRITE),
 		(VM_PROT_READ | VM_PROT_WRITE), UVM_INH_COPY, UVM_ADV_NORMAL,
-		UVM_FLAG_COPYONW));
-	if (ret)
+		0));
+	if (ret) {
+		drm_gem_object_unreference_unlocked(obj);
 		return ret;
+	}
+	uao_reference(obj->gemo_shm_uao);
+	drm_gem_object_unreference_unlocked(obj);
 #else
 	addr = vm_mmap(obj->filp, 0, args->size,
 		       PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -1521,12 +1525,14 @@ i915_gem_fault(struct uvm_faultinfo *ufi, vaddr_t vaddr, struct vm_page **pps,
 	struct drm_i915_gem_object *obj = to_intel_bo(gem_obj);
 	struct drm_device *dev = obj->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	voff_t byte_offset;
 	pgoff_t page_offset;
 	int ret = 0;
 	bool write = ISSET(access_type, VM_PROT_WRITE)? 1 : 0;
 
-	page_offset = (ufi->entry->offset + (vaddr - ufi->entry->start)) >>
-	    PAGE_SHIFT;
+	byte_offset = (ufi->entry->offset + (vaddr - ufi->entry->start));
+	KASSERT(byte_offset <= obj->base.size);
+	page_offset = (byte_offset >> PAGE_SHIFT);
 
 	ret = i915_mutex_lock_interruptible(dev);
 	if (ret)
@@ -2203,16 +2209,21 @@ i915_gem_object_get_pages_gtt(struct drm_i915_gem_object *obj)
 	KASSERT(obj->igo_nsegs <= (obj->base.size / PAGE_SIZE));
 
 	/*
-	 * Check that the paddrs will fit in 40 bits.
+	 * Check that the paddrs will fit in 40 bits, or 32 bits on i965.
 	 *
 	 * XXX This is wrong; we ought to pass this constraint to
 	 * bus_dmamem_wire_uvm_object instead.
 	 */
 	TAILQ_FOREACH(page, &obj->igo_pageq, pageq.queue) {
-		if (VM_PAGE_TO_PHYS(page) & ~0xffffffffffULL) {
-			DRM_ERROR("GEM physical address exceeds 40 bits"
+		const uint64_t mask =
+		    (IS_BROADWATER(dev) || IS_CRESTLINE(dev)?
+			0xffffffffULL : 0xffffffffffULL);
+		if (VM_PAGE_TO_PHYS(page) & ~mask) {
+			DRM_ERROR("GEM physical address exceeds %u bits"
 			    ": %"PRIxMAX"\n",
+			    popcount64(mask),
 			    (uintmax_t)VM_PAGE_TO_PHYS(page));
+			error = -EIO;
 			goto fail2;
 		}
 	}
@@ -2234,7 +2245,8 @@ fail2:	bus_dmamem_unwire_uvm_object(dev->dmat, obj->base.gemo_shm_uao, 0,
 	    obj->base.size, obj->pages, (obj->base.size / PAGE_SIZE));
 fail1:	kfree(obj->pages);
 	obj->pages = NULL;
-fail0:	return error;
+fail0:	KASSERT(error);
+	return error;
 }
 #else
 static int

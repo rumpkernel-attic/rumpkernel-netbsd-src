@@ -1,4 +1,4 @@
-/*	$NetBSD: l2cap.h,v 1.10 2011/02/06 18:50:59 plunky Exp $	*/
+/*	$NetBSD: l2cap.h,v 1.13 2014/05/20 18:25:54 rmind Exp $	*/
 
 /*-
  * Copyright (c) 2005 Iain Hibbert.
@@ -54,7 +54,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id: l2cap.h,v 1.10 2011/02/06 18:50:59 plunky Exp $
+ * $Id: l2cap.h,v 1.13 2014/05/20 18:25:54 rmind Exp $
  * $FreeBSD: src/sys/netgraph/bluetooth/include/l2cap.h,v 1.4 2005/08/31 18:13:23 emax Exp $
  */
 
@@ -458,17 +458,16 @@ int l2cap_send_disconnect_req(struct l2cap_channel *);
 int l2cap_send_connect_rsp(struct hci_link *, uint8_t, uint16_t, uint16_t, uint16_t);
 
 /* l2cap_socket.c */
-int l2cap_usrreq(struct socket *, int, struct mbuf *, struct mbuf *, struct mbuf *, struct lwp *);
 int l2cap_ctloutput(int, struct socket *, struct sockopt *);
 
 /* l2cap_upper.c */
-int l2cap_attach(struct l2cap_channel **, const struct btproto *, void *);
+int l2cap_attach_pcb(struct l2cap_channel **, const struct btproto *, void *);
 int l2cap_bind(struct l2cap_channel *, struct sockaddr_bt *);
 int l2cap_sockaddr(struct l2cap_channel *, struct sockaddr_bt *);
 int l2cap_connect(struct l2cap_channel *, struct sockaddr_bt *);
 int l2cap_peeraddr(struct l2cap_channel *, struct sockaddr_bt *);
 int l2cap_disconnect(struct l2cap_channel *, int);
-int l2cap_detach(struct l2cap_channel **);
+void l2cap_detach_pcb(struct l2cap_channel **);
 int l2cap_listen(struct l2cap_channel *);
 int l2cap_send(struct l2cap_channel *, struct mbuf *);
 int l2cap_setopt(struct l2cap_channel *, const struct sockopt *);

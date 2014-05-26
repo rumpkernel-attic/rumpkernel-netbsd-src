@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.113 2014/04/08 16:48:01 njoly Exp $
+	$NetBSD: syscalls.master,v 1.116 2014/05/20 17:24:49 njoly Exp $
 
 ;	@(#)syscalls.master	8.1 (Berkeley) 7/19/93
 
@@ -317,9 +317,9 @@
 179	STD		{ int|linux_sys||rt_sigsuspend(linux_sigset_t *unewset, \
 			    size_t sigsetsize); }
 180	STD		{ int|linux_sys||pread(int fd, char *buf, \
-			    size_t nbyte, linux_off_t offset); }
+			    size_t nbyte, off_t offset); }
 181	STD		{ int|linux_sys||pwrite(int fd, char *buf, \
-			    size_t nbyte, linux_off_t offset); }
+			    size_t nbyte, off_t offset); }
 182	STD		{ int|linux_sys||chown16(const char *path, \
 			    linux_uid16_t uid, linux_gid16_t gid); }
 183	NOARGS		{ int|sys||__getcwd(char *bufp, size_t length); }
@@ -356,8 +356,8 @@
 202	NOARGS		{ gid_t|sys||getegid(void); }
 203	NOARGS		{ int|sys||setreuid(uid_t ruid, uid_t euid); }
 204	NOARGS		{ int|sys||setregid(gid_t rgid, gid_t egid); }
-205	NOARGS		{ int|sys||getgroups(u_int gidsetsize, gid_t *gidset); }
-206	NOARGS		{ int|sys||setgroups(u_int gidsetsize, gid_t *gidset); }
+205	NOARGS		{ int|sys||getgroups(int gidsetsize, gid_t *gidset); }
+206	NOARGS		{ int|sys||setgroups(int gidsetsize, gid_t *gidset); }
 207	NOARGS		{ int|sys||__posix_fchown(int fd, uid_t uid, \
 			    gid_t gid); }
 208	STD		{ int|linux_sys||setresuid(uid_t ruid, uid_t euid, \
@@ -423,8 +423,8 @@
 247	UNIMPL		io_getevents
 248	UNIMPL		io_submit
 249	UNIMPL		io_cancel
-250	STD		{ int|linux_sys||fadvise64(int fd, \
-			    linux_off_t offset, size_t len, int advice); }
+250	STD		{ int|linux_sys||fadvise64(int fd, off_t offset, \
+			    size_t len, int advice); }
 251	UNIMPL		/* unused */
 252	STD		{ int|linux_sys||exit_group(int error_code); }
 253	UNIMPL		lookup_dcookie
@@ -453,8 +453,8 @@
 			    size_t sz, struct linux_statfs64 *sp); }
 270	STD		{ int|linux_sys||tgkill(int tgid, int tid, int sig); }
 271	STD		{ int|linux_sys||utimes(const char *path, struct linux_timeval *times); }
-272	STD		{ int|linux_sys||fadvise64_64(int fd, \
-			    linux_off_t offset, linux_off_t len, int advice); }
+272	STD		{ int|linux_sys||fadvise64_64(int fd, off_t offset, \
+			    off_t len, int advice); }
 273	UNIMPL		vserver
 274	UNIMPL		mbind
 275	UNIMPL		get_mempolicy

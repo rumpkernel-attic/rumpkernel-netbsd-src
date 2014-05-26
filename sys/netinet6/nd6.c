@@ -1,4 +1,4 @@
-/*	$NetBSD: nd6.c,v 1.148 2014/03/20 13:34:35 roy Exp $	*/
+/*	$NetBSD: nd6.c,v 1.150 2014/05/20 20:23:56 bouyer Exp $	*/
 /*	$KAME: nd6.c,v 1.279 2002/06/08 11:16:51 itojun Exp $	*/
 
 /*
@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: nd6.c,v 1.148 2014/03/20 13:34:35 roy Exp $");
+__KERNEL_RCSID(0, "$NetBSD: nd6.c,v 1.150 2014/05/20 20:23:56 bouyer Exp $");
 
 #include "opt_ipsec.h"
 
@@ -2047,7 +2047,7 @@ nd6_slowtimo(void *ignored_arg)
 	KERNEL_LOCK(1, NULL);
       	callout_reset(&nd6_slowtimo_ch, ND6_SLOWTIMER_INTERVAL * hz,
 	    nd6_slowtimo, NULL);
-	TAILQ_FOREACH(ifp, &ifnet, if_list) {
+	IFNET_FOREACH(ifp) {
 		nd6if = ND_IFINFO(ifp);
 		if (nd6if->basereachable && /* already initialized */
 		    (nd6if->recalctm -= ND6_SLOWTIMER_INTERVAL) <= 0) {
@@ -2257,9 +2257,13 @@ nd6_output(struct ifnet *ifp, struct ifnet *origifp, struct mbuf *m0,
 		goto bad;
 	}
 
+	KERNEL_LOCK(1, NULL);
 	if ((ifp->if_flags & IFF_LOOPBACK) != 0)
-		return (*ifp->if_output)(origifp, m, sin6tocsa(dst), rt);
-	return (*ifp->if_output)(ifp, m, sin6tocsa(dst), rt);
+		error = (*ifp->if_output)(origifp, m, sin6tocsa(dst), rt);
+	else
+		error = (*ifp->if_output)(ifp, m, sin6tocsa(dst), rt);
+	KERNEL_UNLOCK_ONE(NULL);
+	return error;
 
   bad:
 	if (m != NULL)
