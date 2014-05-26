@@ -1,4 +1,4 @@
-/*	$NetBSD: rfcomm_socket.c,v 1.11 2013/08/29 17:49:21 rmind Exp $	*/
+/*	$NetBSD: rfcomm_socket.c,v 1.16 2014/05/20 19:04:00 rmind Exp $	*/
 
 /*-
  * Copyright (c) 2006 Itronix Inc.
@@ -32,7 +32,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: rfcomm_socket.c,v 1.11 2013/08/29 17:49:21 rmind Exp $");
+__KERNEL_RCSID(0, "$NetBSD: rfcomm_socket.c,v 1.16 2014/05/20 19:04:00 rmind Exp $");
 
 /* load symbolic names */
 #ifdef BLUETOOTH_DEBUG
@@ -81,6 +81,49 @@ static const struct btproto rfcomm_proto = {
 int rfcomm_sendspace = 4096;
 int rfcomm_recvspace = 4096;
 
+static int
+rfcomm_attach(struct socket *so, int proto)
+{
+	int error;
+
+	KASSERT(so->so_pcb == NULL);
+
+	if (so->so_lock == NULL) {
+		mutex_obj_hold(bt_lock);
+		so->so_lock = bt_lock;
+		solock(so);
+	}
+	KASSERT(solocked(so));
+
+	/*
+	 * Since we have nothing to add, we attach the DLC
+	 * structure directly to our PCB pointer.
+	 */
+	error = soreserve(so, rfcomm_sendspace, rfcomm_recvspace);
+	if (error)
+		return error;
+
+	error = rfcomm_attach_pcb((struct rfcomm_dlc **)&so->so_pcb,
+				&rfcomm_proto, so);
+	if (error)
+		return error;
+
+	error = rfcomm_rcvd(so->so_pcb, sbspace(&so->so_rcv));
+	if (error) {
+		rfcomm_detach_pcb((struct rfcomm_dlc **)&so->so_pcb);
+		return error;
+	}
+	return 0;
+}
+
+static void
+rfcomm_detach(struct socket *so)
+{
+	KASSERT(so->so_pcb != NULL);
+	rfcomm_detach_pcb((struct rfcomm_dlc **)&so->so_pcb);
+	KASSERT(so->so_pcb == NULL);
+}
+
 /*
  * User Request.
  * up is socket
@@ -90,7 +133,6 @@ int rfcomm_recvspace = 4096;
  * nam is either
  *	optional mbuf chain containing an address
  *	ioctl data (PRU_CONTROL)
- *	optionally protocol number (PRU_ATTACH)
  *	message flags (PRU_RCVD)
  * ctl is either
  *	optional mbuf chain containing socket options
@@ -100,7 +142,7 @@ int rfcomm_recvspace = 4096;
  * we are responsible for disposing of m and ctl if
  * they are mbuf chains
  */
-int
+static int
 rfcomm_usrreq(struct socket *up, int req, struct mbuf *m,
 		struct mbuf *nam, struct mbuf *ctl, struct lwp *l)
 {
@@ -110,6 +152,8 @@ rfcomm_usrreq(struct socket *up, int req, struct mbuf *m,
 	int err = 0;
 
 	DPRINTFN(2, "%s\n", prurequests[req]);
+	KASSERT(req != PRU_ATTACH);
+	KASSERT(req != PRU_DETACH);
 
 	switch (req) {
 	case PRU_CONTROL:
@@ -117,38 +161,7 @@ rfcomm_usrreq(struct socket *up, int req, struct mbuf *m,
 
 	case PRU_PURGEIF:
 		return EOPNOTSUPP;
-
-	case PRU_ATTACH:
-		if (up->so_lock == NULL) {
-			mutex_obj_hold(bt_lock);
-			up->so_lock = bt_lock;
-			solock(up);
-		}
-		KASSERT(solocked(up));
-		if (pcb != NULL)
-			return EINVAL;
-		/*
-		 * Since we have nothing to add, we attach the DLC
-		 * structure directly to our PCB pointer.
-		 */
-		err = soreserve(up, rfcomm_sendspace, rfcomm_recvspace);
-		if (err)
-			return err;
-
-		err = rfcomm_attach((struct rfcomm_dlc **)&up->so_pcb,
-					&rfcomm_proto, up);
-		if (err)
-			return err;
-
-		err = rfcomm_rcvd(up->so_pcb, sbspace(&up->so_rcv));
-		if (err) {
-			rfcomm_detach((struct rfcomm_dlc **)&up->so_pcb);
-			return err;
-		}
-
-		return 0;
 	}
-
 	if (pcb == NULL) {
 		err = EINVAL;
 		goto release;
@@ -162,9 +175,8 @@ rfcomm_usrreq(struct socket *up, int req, struct mbuf *m,
 	case PRU_ABORT:
 		rfcomm_disconnect(pcb, 0);
 		soisdisconnected(up);
-		/* fall through to */
-	case PRU_DETACH:
-		return rfcomm_detach((struct rfcomm_dlc **)&up->so_pcb);
+		rfcomm_detach(up);
+		return 0;
 
 	case PRU_BIND:
 		KASSERT(nam != NULL);
@@ -411,3 +423,15 @@ rfcomm_input(void *arg, struct mbuf *m)
 	sbappendstream(&so->so_rcv, m);
 	sorwakeup(so);
 }
+
+PR_WRAP_USRREQS(rfcomm)
+
+#define	rfcomm_attach		rfcomm_attach_wrapper
+#define	rfcomm_detach		rfcomm_detach_wrapper
+#define	rfcomm_usrreq		rfcomm_usrreq_wrapper
+
+const struct pr_usrreqs rfcomm_usrreqs = {
+	.pr_attach	= rfcomm_attach,
+	.pr_detach	= rfcomm_detach,
+	.pr_generic	= rfcomm_usrreq,
+};

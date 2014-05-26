@@ -1,4 +1,4 @@
-/*	$NetBSD: sockin.c,v 1.37 2014/04/26 11:23:03 pooka Exp $	*/
+/*	$NetBSD: sockin.c,v 1.40 2014/05/19 02:51:25 rmind Exp $	*/
 
 /*
  * Copyright (c) 2008, 2009 Antti Kantee.  All Rights Reserved.
@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: sockin.c,v 1.37 2014/04/26 11:23:03 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: sockin.c,v 1.40 2014/05/19 02:51:25 rmind Exp $");
 
 #include <sys/param.h>
 #include <sys/condvar.h>
@@ -58,8 +58,7 @@ __KERNEL_RCSID(0, "$NetBSD: sockin.c,v 1.37 2014/04/26 11:23:03 pooka Exp $");
 
 /*
  * An inet communication domain which uses the socket interface.
- * Currently supports only IPv4 UDP, but could easily be extended to
- * support IPv6 and TCP by adding more stuff to the protosw.
+ * Supports IPv4 & IPv6 UDP/TCP.
  */
 
 DOMAIN_DEFINE(sockindomain);
@@ -67,9 +66,17 @@ DOMAIN_DEFINE(sockin6domain);
 
 static int	sockin_do_init(void);
 static void	sockin_init(void);
+static int	sockin_attach(struct socket *, int);
+static void	sockin_detach(struct socket *);
 static int	sockin_usrreq(struct socket *, int, struct mbuf *,
 			      struct mbuf *, struct mbuf *, struct lwp *);
 static int	sockin_ctloutput(int op, struct socket *, struct sockopt *);
+
+static const struct pr_usrreqs sockin_usrreqs = {
+	.pr_attach = sockin_attach,
+	.pr_detach = sockin_detach,
+	.pr_generic = sockin_usrreq,
+};
 
 const struct protosw sockinsw[] = {
 {
@@ -77,7 +84,7 @@ const struct protosw sockinsw[] = {
 	.pr_domain = &sockindomain,
 	.pr_protocol = IPPROTO_UDP,
 	.pr_flags = PR_ATOMIC|PR_ADDR,
-	.pr_usrreq = sockin_usrreq,
+	.pr_usrreqs = &sockin_usrreqs,
 	.pr_ctloutput = sockin_ctloutput,
 },
 {
@@ -85,7 +92,7 @@ const struct protosw sockinsw[] = {
 	.pr_domain = &sockindomain,
 	.pr_protocol = IPPROTO_TCP,
 	.pr_flags = PR_CONNREQUIRED|PR_WANTRCVD|PR_LISTEN|PR_ABRTACPTDIS,
-	.pr_usrreq = sockin_usrreq,
+	.pr_usrreqs = &sockin_usrreqs,
 	.pr_ctloutput = sockin_ctloutput,
 }};
 const struct protosw sockin6sw[] = {
@@ -94,7 +101,7 @@ const struct protosw sockin6sw[] = {
 	.pr_domain = &sockin6domain,
 	.pr_protocol = IPPROTO_UDP,
 	.pr_flags = PR_ATOMIC|PR_ADDR,
-	.pr_usrreq = sockin_usrreq,
+	.pr_usrreqs = &sockin_usrreqs,
 	.pr_ctloutput = sockin_ctloutput,
 },
 {
@@ -102,7 +109,7 @@ const struct protosw sockin6sw[] = {
 	.pr_domain = &sockin6domain,
 	.pr_protocol = IPPROTO_TCP,
 	.pr_flags = PR_CONNREQUIRED|PR_WANTRCVD|PR_LISTEN|PR_ABRTACPTDIS,
-	.pr_usrreq = sockin_usrreq,
+	.pr_usrreqs = &sockin_usrreqs,
 	.pr_ctloutput = sockin_ctloutput,
 }};
 
@@ -400,50 +407,55 @@ sockin_init(void)
 }
 
 static int
+sockin_attach(struct socket *so, int proto)
+{
+	const int type = so->so_proto->pr_type;
+	int error, news, family;
+
+	sosetlock(so);
+	if (so->so_snd.sb_hiwat == 0 || so->so_rcv.sb_hiwat == 0) {
+		error = soreserve(so, SOCKIN_SBSIZE, SOCKIN_SBSIZE);
+		if (error)
+			return error;
+	}
+
+	family = so->so_proto->pr_domain->dom_family;
+	KASSERT(family == PF_INET || family == PF_INET6);
+	error = rumpcomp_sockin_socket(family, type, 0, &news);
+	if (error)
+		return error;
+
+	/* For UDP sockets, make sure we can send/recv maximum. */
+	if (type == SOCK_DGRAM) {
+		int sbsize = SOCKIN_SBSIZE;
+		error = rumpcomp_sockin_setsockopt(news,
+		    SOL_SOCKET, SO_SNDBUF,
+		    &sbsize, sizeof(sbsize));
+		sbsize = SOCKIN_SBSIZE;
+		error = rumpcomp_sockin_setsockopt(news,
+		    SOL_SOCKET, SO_RCVBUF,
+		    &sbsize, sizeof(sbsize));
+	}
+
+	if ((error = registersock(so, news)) != 0)
+		rumpuser_close(news);
+
+	return error;
+}
+
+static void
+sockin_detach(struct socket *so)
+{
+	panic("sockin_detach: IMPLEMENT ME\n");
+}
+
+static int
 sockin_usrreq(struct socket *so, int req, struct mbuf *m, struct mbuf *nam,
 	struct mbuf *control, struct lwp *l)
 {
 	int error = 0;
 
 	switch (req) {
-	case PRU_ATTACH:
-	{
-		int news;
-		int sbsize;
-		int family;
-
-		sosetlock(so);
-		if (so->so_snd.sb_hiwat == 0 || so->so_rcv.sb_hiwat == 0) {
-			error = soreserve(so, SOCKIN_SBSIZE, SOCKIN_SBSIZE);
-			if (error)
-				break;
-		}
-
-		family = so->so_proto->pr_domain->dom_family;
-		KASSERT(family == PF_INET || family == PF_INET6);
-		error = rumpcomp_sockin_socket(family,
-		    so->so_proto->pr_type, 0, &news);
-		if (error)
-			break;
-
-		/* for UDP sockets, make sure we can send&recv max */
-		if (so->so_proto->pr_type == SOCK_DGRAM) {
-			sbsize = SOCKIN_SBSIZE;
-			error = rumpcomp_sockin_setsockopt(news,
-			    SOL_SOCKET, SO_SNDBUF,
-			    &sbsize, sizeof(sbsize));
-			sbsize = SOCKIN_SBSIZE;
-			error = rumpcomp_sockin_setsockopt(news,
-			    SOL_SOCKET, SO_RCVBUF,
-			    &sbsize, sizeof(sbsize));
-		}
-
-		if ((error = registersock(so, news)) != 0)
-			rumpuser_close(news);
-
-		break;
-	}
-
 	case PRU_ACCEPT:
 		/* we do all the work in the worker thread */
 		break;

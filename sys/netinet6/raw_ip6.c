@@ -1,4 +1,4 @@
-/*	$NetBSD: raw_ip6.c,v 1.113 2014/02/25 18:30:12 pooka Exp $	*/
+/*	$NetBSD: raw_ip6.c,v 1.117 2014/05/20 19:04:00 rmind Exp $	*/
 /*	$KAME: raw_ip6.c,v 1.82 2001/07/23 18:57:56 jinmei Exp $	*/
 
 /*
@@ -62,21 +62,20 @@
  */
 
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: raw_ip6.c,v 1.113 2014/02/25 18:30:12 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: raw_ip6.c,v 1.117 2014/05/20 19:04:00 rmind Exp $");
 
 #include "opt_ipsec.h"
 
 #include <sys/param.h>
 #include <sys/sysctl.h>
-#include <sys/malloc.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
 #include <sys/protosw.h>
 #include <sys/socketvar.h>
-#include <sys/errno.h>
 #include <sys/systm.h>
 #include <sys/proc.h>
 #include <sys/kauth.h>
+#include <sys/kmem.h>
 
 #include <net/if.h>
 #include <net/route.h>
@@ -585,11 +584,71 @@ extern	u_long rip6_sendspace;
 extern	u_long rip6_recvspace;
 
 int
+rip6_attach(struct socket *so, int proto)
+{
+	struct in6pcb *in6p;
+	int s, error;
+
+	KASSERT(sotoin6pcb(so) == NULL);
+	sosetlock(so);
+
+	error = kauth_authorize_network(curlwp->l_cred,
+	    KAUTH_NETWORK_SOCKET, KAUTH_REQ_NETWORK_SOCKET_RAWSOCK,
+	    KAUTH_ARG(AF_INET6),
+	    KAUTH_ARG(SOCK_RAW),
+	    KAUTH_ARG(so->so_proto->pr_protocol));
+	if (error) {
+		return error;
+	}
+	s = splsoftnet();
+	error = soreserve(so, rip6_sendspace, rip6_recvspace);
+	if (error) {
+		splx(s);
+		return error;
+	}
+	if ((error = in6_pcballoc(so, &raw6cbtable)) != 0) {
+		splx(s);
+		return error;
+	}
+	splx(s);
+	in6p = sotoin6pcb(so);
+	in6p->in6p_ip6.ip6_nxt = proto;
+	in6p->in6p_cksum = -1;
+
+	in6p->in6p_icmp6filt = kmem_alloc(sizeof(struct icmp6_filter), KM_SLEEP);
+	if (in6p->in6p_icmp6filt == NULL) {
+		in6_pcbdetach(in6p);
+		return ENOMEM;
+	}
+	ICMP6_FILTER_SETPASSALL(in6p->in6p_icmp6filt);
+	KASSERT(solocked(so));
+	return error;
+}
+
+static void
+rip6_detach(struct socket *so)
+{
+	struct in6pcb *in6p = sotoin6pcb(so);
+
+	KASSERT(solocked(so));
+	KASSERT(in6p != NULL);
+
+	if (so == ip6_mrouter) {
+		ip6_mrouter_done();
+	}
+	/* xxx: RSVP */
+	if (in6p->in6p_icmp6filt != NULL) {
+		kmem_free(in6p->in6p_icmp6filt, sizeof(struct icmp6_filter));
+		in6p->in6p_icmp6filt = NULL;
+	}
+	in6_pcbdetach(in6p);
+}
+
+int
 rip6_usrreq(struct socket *so, int req, struct mbuf *m, 
 	struct mbuf *nam, struct mbuf *control, struct lwp *l)
 {
 	struct in6pcb *in6p = sotoin6pcb(so);
-	int s;
 	int error = 0;
 
 	if (req == PRU_CONTROL)
@@ -606,43 +665,6 @@ rip6_usrreq(struct socket *so, int req, struct mbuf *m,
 	}
 
 	switch (req) {
-	case PRU_ATTACH:
-		error = kauth_authorize_network(l->l_cred,
-		    KAUTH_NETWORK_SOCKET, KAUTH_REQ_NETWORK_SOCKET_RAWSOCK,
-		    KAUTH_ARG(AF_INET6),
-		    KAUTH_ARG(SOCK_RAW),
-		    KAUTH_ARG(so->so_proto->pr_protocol));
-		sosetlock(so);
-		if (in6p != NULL)
-			panic("rip6_attach");
-		if (error) {
-			break;
-		}
-		s = splsoftnet();
-		error = soreserve(so, rip6_sendspace, rip6_recvspace);
-		if (error != 0) {
-			splx(s);
-			break;
-		}
-		if ((error = in6_pcballoc(so, &raw6cbtable)) != 0) {
-			splx(s);
-			break;
-		}
-		splx(s);
-		in6p = sotoin6pcb(so);
-		in6p->in6p_ip6.ip6_nxt = (long)nam;
-		in6p->in6p_cksum = -1;
-
-		in6p->in6p_icmp6filt = malloc(sizeof(struct icmp6_filter),
-			M_PCB, M_NOWAIT);
-		if (in6p->in6p_icmp6filt == NULL) {
-			in6_pcbdetach(in6p);
-			error = ENOMEM;
-			break;
-		}
-		ICMP6_FILTER_SETPASSALL(in6p->in6p_icmp6filt);
-		break;
-
 	case PRU_DISCONNECT:
 		if ((so->so_state & SS_ISCONNECTED) == 0) {
 			error = ENOTCONN;
@@ -654,18 +676,7 @@ rip6_usrreq(struct socket *so, int req, struct mbuf *m,
 
 	case PRU_ABORT:
 		soisdisconnected(so);
-		/* Fallthrough */
-	case PRU_DETACH:
-		if (in6p == NULL)
-			panic("rip6_detach");
-		if (so == ip6_mrouter)
-			ip6_mrouter_done();
-		/* xxx: RSVP */
-		if (in6p->in6p_icmp6filt != NULL) {
-			free(in6p->in6p_icmp6filt, M_PCB);
-			in6p->in6p_icmp6filt = NULL;
-		}
-		in6_pcbdetach(in6p);
+		rip6_detach(so);
 		break;
 
 	case PRU_BIND:
@@ -677,7 +688,7 @@ rip6_usrreq(struct socket *so, int req, struct mbuf *m,
 			error = EINVAL;
 			break;
 		}
-		if (TAILQ_EMPTY(&ifnet) || addr->sin6_family != AF_INET6) {
+		if (!IFNET_FIRST() || addr->sin6_family != AF_INET6) {
 			error = EADDRNOTAVAIL;
 			break;
 		}
@@ -718,7 +729,7 @@ rip6_usrreq(struct socket *so, int req, struct mbuf *m,
 			error = EINVAL;
 			break;
 		}
-		if (TAILQ_EMPTY(&ifnet)) {
+		if (!IFNET_FIRST()) {
 			error = EADDRNOTAVAIL;
 			break;
 		}
@@ -881,3 +892,14 @@ sysctl_net_inet6_raw6_setup(struct sysctllog **clog)
 		       CTL_NET, PF_INET6, IPPROTO_RAW, RAW6CTL_STATS,
 		       CTL_EOL);
 }
+
+PR_WRAP_USRREQS(rip6)
+#define	rip6_attach		rip6_attach_wrapper
+#define	rip6_detach		rip6_detach_wrapper
+#define	rip6_usrreq		rip6_usrreq_wrapper
+
+const struct pr_usrreqs rip6_usrreqs = {
+	.pr_attach	= rip6_attach,
+	.pr_detach	= rip6_detach,
+	.pr_generic	= rip6_usrreq,
+};

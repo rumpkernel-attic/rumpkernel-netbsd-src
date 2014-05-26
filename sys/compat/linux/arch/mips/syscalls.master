@@ -1,4 +1,4 @@
-	$NetBSD: syscalls.master,v 1.50 2014/04/08 16:48:01 njoly Exp $  
+	$NetBSD: syscalls.master,v 1.54 2014/05/20 17:24:49 njoly Exp $  
 
 ;	@(#)syscalls.master	8.1 (Berkeley) 7/19/93
 
@@ -75,7 +75,7 @@
 12	NOARGS		{ int|sys||chdir(const char *path); }
 13	STD		{ int|linux_sys||time(linux_time_t *t); }
 14	STD		{ int|linux_sys||mknod(const char *path, linux_umode_t mode, \
-			    int dev); }
+			    unsigned dev); }
 15	NOARGS		{ int|sys||chmod(const char *path, int mode); }
 16	NOARGS		{ int|sys||__posix_lchown(const char *path, int uid, \
 			    int gid); }
@@ -158,8 +158,8 @@
 			    struct timezone *tzp); }
 79	STD		{ int|linux_sys||settimeofday(struct timeval50 *tp, \
 			    struct timezone *tzp); }
-80	NOARGS		{ int|sys||getgroups(u_int gidsetsize, gid_t *gidset); }
-81	NOARGS		{ int|sys||setgroups(u_int gidsetsize, gid_t *gidset); }
+80	NOARGS		{ int|sys||getgroups(int gidsetsize, gid_t *gidset); }
+81	NOARGS		{ int|sys||setgroups(int gidsetsize, gid_t *gidset); }
 82	UNIMPL		old_select
 83	NOARGS		{ int|sys||symlink(const char *path, const char *to); }
 84	NOARGS		{ int|compat_43_sys||lstat(const char *path, \
@@ -351,9 +351,9 @@
 199	STD		{ int|linux_sys||rt_sigsuspend(linux_sigset_t *unewset, \
 			    size_t sigsetsize); }
 200	STD		{ int|linux_sys||pread(int fd, char *buf, \
-			    size_t nbyte, linux_off_t offset); }
+			    size_t nbyte, off_t offset); }
 201	STD		{ int|linux_sys||pwrite(int fd, char *buf, \
-			    size_t nbyte, linux_off_t offset); }
+			    size_t nbyte, off_t offset); }
 202	NOARGS		{ int|sys||__posix_chown(const char *path, \
 			    int uid, int gid); }
 203	NOARGS		{ int|sys||__getcwd(char *bufp, size_t length); }
@@ -432,8 +432,8 @@
 251	UNIMPL		remap_file_pages
 252	STD		{ int|linux_sys||set_tid_address(int *tid); }
 253	UNIMPL		restart_syscall
-254	STD		{ int|linux_sys||fadvise64(int fd, \
-			    linux_off_t offset, size_t len, int advice); }
+254	STD		{ int|linux_sys||fadvise64(int fd, off_t offset, \
+			    size_t len, int advice); }
 255	STD		{ int|linux_sys||statfs64(const char *path, \
 			    size_t sz, struct linux_statfs64 *sp); }
 256	STD		{ int|linux_sys||fstatfs64(int fd, \

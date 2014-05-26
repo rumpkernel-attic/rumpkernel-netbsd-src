@@ -1,4 +1,4 @@
-/*	$NetBSD: protosw.h,v 1.44 2008/08/06 15:01:24 plunky Exp $	*/
+/*	$NetBSD: protosw.h,v 1.47 2014/05/20 19:04:00 rmind Exp $	*/
 
 /*-
  * Copyright (c) 1982, 1986, 1993
@@ -64,6 +64,7 @@ struct sockopt;
 struct domain;
 struct proc;
 struct lwp;
+struct pr_usrreqs;
 
 struct protosw {
 	int 	pr_type;		/* socket type used for */
@@ -81,10 +82,8 @@ struct protosw {
 	int	(*pr_ctloutput)		/* control output (from above) */
 			(int, struct socket *, struct sockopt *);
 
-/* user-protocol hook */
-	int	(*pr_usrreq)		/* user request: see list below */
-			(struct socket *, int, struct mbuf *,
-			     struct mbuf *, struct mbuf *, struct lwp *);
+/* user-protocol hooks */
+	const struct pr_usrreqs *pr_usrreqs;
 
 /* utility hooks */
 	void	(*pr_init)		/* initialization hook */
@@ -233,6 +232,14 @@ static const char * const prcorequests[] = {
 #endif
 
 #ifdef _KERNEL
+
+struct pr_usrreqs {
+	int	(*pr_attach)(struct socket *, int);
+	void	(*pr_detach)(struct socket *);
+	int	(*pr_generic)(struct socket *, int, struct mbuf *,
+	    struct mbuf *, struct mbuf *, struct lwp *);
+};
+
 /*
  * Monotonically increasing time values for slow and fast timers.
  */
@@ -263,14 +270,31 @@ void pfctlinput2(int, const struct sockaddr *, void *);
  */
 #include <sys/systm.h>	/* kernel_lock */
 
-#define	PR_WRAP_USRREQ(name)				\
+#define	PR_WRAP_USRREQS(name)				\
 static int						\
-name##_wrapper(struct socket *a, int b, struct mbuf *c,	\
-     struct mbuf *d, struct mbuf *e, struct lwp *f)	\
+name##_attach_wrapper(struct socket *a, int b)		\
 {							\
 	int rv;						\
 	KERNEL_LOCK(1, NULL);				\
-	rv = name(a, b, c, d, e, f);			\
+	rv = name##_attach(a, b);			\
+	KERNEL_UNLOCK_ONE(NULL);			\
+	return rv;					\
+}							\
+static void						\
+name##_detach_wrapper(struct socket *a)			\
+{							\
+	KERNEL_LOCK(1, NULL);				\
+	name##_detach(a);				\
+	KERNEL_UNLOCK_ONE(NULL);			\
+}							\
+static int						\
+name##_usrreq_wrapper(struct socket *a, int b,		\
+    struct mbuf *c, struct mbuf *d, struct mbuf *e,	\
+    struct lwp *f)					\
+{							\
+	int rv;						\
+	KERNEL_LOCK(1, NULL);				\
+	rv = name##_usrreq(a, b, c, d, e, f);		\
 	KERNEL_UNLOCK_ONE(NULL);			\
 	return rv;					\
 }

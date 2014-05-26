@@ -1,4 +1,4 @@
-/*	$NetBSD: linux32_unistd.c,v 1.36 2013/11/18 01:35:22 chs Exp $ */
+/*	$NetBSD: linux32_unistd.c,v 1.38 2014/05/18 09:30:00 njoly Exp $ */
 
 /*-
  * Copyright (c) 2006 Emmanuel Dreyfus, all rights reserved.
@@ -33,7 +33,7 @@
 
 #include <sys/cdefs.h>
 
-__KERNEL_RCSID(0, "$NetBSD: linux32_unistd.c,v 1.36 2013/11/18 01:35:22 chs Exp $");
+__KERNEL_RCSID(0, "$NetBSD: linux32_unistd.c,v 1.38 2014/05/18 09:30:00 njoly Exp $");
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -293,19 +293,13 @@ linux32_sys_dup3(struct lwp *l, const struct linux32_sys_dup3_args *uap,
 		syscallarg(int) to;
 		syscallarg(int) flags;
 	} */
-	struct sys_dup2_args ua;
-	int error;
+	struct linux_sys_dup3_args ua;
 
 	NETBSD32TO64_UAP(from);
 	NETBSD32TO64_UAP(to);
+	NETBSD32TO64_UAP(flags);
 
-	if ((error = sys_dup2(l, &ua, retval)))
-		return error;
-
-	if (SCARG(uap, flags) & LINUX_O_CLOEXEC)
-		fd_set_exclose(l, SCARG(uap, to), true);
-
-	return 0;
+	return linux_sys_dup3(l, &ua, retval);
 }
 
 
@@ -723,13 +717,14 @@ linux32_sys_pread(struct lwp *l,
 		syscallarg(int) fd;
 		syscallarg(netbsd32_voidp) buf;
 		syscallarg(netbsd32_size_t) nbyte;
-		syscallarg(linux32_off_t) offset;
+		syscallarg(netbsd32_off_t) offset;
 	} */
 	struct sys_pread_args pra;
 
 	SCARG(&pra, fd) = SCARG(uap, fd);
 	SCARG(&pra, buf) = SCARG_P32(uap, buf);
 	SCARG(&pra, nbyte) = SCARG(uap, nbyte);
+	SCARG(&pra, PAD) = 0;
 	SCARG(&pra, offset) = SCARG(uap, offset);
 
 	return sys_pread(l, &pra, retval);
@@ -746,13 +741,14 @@ linux32_sys_pwrite(struct lwp *l,
 		syscallarg(int) fd;
 		syscallarg(const netbsd32_voidp) buf;
 		syscallarg(netbsd32_size_t) nbyte;
-		syscallarg(linux32_off_t) offset;
+		syscallarg(netbsd32_off_t) offset;
 	} */
 	struct sys_pwrite_args pra;
 
 	SCARG(&pra, fd) = SCARG(uap, fd);
 	SCARG(&pra, buf) = SCARG_P32(uap, buf);
 	SCARG(&pra, nbyte) = SCARG(uap, nbyte);
+	SCARG(&pra, PAD) = 0;
 	SCARG(&pra, offset) = SCARG(uap, offset);
 
 	return sys_pwrite(l, &pra, retval);

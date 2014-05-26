@@ -1,4 +1,4 @@
-/*	$NetBSD: tcp_usrreq.c,v 1.171 2014/02/25 18:30:12 pooka Exp $	*/
+/*	$NetBSD: tcp_usrreq.c,v 1.177 2014/05/22 00:28:32 rmind Exp $	*/
 
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
@@ -94,14 +94,17 @@
  *	@(#)tcp_usrreq.c	8.5 (Berkeley) 6/21/95
  */
 
+/*
+ * TCP protocol interface to socket abstraction.
+ */
+
 #include <sys/cdefs.h>
-__KERNEL_RCSID(0, "$NetBSD: tcp_usrreq.c,v 1.171 2014/02/25 18:30:12 pooka Exp $");
+__KERNEL_RCSID(0, "$NetBSD: tcp_usrreq.c,v 1.177 2014/05/22 00:28:32 rmind Exp $");
 
 #include "opt_inet.h"
 #include "opt_ipsec.h"
 #include "opt_tcp_debug.h"
 #include "opt_mbuftrace.h"
-
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -154,18 +157,13 @@ __KERNEL_RCSID(0, "$NetBSD: tcp_usrreq.c,v 1.171 2014/02/25 18:30:12 pooka Exp $
 #include "opt_tcp_space.h"
 
 /*
- * TCP protocol interface to socket abstraction.
- */
-
-/*
  * Process a TCP user request for TCP tb.  If this is a send request
  * then m is the mbuf chain of send data.  If this is a timer expiration
  * (called from the software clock routine), then timertype tells which timer.
  */
-/*ARGSUSED*/
-int
-tcp_usrreq(struct socket *so, int req,
-    struct mbuf *m, struct mbuf *nam, struct mbuf *control, struct lwp *l)
+static int
+tcp_usrreq(struct socket *so, int req, struct mbuf *m, struct mbuf *nam,
+    struct mbuf *control, struct lwp *l)
 {
 	struct inpcb *inp;
 #ifdef INET6
@@ -178,6 +176,9 @@ tcp_usrreq(struct socket *so, int req,
 	int ostate = 0;
 #endif
 	int family;	/* family of the socket */
+
+	KASSERT(req != PRU_ATTACH);
+	KASSERT(req != PRU_DETACH);
 
 	family = so->so_proto->pr_domain->dom_family;
 
@@ -227,8 +228,7 @@ tcp_usrreq(struct socket *so, int req,
 		return (0);
 	}
 
-	if (req == PRU_ATTACH)
-		sosetlock(so);
+	KASSERT(solocked(so));
 
 	switch (family) {
 #ifdef INET
@@ -249,25 +249,20 @@ tcp_usrreq(struct socket *so, int req,
 		splx(s);
 		return EAFNOSUPPORT;
 	}
-
-#ifdef DIAGNOSTIC
+	KASSERT(!control || (req == PRU_SEND || req == PRU_SENDOOB));
 #ifdef INET6
-	if (inp && in6p)
-		panic("tcp_usrreq: both inp and in6p set to non-NULL");
-#endif
-	if (req != PRU_SEND && req != PRU_SENDOOB && control)
-		panic("tcp_usrreq: unexpected control mbuf");
+	/* XXX: KASSERT((inp != NULL) ^ (in6p != NULL)); */
 #endif
 	/*
 	 * When a TCP is attached to a socket, then there will be
 	 * a (struct inpcb) pointed at by the socket, and this
 	 * structure will point at a subsidary (struct tcpcb).
 	 */
-	if ((inp == 0
+	if ((inp == NULL
 #ifdef INET6
-	    && in6p == 0
+	    && in6p == NULL
 #endif
-	    ) && (req != PRU_ATTACH && req != PRU_SENSE))
+	    ) && req != PRU_SENSE)
 	{
 		error = EINVAL;
 		goto release;
@@ -298,35 +293,6 @@ tcp_usrreq(struct socket *so, int req,
 #endif
 
 	switch (req) {
-
-	/*
-	 * TCP attaches to socket via PRU_ATTACH, reserving space,
-	 * and an internet control block.
-	 */
-	case PRU_ATTACH:
-#ifndef INET6
-		if (inp != 0)
-#else
-		if (inp != 0 || in6p != 0)
-#endif
-		{
-			error = EISCONN;
-			break;
-		}
-		error = tcp_attach(so);
-		if (error)
-			break;
-		if ((so->so_options & SO_LINGER) && so->so_linger == 0)
-			so->so_linger = TCP_LINGERTIME;
-		tp = sototcpcb(so);
-		break;
-
-	/*
-	 * PRU_DETACH detaches the TCP protocol from the socket.
-	 */
-	case PRU_DETACH:
-		tp = tcp_disconnect(tp);
-		break;
 
 	/*
 	 * Give the socket an address.
@@ -837,22 +803,50 @@ int	tcp_sendspace = TCP_SENDSPACE;
 int	tcp_recvspace = TCP_RECVSPACE;
 
 /*
- * Attach TCP protocol to socket, allocating
- * internet protocol control block, tcp control block,
- * bufer space, and entering LISTEN state if to accept connections.
+ * tcp_attach: attach TCP protocol to socket, allocating internet protocol
+ * control block, TCP control block, buffer space and entering LISTEN state
+ * if to accept connections.
  */
-int
-tcp_attach(struct socket *so)
+static int
+tcp_attach(struct socket *so, int proto)
 {
 	struct tcpcb *tp;
 	struct inpcb *inp;
 #ifdef INET6
 	struct in6pcb *in6p;
 #endif
-	int error;
-	int family;	/* family of the socket */
+	int s, error, family;
+
+	/* Assign the lock (must happen even if we will error out). */
+	s = splsoftnet();
+	sosetlock(so);
+	KASSERT(solocked(so));
 
 	family = so->so_proto->pr_domain->dom_family;
+	switch (family) {
+#ifdef INET
+	case PF_INET:
+		inp = sotoinpcb(so);
+#ifdef INET6
+		in6p = NULL;
+#endif
+		break;
+#endif
+#ifdef INET6
+	case PF_INET6:
+		inp = NULL;
+		in6p = sotoin6pcb(so);
+		break;
+#endif
+	default:
+		error = EAFNOSUPPORT;
+		goto out;
+	}
+
+	KASSERT(inp == NULL);
+#ifdef INET6
+	KASSERT(in6p == NULL);
+#endif
 
 #ifdef MBUFTRACE
 	so->so_mowner = &tcp_sock_mowner;
@@ -862,7 +856,7 @@ tcp_attach(struct socket *so)
 	if (so->so_snd.sb_hiwat == 0 || so->so_rcv.sb_hiwat == 0) {
 		error = soreserve(so, tcp_sendspace, tcp_recvspace);
 		if (error)
-			return (error);
+			goto out;
 	}
 
 	so->so_rcv.sb_flags |= SB_AUTOSIZE;
@@ -873,7 +867,7 @@ tcp_attach(struct socket *so)
 	case PF_INET:
 		error = in_pcballoc(so, &tcbtable);
 		if (error)
-			return (error);
+			goto out;
 		inp = sotoinpcb(so);
 #ifdef INET6
 		in6p = NULL;
@@ -884,13 +878,14 @@ tcp_attach(struct socket *so)
 	case PF_INET6:
 		error = in6_pcballoc(so, &tcbtable);
 		if (error)
-			return (error);
+			goto out;
 		inp = NULL;
 		in6p = sotoin6pcb(so);
 		break;
 #endif
 	default:
-		return EAFNOSUPPORT;
+		error = EAFNOSUPPORT;
+		goto out;
 	}
 	if (inp)
 		tp = tcp_newtcpcb(family, (void *)inp);
@@ -901,7 +896,7 @@ tcp_attach(struct socket *so)
 	else
 		tp = NULL;
 
-	if (tp == 0) {
+	if (tp == NULL) {
 		int nofd = so->so_state & SS_NOFDREF;	/* XXX */
 
 		so->so_state &= ~SS_NOFDREF;	/* don't free the socket yet */
@@ -914,10 +909,53 @@ tcp_attach(struct socket *so)
 			in6_pcbdetach(in6p);
 #endif
 		so->so_state |= nofd;
-		return (ENOBUFS);
+		error = ENOBUFS;
+		goto out;
 	}
 	tp->t_state = TCPS_CLOSED;
-	return (0);
+	if ((so->so_options & SO_LINGER) && so->so_linger == 0) {
+		so->so_linger = TCP_LINGERTIME;
+	}
+out:
+	KASSERT(solocked(so));
+	splx(s);
+	return error;
+}
+
+static void
+tcp_detach(struct socket *so)
+{
+	struct inpcb *inp;
+#ifdef INET6
+	struct in6pcb *in6p;
+#endif
+	struct tcpcb *tp = NULL;
+	int s, family;
+
+	KASSERT(solocked(so));
+
+	s = splsoftnet();
+	family = so->so_proto->pr_domain->dom_family;
+	switch (family) {
+#ifdef INET
+	case PF_INET:
+		inp = sotoinpcb(so);
+		tp = intotcpcb(inp);
+		break;
+#endif
+#ifdef INET6
+	case PF_INET6:
+		in6p = sotoin6pcb(so);
+		tp = in6totcpcb(in6p);
+		break;
+#endif
+	default:
+		splx(s);
+		return;
+	}
+	KASSERT(tp != NULL);
+	(void)tcp_disconnect(tp);
+	splx(s);
 }
 
 /*
@@ -2152,3 +2190,14 @@ tcp_usrreq_init(void)
 	sysctl_net_inet_tcp_setup2(NULL, PF_INET6, "inet6", "tcp6");
 #endif
 }
+
+PR_WRAP_USRREQS(tcp)
+#define	tcp_attach	tcp_attach_wrapper
+#define	tcp_detach	tcp_detach_wrapper
+#define	tcp_usrreq	tcp_usrreq_wrapper
+
+const struct pr_usrreqs tcp_usrreqs = {
+	.pr_attach	= tcp_attach,
+	.pr_detach	= tcp_detach,
+	.pr_generic	= tcp_usrreq,
+};
