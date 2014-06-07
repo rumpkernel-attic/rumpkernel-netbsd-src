@@ -133,6 +133,35 @@ doclock(void *noarg)
 	}
 }
 
+static void
+sicall(struct softint_lev *si_lvl)
+{
+	struct softint_percpu *sip;
+	struct softint *si;
+	void (*func)(void *) = NULL;
+	void *funarg;
+	bool mpsafe;
+
+	sip = LIST_FIRST(&si_lvl->si_pending);
+	si = sip->sip_parent;
+
+	func = si->si_func;
+	funarg = si->si_arg;
+	mpsafe = si->si_flags & SI_MPSAFE;
+
+	sip->sip_onlist = false;
+	LIST_REMOVE(sip, sip_entries);
+	if (si->si_flags & SI_KILLME) {
+		softint_disestablish(si);
+		return;
+	}
+	if (!mpsafe)
+		KERNEL_LOCK(1, l);
+	func(funarg);
+	if (!mpsafe)
+		KERNEL_UNLOCK_ONE(l);
+}
+
 /*
  * Soft interrupt execution thread.  This thread is pinned to the
  * same CPU that scheduled the interrupt, so we don't need to do
@@ -141,11 +170,6 @@ doclock(void *noarg)
 static void
 sithread(void *arg)
 {
-	struct softint_percpu *sip;
-	struct softint *si;
-	void (*func)(void *) = NULL;
-	void *funarg;
-	bool mpsafe;
 	int mylevel = (uintptr_t)arg;
 	struct softint_lev *si_lvlp, *si_lvl;
 	struct cpu_data *cd = &curcpu()->ci_data;
@@ -154,30 +178,10 @@ sithread(void *arg)
 	si_lvl = &si_lvlp[mylevel];
 
 	for (;;) {
-		if (!LIST_EMPTY(&si_lvl->si_pending)) {
-			sip = LIST_FIRST(&si_lvl->si_pending);
-			si = sip->sip_parent;
-
-			func = si->si_func;
-			funarg = si->si_arg;
-			mpsafe = si->si_flags & SI_MPSAFE;
-
-			sip->sip_onlist = false;
-			LIST_REMOVE(sip, sip_entries);
-			if (si->si_flags & SI_KILLME) {
-				softint_disestablish(si);
-				continue;
-			}
-		} else {
+		if (!LIST_EMPTY(&si_lvl->si_pending))
+			sicall(si_lvl);
+		else
 			rump_schedlock_cv_wait(si_lvl->si_cv);
-			continue;
-		}
-
-		if (!mpsafe)
-			KERNEL_LOCK(1, curlwp);
-		func(funarg);
-		if (!mpsafe)
-			KERNEL_UNLOCK_ONE(curlwp);
 	}
 
 	panic("sithread unreachable");
@@ -347,7 +351,7 @@ softint_disestablish(void *cook)
 }
 
 void
-rump_softint_run(struct cpu_info *ci)
+rump_softint_run(struct lwp *l, struct cpu_info *ci)
 {
 	struct cpu_data *cd = &ci->ci_data;
 	struct softint_lev *si_lvl = cd->cpu_softcpu;
@@ -357,8 +361,12 @@ rump_softint_run(struct cpu_info *ci)
 		return;
 
 	for (i = 0; i < SOFTINT_COUNT; i++) {
-		if (!LIST_EMPTY(&si_lvl[i].si_pending))
-			rumpuser_cv_signal(si_lvl[i].si_cv);
+		if (!LIST_EMPTY(&si_lvl[i].si_pending)) {
+			if (l->l_flag & LW_SYSTEM)
+				sicall(&si_lvl[i]);
+			else
+				rumpuser_cv_signal(si_lvl[i].si_cv);
+		}
 	}
 }
 

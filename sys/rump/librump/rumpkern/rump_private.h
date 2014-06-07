@@ -169,7 +169,7 @@ void	rump_kernel_bigunwrap(int);
 void	rump_tsleep_init(void);
 
 void	rump_intr_init(int);
-void	rump_softint_run(struct cpu_info *);
+void	rump_softint_run(struct lwp *, struct cpu_info *);
 
 void	*rump_hypermalloc(size_t, int, bool, const char *);
 void	rump_hyperfree(void *, size_t);

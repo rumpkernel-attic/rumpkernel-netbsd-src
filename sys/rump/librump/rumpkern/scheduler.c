@@ -419,7 +419,7 @@ rump_unschedule_cpu_interlock(struct lwp *l, void *interlock)
 {
 
 	if ((l->l_pflag & LP_INTR) == 0)
-		rump_softint_run(l->l_cpu);
+		rump_softint_run(l, l->l_cpu);
 	rump_unschedule_cpu1(l, interlock);
 }
 
