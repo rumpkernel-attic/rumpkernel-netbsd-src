@@ -2192,7 +2192,6 @@ struct sys__sched_getparam_args {
 check_syscall_args(sys__sched_getparam)
 #endif /* !RUMP_CLIENT */
 
-#ifndef RUMP_CLIENT
 struct sys__sched_setaffinity_args {
 	syscallarg(pid_t) pid;
 	syscallarg(lwpid_t) lid;
@@ -2200,9 +2199,7 @@ struct sys__sched_setaffinity_args {
 	syscallarg(const cpuset_t *) cpuset;
 };
 check_syscall_args(sys__sched_setaffinity)
-#endif /* !RUMP_CLIENT */
 
-#ifndef RUMP_CLIENT
 struct sys__sched_getaffinity_args {
 	syscallarg(pid_t) pid;
 	syscallarg(lwpid_t) lid;
@@ -2210,7 +2207,6 @@ struct sys__sched_getaffinity_args {
 	syscallarg(cpuset_t *) cpuset;
 };
 check_syscall_args(sys__sched_getaffinity)
-#endif /* !RUMP_CLIENT */
 
 struct sys_fsync_range_args {
 	syscallarg(int) fd;
