@@ -13,6 +13,10 @@
 #include <sys/mount.h>
 #ifndef RUMP_CLIENT
 #include <sys/sched.h>
+#else
+typedef int32_t lwpid_t;
+struct _cpuset;
+typedef struct _cpuset cpuset_t;
 #endif
 #include <sys/socket.h>
 
