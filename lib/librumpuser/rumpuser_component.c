@@ -62,6 +62,17 @@ rumpuser_component_schedule(void *cookie)
 }
 
 void
+rumpuser_component_schedule_intr(void *cookie)
+{
+	int nlocks = (int)(intptr_t)cookie;
+	struct lwp *l;
+
+	rumpkern_sched(nlocks, NULL);
+	l = rumpuser__hyp.hyp_lwproc_curlwp();
+	l->l_pflag |= LP_CALLINTR;
+}
+
+void
 rumpuser_component_kthread(void)
 {
 

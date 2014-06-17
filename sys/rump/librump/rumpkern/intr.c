@@ -362,12 +362,13 @@ rump_softint_run(struct lwp *l, struct cpu_info *ci)
 
 	for (i = 0; i < SOFTINT_COUNT; i++) {
 		if (!LIST_EMPTY(&si_lvl[i].si_pending)) {
-			if (l->l_flag & LW_SYSTEM)
+			if (l->l_pflag & LP_CALLINTR)
 				sicall(&si_lvl[i]);
 			else
 				rumpuser_cv_signal(si_lvl[i].si_cv);
 		}
 	}
+	l->l_pflag &= ~LP_CALLINTR;
 }
 
 bool
