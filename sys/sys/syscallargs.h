@@ -11,7 +11,7 @@
 #define	_SYS_SYSCALLARGS_H_
 
 #include <sys/mount.h>
-#ifndef RUMP_CLIENT
+#ifdef __NetBSD__
 #include <sys/sched.h>
 #else
 typedef int32_t lwpid_t;
