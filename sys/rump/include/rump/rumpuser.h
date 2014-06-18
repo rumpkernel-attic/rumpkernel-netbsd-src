@@ -54,6 +54,7 @@ struct rumpuser_hyperup {
 	void (*hyp_unschedule)(void);
 	void (*hyp_backend_unschedule)(int, int *, void *);
 	void (*hyp_backend_schedule)(int, void *);
+	void (*hyp_backend_schedule_intr)(int, void *);
 	void (*hyp_lwproc_switch)(struct lwp *);
 	void (*hyp_lwproc_release)(void);
 	int (*hyp_lwproc_rfork)(void *, int, const char *);

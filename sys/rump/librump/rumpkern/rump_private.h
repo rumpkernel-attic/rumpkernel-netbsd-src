@@ -159,6 +159,7 @@ int	rump_schedlock_cv_timedwait(struct rumpuser_cv *,
 				    const struct timespec *);
 
 void	rump_user_schedule(int, void *);
+void	rump_user_schedule_intr(int, void *);
 void	rump_user_unschedule(int, int *, void *);
 
 void	rump_cpu_attach(struct cpu_info *);

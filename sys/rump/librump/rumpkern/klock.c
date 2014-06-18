@@ -166,3 +166,16 @@ rump_user_schedule(int nlocks, void *interlock)
 	if (nlocks)
 		_kernel_lock(nlocks);
 }
+
+void
+rump_user_schedule_intr(int nlocks, void *interlock)
+{
+
+	struct lwp *l = curlwp;
+
+	l->l_pflag |= LP_CALLINTR;
+	rump_schedule_cpu_interlock(l, interlock);
+
+	if (nlocks)
+		_kernel_lock(nlocks);
+}

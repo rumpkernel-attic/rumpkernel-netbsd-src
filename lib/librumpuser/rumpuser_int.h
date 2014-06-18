@@ -47,6 +47,13 @@ rumpkern_sched(int nlocks, void *interlock)
 	rumpuser__hyp.hyp_backend_schedule(nlocks, interlock);
 }
 
+static inline void
+rumpkern_sched_intr(int nlocks, void *interlock)
+{
+
+	rumpuser__hyp.hyp_backend_schedule_intr(nlocks, interlock);
+}
+
 #define KLOCK_WRAP(a)							\
 do {									\
 	int nlocks;							\
