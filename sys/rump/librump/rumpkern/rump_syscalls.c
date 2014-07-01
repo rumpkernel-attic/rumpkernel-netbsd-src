@@ -2894,6 +2894,60 @@ rump___sysimpl_kevent(int fd, const struct kevent * changelist, size_t nchanges,
 }
 rsys_aliases(compat_50_kevent,rump___sysimpl_kevent);
 
+int rump___sysimpl__sched_setaffinity(pid_t, lwpid_t, size_t, const cpuset_t *);
+int
+rump___sysimpl__sched_setaffinity(pid_t pid, lwpid_t lid, size_t size, const cpuset_t * cpuset)
+{
+	register_t retval[2];
+	int error = 0;
+	int rv = -1;
+	struct sys__sched_setaffinity_args callarg;
+
+	memset(&callarg, 0, sizeof(callarg));
+	SPARG(&callarg, pid) = pid;
+	SPARG(&callarg, lid) = lid;
+	SPARG(&callarg, size) = size;
+	SPARG(&callarg, cpuset) = cpuset;
+
+	error = rsys_syscall(SYS__sched_setaffinity, &callarg, sizeof(callarg), retval);
+	rsys_seterrno(error);
+	if (error == 0) {
+		if (sizeof(int) > sizeof(register_t))
+			rv = *(int *)retval;
+		else
+			rv = *retval;
+	}
+	return rv;
+}
+rsys_aliases(_sched_setaffinity,rump___sysimpl__sched_setaffinity);
+
+int rump___sysimpl__sched_getaffinity(pid_t, lwpid_t, size_t, cpuset_t *);
+int
+rump___sysimpl__sched_getaffinity(pid_t pid, lwpid_t lid, size_t size, cpuset_t * cpuset)
+{
+	register_t retval[2];
+	int error = 0;
+	int rv = -1;
+	struct sys__sched_getaffinity_args callarg;
+
+	memset(&callarg, 0, sizeof(callarg));
+	SPARG(&callarg, pid) = pid;
+	SPARG(&callarg, lid) = lid;
+	SPARG(&callarg, size) = size;
+	SPARG(&callarg, cpuset) = cpuset;
+
+	error = rsys_syscall(SYS__sched_getaffinity, &callarg, sizeof(callarg), retval);
+	rsys_seterrno(error);
+	if (error == 0) {
+		if (sizeof(int) > sizeof(register_t))
+			rv = *(int *)retval;
+		else
+			rv = *retval;
+	}
+	return rv;
+}
+rsys_aliases(_sched_getaffinity,rump___sysimpl__sched_getaffinity);
+
 int rump___sysimpl_fsync_range(int, int, off_t, off_t);
 int
 rump___sysimpl_fsync_range(int fd, int flags, off_t start, off_t length)
@@ -6205,10 +6259,10 @@ struct sysent rump_sysent[] = {
 	    (sy_call_t *)rumpns_enosys }, 	/* 346 = _sched_setparam */
 	{ 0, 0, SYCALL_NOSYS,
 	    (sy_call_t *)rumpns_enosys }, 	/* 347 = _sched_getparam */
-	{ 0, 0, SYCALL_NOSYS,
-	    (sy_call_t *)rumpns_enosys }, 	/* 348 = _sched_setaffinity */
-	{ 0, 0, SYCALL_NOSYS,
-	    (sy_call_t *)rumpns_enosys }, 	/* 349 = _sched_getaffinity */
+	{ ns(struct sys__sched_setaffinity_args), 0,
+	   (sy_call_t *)rumpns_enosys },	/* 348 = _sched_setaffinity */
+	{ ns(struct sys__sched_getaffinity_args), 0,
+	   (sy_call_t *)rumpns_enosys },	/* 349 = _sched_getaffinity */
 	{ 0, 0, SYCALL_NOSYS,
 	    (sy_call_t *)rumpns_enosys }, 	/* 350 = sched_yield */
 	{ 0, 0, SYCALL_NOSYS,

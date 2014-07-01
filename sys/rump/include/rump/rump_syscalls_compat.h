@@ -66,6 +66,10 @@
 
 #else /* !__NetBSD__ */
 
+typedef int32_t lwpid_t;
+struct _cpuset;
+typedef struct _cpuset cpuset_t;
+
 #ifndef __RENAME
 #ifdef __ELF__
 #define __RUMPSTRINGIFY(x) #x

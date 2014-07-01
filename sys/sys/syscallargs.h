@@ -11,8 +11,12 @@
 #define	_SYS_SYSCALLARGS_H_
 
 #include <sys/mount.h>
-#ifndef RUMP_CLIENT
+#ifdef __NetBSD__
 #include <sys/sched.h>
+#else
+typedef int32_t lwpid_t;
+struct _cpuset;
+typedef struct _cpuset cpuset_t;
 #endif
 #include <sys/socket.h>
 
@@ -2192,7 +2196,6 @@ struct sys__sched_getparam_args {
 check_syscall_args(sys__sched_getparam)
 #endif /* !RUMP_CLIENT */
 
-#ifndef RUMP_CLIENT
 struct sys__sched_setaffinity_args {
 	syscallarg(pid_t) pid;
 	syscallarg(lwpid_t) lid;
@@ -2200,9 +2203,7 @@ struct sys__sched_setaffinity_args {
 	syscallarg(const cpuset_t *) cpuset;
 };
 check_syscall_args(sys__sched_setaffinity)
-#endif /* !RUMP_CLIENT */
 
-#ifndef RUMP_CLIENT
 struct sys__sched_getaffinity_args {
 	syscallarg(pid_t) pid;
 	syscallarg(lwpid_t) lid;
@@ -2210,7 +2211,6 @@ struct sys__sched_getaffinity_args {
 	syscallarg(cpuset_t *) cpuset;
 };
 check_syscall_args(sys__sched_getaffinity)
-#endif /* !RUMP_CLIENT */
 
 struct sys_fsync_range_args {
 	syscallarg(int) fd;
