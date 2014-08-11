@@ -249,6 +249,7 @@ extern int		maxlwp __read_mostly;	/* max number of lwps */
 #define	LP_SYSCTLWRITE	0x00000080 /* sysctl write lock held */
 #define	LP_MUSTJOIN	0x00000100 /* Must join kthread on exit */
 #define	LP_VFORKWAIT	0x00000200 /* Waiting at vfork() for a child */
+#define	LP_CALLINTR	0x00000400 /* Call pending softints on unschedule */
 #define	LP_TIMEINTR	0x00010000 /* Time this soft interrupt */
 #define	LP_RUNNING	0x20000000 /* Active on a CPU */
 #define	LP_BOUND	0x80000000 /* Bound to a CPU */

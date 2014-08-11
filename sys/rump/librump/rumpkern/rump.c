@@ -163,19 +163,20 @@ spgetpid(void)
 }
 
 static const struct rumpuser_hyperup hyp = {
-	.hyp_schedule		= rump_schedule,
-	.hyp_unschedule		= rump_unschedule,
-	.hyp_backend_unschedule	= rump_user_unschedule,
-	.hyp_backend_schedule	= rump_user_schedule,
-	.hyp_lwproc_switch	= rump_lwproc_switch,
-	.hyp_lwproc_release	= rump_lwproc_releaselwp,
-	.hyp_lwproc_rfork	= rump_hyp_rfork,
-	.hyp_lwproc_newlwp	= rump_lwproc_newlwp,
-	.hyp_lwproc_curlwp	= rump_lwproc_curlwp,
-	.hyp_lwpexit		= rump_hyp_lwpexit,
-	.hyp_syscall		= rump_hyp_syscall,
-	.hyp_execnotify		= rump_hyp_execnotify,
-	.hyp_getpid		= spgetpid,
+	.hyp_schedule			= rump_schedule,
+	.hyp_unschedule			= rump_unschedule,
+	.hyp_backend_unschedule		= rump_user_unschedule,
+	.hyp_backend_schedule		= rump_user_schedule,
+	.hyp_backend_schedule_intr	= rump_user_schedule_intr,
+	.hyp_lwproc_switch		= rump_lwproc_switch,
+	.hyp_lwproc_release		= rump_lwproc_releaselwp,
+	.hyp_lwproc_rfork		= rump_hyp_rfork,
+	.hyp_lwproc_newlwp		= rump_lwproc_newlwp,
+	.hyp_lwproc_curlwp		= rump_lwproc_curlwp,
+	.hyp_lwpexit			= rump_hyp_lwpexit,
+	.hyp_syscall			= rump_hyp_syscall,
+	.hyp_execnotify			= rump_hyp_execnotify,
+	.hyp_getpid			= spgetpid,
 };
 
 int

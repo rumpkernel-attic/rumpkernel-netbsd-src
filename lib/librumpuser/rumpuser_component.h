@@ -30,6 +30,7 @@
 
 void *	rumpuser_component_unschedule(void);
 void	rumpuser_component_schedule(void *);
+void	rumpuser_component_schedule_intr(void *);
 int	rumpuser_component_errtrans(int);
 
 void	rumpuser_component_kthread(void);

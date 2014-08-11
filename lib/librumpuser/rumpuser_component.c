@@ -62,6 +62,14 @@ rumpuser_component_schedule(void *cookie)
 }
 
 void
+rumpuser_component_schedule_intr(void *cookie)
+{
+	int nlocks = (int)(intptr_t)cookie;
+
+	rumpkern_sched_intr(nlocks, NULL);
+}
+
+void
 rumpuser_component_kthread(void)
 {
 
